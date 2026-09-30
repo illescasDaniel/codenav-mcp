@@ -1,0 +1,91 @@
+[project]
+name = "codenav-mcp"
+version = "0.1.1"
+description = "MCP server exposing ty's language-server features (hover, definition, references, workspace symbol search, diagnostics) as MCP tools"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["mcp", "model-context-protocol", "ty", "lsp", "python", "code-navigation", "ai-agents"]
+classifiers = [
+	"Development Status :: 4 - Beta",
+	"Intended Audience :: Developers",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3 :: Only",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Programming Language :: Python :: 3.14",
+	"Topic :: Software Development",
+]
+authors = [{ name = "Daniel Illescas Romero", email = "contact@daniel-ir.eu" }]
+dependencies = [
+	"mcp>=2.2.0",
+	"ty>=0.0.75",
+	"mcp-nav-shared>=0.1.0,<0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/illescasDaniel/codenav-mcp"
+Repository = "https://github.com/illescasDaniel/codenav-mcp"
+Issues = "https://github.com/illescasDaniel/codenav-mcp/issues"
+
+[project.scripts]
+codenav-mcp = "codenav_mcp.server:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+	"pytest>=9.1",
+	"pytest-timeout>=2.4",
+	"ruff>=0.15",
+	"taskipy>=1.14",
+]
+uploader = [
+	"twine>=6.2",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.format]
+indent-style = "tab"
+
+[tool.ruff.lint]
+select = ["F", "I", "E", "S", "B", "ANN"]
+fixable = ["ALL"]
+ignore = ["E501", "ANN401"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S603", "ANN"]
+
+[tool.taskipy.tasks]
+sync-uploader = { cmd = "uv sync --group dev --group uploader", help = "dev + uploader (twine) groups, needed by upload" }
+test = { cmd = "uv run pytest", help = "run the tests" }
+lint = { cmd = "uv run ruff check . && uv run ruff format --check .", help = "ruff lint + format check" }
+format = { cmd = "uv run ruff check --fix . && uv run ruff format .", help = "format code" }
+upload = { cmd = "bash scripts/publish.sh", help = "build + upload to PyPI (--testpypi, --skip-existing, --build-only after --)" }
+test-package = { cmd = "bash scripts/test_package.sh", help = "install the published package in a fresh venv and smoke-test it (--testpypi after --)" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -rs"
+pythonpath = ["src"]
+timeout = 60
+timeout_method = "thread"
+markers = [
+	"integration: live language-server smoke test",
+]
