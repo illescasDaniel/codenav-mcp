@@ -95,13 +95,16 @@ def _replace_stmt_lines(text: str, stmt: ImportStmt, replacement: str) -> str:
 	return "".join(lines[: stmt.first_line - 1]) + replacement + "".join(lines[stmt.last_line :])
 
 
-def remove_names(text: str, names: set[str]) -> str:
-	"""Drop `names` (as bound in the module: the alias or last component) from the module-level imports."""
+def remove_names(text: str, names: set[str], *, only_line: int | None = None) -> str:
+	"""Drop `names` (as bound in the module: the alias or last component) from the module-level imports,
+	or only from the import statement starting on `only_line`."""
 	tree = parse_python(text)
 	lines = source_lines(text)
 	unit = detect_indent_unit(text)
 	edits: list[tuple[ImportStmt, str]] = []
 	for stmt in module_imports(tree):
+		if only_line is not None and stmt.first_line != only_line:
+			continue
 		kept = [alias for alias, bound in zip(stmt.aliases, stmt.bound_names, strict=True) if bound not in names]
 		if len(kept) == len(stmt.aliases):
 			continue
@@ -165,12 +168,12 @@ def add_from_import(text: str, module: str, names: list[str | tuple[str, str | N
 	return _insert_statement(text, tree, render_import(module, wanted, level=level, indent_unit=unit))
 
 
-def add_import(text: str, module: str) -> str:
-	"""Make `import <module>` true at module level."""
+def add_import(text: str, module: str, asname: str | None = None) -> str:
+	"""Make `import <module> [as <asname>]` true at module level."""
 	tree = parse_python(text)
-	if any(a == module for s in module_imports(tree) if not s.is_from for a, asname in s.aliases if not asname):
+	if any(a == module and b == asname for s in module_imports(tree) if not s.is_from for a, b in s.aliases):
 		return text
-	return _insert_statement(text, tree, f"import {module}\n")
+	return _insert_statement(text, tree, render_import(None, [(module, asname)]))
 
 
 def _insert_statement(text: str, tree: ast.Module, statement: str) -> str:

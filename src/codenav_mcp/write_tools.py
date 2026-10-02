@@ -30,7 +30,7 @@ from codenav_mcp.writes import PYTHON_SUFFIXES, errors_after_write, finish_plan
 _PROBE_PATH = Path(".codenav_probe_rename.py")
 
 
-def _conforms_probe(session: Session) -> Any:
+def conforms_probe(session: Session) -> Any:
 	"""A `conforms(port, candidate)` check that asks ty whether the class is assignable to the port."""
 	srv = tool_base.server()
 
@@ -105,7 +105,7 @@ async def rename_symbol(
 			target,
 			new_name,
 			linked=linked,
-			conforms=_conforms_probe(session) if linked else None,
+			conforms=conforms_probe(session) if linked else None,
 		)
 		outcome = await finish_plan(
 			session.client,
