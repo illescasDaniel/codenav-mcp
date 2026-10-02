@@ -900,10 +900,10 @@ async def implementations(
 
 def _register_write_tools() -> None:
 	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
-	from codenav_mcp import tool_base, write_tools
+	from codenav_mcp import symbol_tools, tool_base, write_tools
 
 	tool_base.bind(sys.modules[__name__])
-	for tool_module in (write_tools,):
+	for tool_module in (write_tools, symbol_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
 			mcp.tool(annotations=tool_annotations)(_notices.tool(fn))
 

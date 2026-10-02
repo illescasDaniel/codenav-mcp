@@ -144,25 +144,25 @@ def _insertion_point(tree: ast.Module) -> tuple[int, bool]:
 	return last, saw_import
 
 
-def add_from_import(text: str, module: str, names: list[str], *, level: int = 0) -> str:
+def add_from_import(text: str, module: str, names: list[str | tuple[str, str | None]], *, level: int = 0) -> str:
 	"""Make `from <module> import <names>` true at module level, merging into an existing
-	import from the same module when there is one. Names already imported are left alone."""
+	import from the same module when there is one. Names (or `(name, asname)` pairs) that are
+	already bound by an import are left alone."""
+	pairs = [(item, None) if isinstance(item, str) else item for item in names]
 	tree = parse_python(text)
 	unit = detect_indent_unit(text)
 	existing = [
 		s for s in module_imports(tree) if s.is_from and not s.conditional and s.module == module and s.level == level
 	]
 	already = {bound for s in module_imports(tree) for bound in s.bound_names}
-	wanted = [name for name in names if name not in already]
+	wanted = [(name, asname) for name, asname in pairs if (asname or name) not in already]
 	if not wanted:
 		return text
 	if existing and all(alias != "*" for s in existing for alias, _ in s.aliases):
 		stmt = existing[0]
-		merged = [*stmt.aliases, *((name, None) for name in wanted)]
+		merged = [*stmt.aliases, *wanted]
 		return _replace_stmt_lines(text, stmt, render_import(module, merged, level=level, indent_unit=unit))
-	return _insert_statement(
-		text, tree, render_import(module, [(name, None) for name in wanted], level=level, indent_unit=unit)
-	)
+	return _insert_statement(text, tree, render_import(module, wanted, level=level, indent_unit=unit))
 
 
 def add_import(text: str, module: str) -> str:

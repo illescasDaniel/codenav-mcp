@@ -145,3 +145,18 @@ def find_dependents(
 			if len(dependents) >= limit:
 				break
 	return dependents
+
+
+def import_from_targets(node: ast.ImportFrom, own_names: set[str], *, is_package_init: bool = False) -> set[str]:
+	"""Absolute module names a `from ... import` statement refers to (relative levels resolved
+	against the importing file's own module names)."""
+	if node.level == 0:
+		return {node.module} if node.module else set()
+	resolved: set[str] = set()
+	for own in own_names:
+		parts = [*own.split("."), *(["__init__"] if is_package_init else [])]
+		keep = len(parts) - node.level
+		if keep < 0:
+			continue
+		resolved.add(".".join([*parts[:keep], *([node.module] if node.module else [])]))
+	return {name for name in resolved if name}
