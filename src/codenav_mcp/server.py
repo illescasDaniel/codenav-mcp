@@ -21,6 +21,7 @@ import ast
 import asyncio
 import logging
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -895,6 +896,19 @@ async def implementations(
 		lines += ["", "Method-name matches that don't type-check as the port:"]
 		lines += [*unverified, *unverified_extra]
 	return "\n".join(lines)
+
+
+def _register_write_tools() -> None:
+	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
+	from codenav_mcp import tool_base, write_tools
+
+	tool_base.bind(sys.modules[__name__])
+	for tool_module in (write_tools,):
+		for fn, tool_annotations in tool_module.TOOLS:
+			mcp.tool(annotations=tool_annotations)(_notices.tool(fn))
+
+
+_register_write_tools()
 
 
 def main() -> None:
