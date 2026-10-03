@@ -17,8 +17,10 @@ Run standalone for manual testing:
 
 from __future__ import annotations
 
+import argparse
 import ast
 import asyncio
+import importlib.metadata
 import logging
 import re
 import sys
@@ -916,8 +918,23 @@ def _register_write_tools() -> None:
 _register_write_tools()
 
 
-def main() -> None:
+def _parse_args(argv: list[str]) -> None:
+	"""Handle `--help` / `--version`; the server itself takes no arguments (see the README's Environment table)."""
+	parser = argparse.ArgumentParser(
+		prog="codenav-mcp",
+		description=(
+			"MCP server (stdio) for Python code navigation and editing, backed by ty. "
+			"Started by an MCP client, it waits for JSON-RPC on stdin. Configure it through "
+			"CODENAV_MCP_* environment variables."
+		),
+	)
+	parser.add_argument("--version", action="version", version=f"%(prog)s {importlib.metadata.version('codenav-mcp')}")
+	parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
 	"""Console entry point: serve over stdio."""
+	_parse_args(sys.argv[1:] if argv is None else argv)
 	mcp.run(transport="stdio")
 
 
