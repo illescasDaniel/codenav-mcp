@@ -55,7 +55,7 @@ def test_given_method_when_replace_symbol_with_space_indented_source_then_tabs_a
 	# when
 	text = _run(
 		loop,
-		symbol_tools.replace_symbol(
+		symbol_tools._replace_symbol(
 			name="Cart.add",
 			source="    def add(self, price: int, qty: int = 1) -> None:\n        for _ in range(qty):\n            self.items.append(helper(price))\n",
 		),
@@ -75,7 +75,7 @@ def test_given_method_when_replace_symbol_with_space_indented_source_then_tabs_a
 
 def test_given_decorated_property_when_replace_without_decorator_then_dropped_decorator_reported(project, loop):
 	# when
-	text = _run(loop, symbol_tools.replace_symbol(name="Cart.total", source="def total(self) -> int:\n    return 0\n"))
+	text = _run(loop, symbol_tools._replace_symbol(name="Cart.total", source="def total(self) -> int:\n    return 0\n"))
 	# then
 	assert "decorators not in the new source were removed: @property" in text
 	assert "new error(s)" in text and "0 new error(s)" not in text  # shop.py uses `cart.total` as a value
@@ -86,7 +86,7 @@ def test_given_signature_change_when_replace_symbol_with_gate_then_blocked_and_u
 	# when
 	text = _run(
 		loop,
-		symbol_tools.replace_symbol(name="helper", source="def helper() -> int:\n    return 1\n", max_new_errors=0),
+		symbol_tools._replace_symbol(name="helper", source="def helper() -> int:\n    return 1\n", max_new_errors=0),
 	)
 	# then
 	assert "NOT applied" in text
@@ -97,9 +97,9 @@ def test_given_invalid_source_when_replace_symbol_then_rejected_and_file_untouch
 	# given
 	before = (project / "src/pkg/cart.py").read_text()
 	# when
-	broken = _run(loop, symbol_tools.replace_symbol(name="helper", source="def helper(:\n    pass\n"))
-	two = _run(loop, symbol_tools.replace_symbol(name="helper", source="def a(): ...\ndef b(): ...\n"))
-	var = _run(loop, symbol_tools.replace_symbol(name="Cart.items", source="items = []\n"))
+	broken = _run(loop, symbol_tools._replace_symbol(name="helper", source="def helper(:\n    pass\n"))
+	two = _run(loop, symbol_tools._replace_symbol(name="helper", source="def a(): ...\ndef b(): ...\n"))
+	var = _run(loop, symbol_tools._replace_symbol(name="Cart.items", source="items = []\n"))
 	# then
 	assert "syntax error" in broken
 	assert "exactly one function or class" in two
@@ -111,7 +111,7 @@ def test_given_class_when_replace_symbol_then_comment_above_is_kept_and_imports_
 	# when
 	_run(
 		loop,
-		symbol_tools.replace_symbol(
+		symbol_tools._replace_symbol(
 			name="Cart",
 			source="class Cart:\n    total_cache: Decimal | None = None\n",
 			imports=["from decimal import Decimal"],
@@ -128,7 +128,7 @@ def test_given_after_symbol_when_insert_symbol_then_spacing_and_indent_follow_pe
 	# when
 	_run(
 		loop,
-		symbol_tools.insert_symbol(
+		symbol_tools._insert_symbol(
 			source="def remove(self, price: int) -> None:\n    self.items.remove(price)\n",
 			file_path="src/pkg/cart.py",
 			after="Cart.add",
@@ -136,7 +136,7 @@ def test_given_after_symbol_when_insert_symbol_then_spacing_and_indent_follow_pe
 	)
 	_run(
 		loop,
-		symbol_tools.insert_symbol(
+		symbol_tools._insert_symbol(
 			source="def second_helper() -> int:\n    return 2\n", file_path="src/pkg/cart.py", after="helper"
 		),
 	)
@@ -154,7 +154,7 @@ def test_given_into_class_when_insert_symbol_then_appended_to_class_body(project
 	# when
 	_run(
 		loop,
-		symbol_tools.insert_symbol(
+		symbol_tools._insert_symbol(
 			source="def clear(self) -> None:\n    self.items.clear()\n", file_path="src/pkg/cart.py", into="Cart"
 		),
 	)
@@ -169,7 +169,7 @@ def test_given_placeholder_class_when_insert_into_then_pass_replaced(project, lo
 	# when
 	_run(
 		loop,
-		symbol_tools.insert_symbol(
+		symbol_tools._insert_symbol(
 			source="def ping(self) -> str:\n    return 'pong'\n", file_path="src/pkg/empty_class.py", into="Marker"
 		),
 	)
@@ -181,10 +181,10 @@ def test_given_placeholder_class_when_insert_into_then_pass_replaced(project, lo
 
 def test_given_no_anchor_when_insert_symbol_then_end_of_file_and_before_works(project, loop):
 	# when
-	_run(loop, symbol_tools.insert_symbol(source="def last() -> int:\n    return 9\n", file_path="src/pkg/cart.py"))
+	_run(loop, symbol_tools._insert_symbol(source="def last() -> int:\n    return 9\n", file_path="src/pkg/cart.py"))
 	_run(
 		loop,
-		symbol_tools.insert_symbol(
+		symbol_tools._insert_symbol(
 			source="def first_method(self) -> None:\n    pass\n", file_path="src/pkg/cart.py", before="Cart.__init__"
 		),
 	)
@@ -196,16 +196,16 @@ def test_given_no_anchor_when_insert_symbol_then_end_of_file_and_before_works(pr
 
 
 def test_given_existing_name_when_insert_symbol_then_refused(project, loop):
-	text = _run(loop, symbol_tools.insert_symbol(source="def helper(): ...\n", file_path="src/pkg/cart.py"))
+	text = _run(loop, symbol_tools._insert_symbol(source="def helper(): ...\n", file_path="src/pkg/cart.py"))
 	assert "already defined in that scope" in text
 	assert "no definition named 'nope'" in _run(
-		loop, symbol_tools.insert_symbol(source="def z(): ...\n", file_path="src/pkg/cart.py", after="nope")
+		loop, symbol_tools._insert_symbol(source="def z(): ...\n", file_path="src/pkg/cart.py", after="nope")
 	)
 
 
 def test_given_used_symbol_when_safe_delete_then_refused_with_users_listed(project, loop):
 	# when
-	text = _run(loop, symbol_tools.safe_delete(name="helper"))
+	text = _run(loop, symbol_tools._safe_delete(name="helper"))
 	# then
 	assert text.startswith("Not deleted: helper is still used in 1 file(s)")
 	assert "cart.py" in text
@@ -214,7 +214,7 @@ def test_given_used_symbol_when_safe_delete_then_refused_with_users_listed(proje
 
 def test_given_only_imports_remaining_when_safe_delete_then_symbol_and_import_removed(project, loop):
 	# when
-	text = _run(loop, symbol_tools.safe_delete(name="unused_thing"))
+	text = _run(loop, symbol_tools._safe_delete(name="unused_thing"))
 	# then
 	assert "Applied as edit" in text and "removed its import from src/pkg/shop.py" in text
 	assert "unused_thing" not in (project / "src/pkg/cart.py").read_text()
@@ -230,14 +230,14 @@ def test_given_only_member_when_safe_delete_then_pass_left_behind(project, loop)
 	# given
 	(project / "src/pkg/solo.py").write_text("class Solo:\n\tdef only(self) -> int:\n\t\treturn 1\n", encoding="utf-8")
 	# when
-	_run(loop, symbol_tools.safe_delete(name="Solo.only"))
+	_run(loop, symbol_tools._safe_delete(name="Solo.only"))
 	# then
 	assert (project / "src/pkg/solo.py").read_text() == "class Solo:\n\tpass\n"
 
 
 def test_given_force_when_safe_delete_used_symbol_then_deleted_and_breakage_reported(project, loop):
 	# when
-	text = _run(loop, symbol_tools.safe_delete(name="helper", force=True))
+	text = _run(loop, symbol_tools._safe_delete(name="helper", force=True))
 	# then
 	assert "Applied as edit" in text
 	assert "new error(s)" in text and "0 new error(s)" not in text
@@ -247,7 +247,7 @@ def test_given_string_mention_when_safe_delete_then_held_as_preview(project, loo
 	# given
 	(project / "src/pkg/dyn.py").write_text("NAME = 'unused_thing'\n", encoding="utf-8")
 	# when
-	text = _run(loop, symbol_tools.safe_delete(name="unused_thing"))
+	text = _run(loop, symbol_tools._safe_delete(name="unused_thing"))
 	# then
 	assert "kept as a preview" in text and "dyn.py:1" in text
 	assert "def unused_thing" in (project / "src/pkg/cart.py").read_text()

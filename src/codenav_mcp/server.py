@@ -89,11 +89,11 @@ mcp = MCPServer(
 		"in this file) rather than chaining search_symbol → hover → definition → "
 		"references by hand; drop to the position tools (hover/definition/"
 		"references) once you have a specific line to inspect. To change code, prefer "
-		"the write tools over hand edits where one fits: rename_symbol, change_signature, "
-		"move_symbol/move_module, safe_delete, replace_symbol/insert_symbol, quick_fix. "
-		"They type-check the edit before writing and report the errors it would cause; "
-		"check_edit does the same for any edit, verify_changes shows what the working tree "
-		"broke, undo_edit reverts. " + _POSITION_NOTE
+		"the write tools over hand edits where one fits: edit (text), edit_symbol (replace/"
+		"insert/delete a definition by name), rename_symbol, change_signature, move (a "
+		"symbol or a module), quick_fix. They type-check the edit before writing and write it "
+		"when it adds no errors (max_new_errors=0; apply=false only previews); verify_changes "
+		"shows what the working tree broke, undo_edit reverts. " + _POSITION_NOTE
 	),
 )
 
@@ -905,10 +905,10 @@ async def implementations(
 
 def _register_write_tools() -> None:
 	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
-	from codenav_mcp import refactor_tools, symbol_tools, tool_base, write_tools
+	from codenav_mcp import edit_tools, refactor_tools, symbol_tools, tool_base, write_tools
 
 	tool_base.bind(sys.modules[__name__])
-	for tool_module in (write_tools, symbol_tools, refactor_tools):
+	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
 			mcp.tool(annotations=tool_annotations)(_notices.tool(fn))
 

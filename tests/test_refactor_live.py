@@ -73,6 +73,7 @@ def test_given_new_param_with_default_when_change_signature_then_only_definition
 	assert "def send_mail(to: str, subject: str, body: str = '', retries: int = 3) -> bool:" in mailer
 	assert "send_mail('x', 'y')" in (project / "src/pkg/app.py").read_text()
 	assert "Applied as edit" in text
+	assert "is unused" not in text  # an added parameter nothing reads yet is a hint, not a regression
 	_valid(project / "src/pkg/mailer.py")
 
 
@@ -182,15 +183,19 @@ def test_given_preview_default_when_change_signature_then_nothing_written(projec
 	# given
 	before = (project / "src/pkg/mailer.py").read_text()
 	# when
-	text = _run(loop, refactor_tools.change_signature(name="send_mail", remove=["body"]))
+	text = _run(loop, refactor_tools.change_signature(name="send_mail", remove=["body"], apply=False))
 	# then
 	assert "Preview only" in text and (project / "src/pkg/mailer.py").read_text() == before
 
 
 def test_given_required_param_without_value_when_change_signature_then_explained(project, loop):
-	assert "give a `default`" in _run(loop, refactor_tools.change_signature(name="send_mail", add=[{"name": "x"}]))
-	assert "nothing to change" in _run(loop, refactor_tools.change_signature(name="send_mail"))
-	assert "no parameter 'nope'" in _run(loop, refactor_tools.change_signature(name="send_mail", remove=["nope"]))
+	assert "give a `default`" in _run(
+		loop, refactor_tools.change_signature(name="send_mail", add=[{"name": "x"}], apply=False)
+	)
+	assert "nothing to change" in _run(loop, refactor_tools.change_signature(name="send_mail", apply=False))
+	assert "no parameter 'nope'" in _run(
+		loop, refactor_tools.change_signature(name="send_mail", remove=["nope"], apply=False)
+	)
 
 
 def test_given_invalid_resulting_signature_when_change_signature_then_refused(project, loop):
@@ -198,11 +203,14 @@ def test_given_invalid_resulting_signature_when_change_signature_then_refused(pr
 	text = _run(
 		loop,
 		refactor_tools.change_signature(
-			name="send_mail", add=[{"name": "z", "value": "1", "default": None, "position": 3}]
+			name="send_mail", add=[{"name": "z", "value": "1", "default": None, "position": 3}], apply=False
 		),
 	)
 	required = _run(
-		loop, refactor_tools.change_signature(name="Sender.send", add=[{"name": "z", "default": None, "value": "1"}])
+		loop,
+		refactor_tools.change_signature(
+			name="Sender.send", add=[{"name": "z", "default": None, "value": "1"}], apply=False
+		),
 	)
 	# then
 	assert "syntax error" in text.lower() or "give a `default`" in text
@@ -215,7 +223,7 @@ def test_given_class_without_init_when_change_signature_then_explained(project, 
 		"from dataclasses import dataclass\n\n\n@dataclass\nclass Row:\n\tid: int\n", encoding="utf-8"
 	)
 	# when
-	text = _run(loop, refactor_tools.change_signature(name="Row", add=[{"name": "x", "default": "1"}]))
+	text = _run(loop, refactor_tools.change_signature(name="Row", add=[{"name": "x", "default": "1"}], apply=False))
 	# then
 	assert "defines no __init__" in text
 

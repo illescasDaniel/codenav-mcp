@@ -59,13 +59,13 @@ async def rename_symbol(
 	line: int | None = None,
 	column: int | None = None,
 	parameter: str | None = None,
-	apply: bool = False,
+	apply: bool = True,
 	linked: bool = True,
 	max_new_errors: int | None = 0,
 	allow_large: bool = False,
 	ctx: Context | None = None,
 ) -> str:
-	"""Rename a symbol everywhere it is used, then type-check the result before writing anything.
+	"""Rename a symbol everywhere it is used, type-checking the result before writing it.
 
 	Example: `rename_symbol(name="UserService.create_user", new_name="register_user")`.
 	Give `name` (dotted `Class.method` accepted; `file_path` narrows it) or
@@ -77,15 +77,13 @@ async def rename_symbol(
 	misses: with `linked=true` (default) overriding methods in subclasses,
 	`super().name()` calls, and Protocol members together with the classes that
 	satisfy them are renamed as one, since renaming only one side would silently
-	break the override or the conformance. The preview lists every extra member
+	break the override or the conformance. The result lists every extra member
 	it included, and the places still using the old name that the type checker
 	could not link (untyped attribute accesses, strings, comments, docs).
 
-	By default nothing is written (`apply=false`): the result is a diff plus the
-	diagnostics the rename would add or fix, and an id for `apply_edit`. With
-	`apply=true` it writes only if the new errors are within `max_new_errors`
-	(default 0; pass null to apply regardless). Files are replaced atomically
-	and `undo_edit` reverts them.
+	Writing: `apply=true` (default) writes when the new errors are within
+	`max_new_errors` (default 0); otherwise nothing is written and you get a
+	preview id for `apply_edit`. `apply=false` always previews. `undo_edit` reverts.
 	"""
 	try:
 		session = await open_session(ctx)
@@ -137,7 +135,7 @@ def _single_file_plan(session: Session, file_path: str, new_text: str | None, de
 	return EditPlan(description, [FileChange(path, old_text, new_text, old_bom, old_bom)])
 
 
-async def check_edit(
+async def _edit_text(
 	file_path: str,
 	new_text: str | None = None,
 	old_string: str | None = None,
@@ -158,7 +156,7 @@ async def check_edit(
 
 	With `apply=true` the edit is written (atomically, undoable with
 	`undo_edit`) unless it adds more errors than `max_new_errors` (null:
-	no limit). The usual flow: `check_edit` first, change your approach if it
+	no limit). The usual flow: `edit(apply=false)` first, change your approach if it
 	reports new errors, then apply.
 	"""
 	try:
@@ -312,7 +310,6 @@ async def undo_edit(id: str | None = None, ctx: Context | None = None) -> str:  
 
 TOOLS: list[tuple[Any, Any]] = [
 	(rename_symbol, tool_base.WRITES),
-	(check_edit, tool_base.WRITES),
 	(verify_changes, tool_base.READS),
 	(apply_edit, tool_base.WRITES),
 	(undo_edit, tool_base.WRITES),

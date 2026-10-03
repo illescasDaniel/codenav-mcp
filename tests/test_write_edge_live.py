@@ -79,7 +79,7 @@ def test_given_symlink_pointing_outside_when_check_edit_apply_then_refused(proje
 	outside.write_text("x = 1\n", encoding="utf-8")
 	os.symlink(outside, project / "src/pkg/link.py")
 	# when
-	text = _run(loop, write_tools.check_edit("src/pkg/link.py", new_text="x = 2\n", apply=True))
+	text = _run(loop, write_tools._edit_text("src/pkg/link.py", new_text="x = 2\n", apply=True))
 	# then
 	assert "outside the workspace" in text
 	assert outside.read_text() == "x = 1\n"
@@ -103,9 +103,9 @@ def test_given_concurrent_calls_when_preview_runs_then_other_tools_see_the_disk_
 	# given — a preview holds the simulation overlay while a read tool and another preview run at the same time
 	async def scenario():
 		results = await asyncio.gather(
-			write_tools.rename_symbol(name="helper", new_name="assist"),
+			write_tools.rename_symbol(name="helper", new_name="assist", apply=False),
 			codenav_server.diagnostics("src/pkg/use.py"),
-			write_tools.check_edit("src/pkg/lib.py", old_string="return x", new_string="return x + 1"),
+			write_tools._edit_text("src/pkg/lib.py", old_string="return x", new_string="return x + 1"),
 			codenav_server.references("src/pkg/lib.py", 1, 5),
 		)
 		return results
@@ -124,7 +124,7 @@ def test_given_transient_new_file_during_simulation_when_done_then_workspace_is_
 	from codenav_mcp import refactor_tools
 
 	before = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() or p.is_dir())
-	_run(loop, refactor_tools.move_symbol(name="helper", to_file="src/pkg/newdir/deeper/helpers.py"))
+	_run(loop, refactor_tools._move_symbol(name="helper", to_file="src/pkg/newdir/deeper/helpers.py"))
 	after = sorted(p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file() or p.is_dir())
 	# then
 	assert before == [a for a in after if "__pycache__" not in a]
@@ -134,7 +134,7 @@ def test_given_write_failure_midway_when_apply_edit_then_every_file_is_restored(
 	# given — a multi-file rename whose second write fails
 	from mcp_nav_shared import transaction
 
-	preview = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist"))
+	preview = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=False))
 	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
 	originals = {p: p.read_bytes() for p in project.rglob("*.py")}
 	real = transaction._write_atomic

@@ -12,7 +12,13 @@ import contextlib
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from mcp_nav_shared.diagnostics_delta import DiagEntry, DiagnosticsDelta, diff_diagnostics, entries_from_lsp
+from mcp_nav_shared.diagnostics_delta import (
+	HINT_SEVERITY,
+	DiagEntry,
+	DiagnosticsDelta,
+	diff_diagnostics,
+	entries_from_lsp,
+)
 from mcp_nav_shared.edits import EditPlan, read_source, relative_name
 from mcp_nav_shared.errors import TOOL_ERRORS
 from mcp_nav_shared.lsp_client import LspClient
@@ -70,6 +76,10 @@ async def diagnostics_delta(
 	paths = list(dict.fromkeys(Path(p).resolve() for p in check))
 	before_entries, unchecked_before = await _collect(client, root, before, paths, skip_before or set())
 	after_entries, unchecked_after = await _collect(client, root, after, paths, skip_after or set())
+	# Hints are editor niceties (`x` is unused, deprecated): adding a parameter before its body
+	# uses it would otherwise be reported as a "new warning" on every such edit.
+	before_entries = [e for e in before_entries if e.severity != HINT_SEVERITY]
+	after_entries = [e for e in after_entries if e.severity != HINT_SEVERITY]
 	delta = diff_diagnostics(before_entries, after_entries)
 	delta.files_checked = len(paths)
 	delta.unchecked = sorted(set(unchecked_before) | set(unchecked_after))

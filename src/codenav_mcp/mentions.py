@@ -73,6 +73,9 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 def _text_files(workspace: Path) -> list[Path]:
 	files: list[Path] = []
 	for directory, dirs, names in os.walk(workspace):
+		if Path(directory) != workspace and ".git" in dirs + names:
+			dirs[:] = []  # another checkout or linked worktree (e.g. .claude/worktrees/*), not this workspace
+			continue
 		dirs[:] = sorted(d for d in dirs if d not in EXCLUDED_DIR_NAMES)
 		for filename in sorted(names):
 			if Path(filename).suffix.lower() in _TEXT_SUFFIXES:

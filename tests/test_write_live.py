@@ -48,7 +48,7 @@ def _run(loop, coro):
 
 def test_given_function_when_rename_preview_then_nothing_written_and_diff_shown(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate"))
+	text = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
 	# then
 	assert "Preview only, nothing written" in text
 	assert "0 new error(s)" in text
@@ -60,7 +60,7 @@ def test_given_function_when_rename_preview_then_nothing_written_and_diff_shown(
 
 def test_given_preview_when_apply_edit_then_all_files_written_and_undo_restores(project, loop):
 	# given
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate"))
+	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
 	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
 	originals = {
 		p: p.read_text()
@@ -101,7 +101,7 @@ def test_given_override_when_rename_base_method_then_override_and_super_call_fol
 
 def test_given_linked_false_when_rename_base_method_then_override_left_and_error_reported(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="Base.run", new_name="execute", linked=False))
+	text = _run(loop, write_tools.rename_symbol(name="Base.run", new_name="execute", linked=False, apply=False))
 	# then — the override is left alone, and ty's check shows what that breaks (super().run())
 	assert "Child.run renamed too" not in text
 	assert "1 new error(s)" in text or "2 new error(s)" in text
@@ -128,10 +128,10 @@ def test_given_parameter_when_rename_then_keyword_arguments_follow(project, loop
 
 def test_given_existing_name_when_rename_then_refused_before_any_edit(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="Child.run", new_name="__init__"))
-	collision = _run(loop, write_tools.rename_symbol(name="compute", parameter="scale", new_name="value"))
-	invalid = _run(loop, write_tools.rename_symbol(name="compute", new_name="not valid"))
-	keyword = _run(loop, write_tools.rename_symbol(name="compute", new_name="class"))
+	text = _run(loop, write_tools.rename_symbol(name="Child.run", new_name="__init__", apply=False))
+	collision = _run(loop, write_tools.rename_symbol(name="compute", parameter="scale", new_name="value", apply=False))
+	invalid = _run(loop, write_tools.rename_symbol(name="compute", new_name="not valid", apply=False))
+	keyword = _run(loop, write_tools.rename_symbol(name="compute", new_name="class", apply=False))
 	# then
 	assert "already has a parameter named 'value'" in collision
 	assert "not a valid Python identifier" in invalid and "not a valid Python identifier" in keyword
@@ -140,14 +140,16 @@ def test_given_existing_name_when_rename_then_refused_before_any_edit(project, l
 
 def test_given_builtin_when_rename_then_explained(project, loop):
 	# given — position on `int` in the signature
-	text = _run(loop, write_tools.rename_symbol(file_path="src/pkg/core.py", line=1, column=23, new_name="integer"))
+	text = _run(
+		loop, write_tools.rename_symbol(file_path="src/pkg/core.py", line=1, column=23, new_name="integer", apply=False)
+	)
 	# then
 	assert "cannot be renamed" in text
 
 
 def test_given_file_changed_after_preview_when_apply_edit_then_stale_refusal(project, loop):
 	# given
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate"))
+	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
 	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
 	(project / "src/pkg/user.py").write_text("# somebody else edited this\n", encoding="utf-8")
 	# when
@@ -165,7 +167,7 @@ def test_given_read_only_env_when_apply_then_refused_but_preview_works(project, 
 	# given
 	monkeypatch.setenv(writes.READ_ONLY_ENV, "1")
 	# when
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate"))
+	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
 	applied = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=True))
 	# then
 	assert "Preview only" in preview
@@ -177,7 +179,7 @@ def test_given_breaking_edit_when_check_edit_then_new_errors_in_importers_report
 	# when — drop a parameter that user.py and the tests still pass
 	text = _run(
 		loop,
-		write_tools.check_edit(
+		write_tools._edit_text(
 			"src/pkg/core.py",
 			old_string="def compute(value: int, scale: int = 2)",
 			new_string="def compute(value: int)",
@@ -194,7 +196,7 @@ def test_given_clean_edit_when_check_edit_apply_then_written_and_undoable(projec
 	# when
 	text = _run(
 		loop,
-		write_tools.check_edit(
+		write_tools._edit_text(
 			"src/pkg/core.py",
 			old_string="return value * scale",
 			new_string="return scale * value",
@@ -213,7 +215,7 @@ def test_given_error_gate_when_check_edit_apply_then_blocked(project, loop):
 	# when
 	text = _run(
 		loop,
-		write_tools.check_edit(
+		write_tools._edit_text(
 			"src/pkg/core.py",
 			old_string="def compute(value: int, scale: int = 2)",
 			new_string="def compute(value: int)",
@@ -228,21 +230,21 @@ def test_given_error_gate_when_check_edit_apply_then_blocked(project, loop):
 
 def test_given_invalid_python_when_check_edit_then_rejected_without_simulation(project, loop):
 	# when
-	text = _run(loop, write_tools.check_edit("src/pkg/core.py", new_text="def broken(:\n"))
+	text = _run(loop, write_tools._edit_text("src/pkg/core.py", new_text="def broken(:\n"))
 	# then
 	assert "syntax error at line 1" in text
 
 
 def test_given_ambiguous_old_string_when_check_edit_then_asks_for_unique_match(project, loop):
 	assert "matches 3 times" in _run(
-		loop, write_tools.check_edit("src/pkg/core.py", old_string="return", new_string="return")
+		loop, write_tools._edit_text("src/pkg/core.py", old_string="return", new_string="return")
 	)
-	assert "was not found" in _run(loop, write_tools.check_edit("src/pkg/core.py", old_string="zzz", new_string="y"))
+	assert "was not found" in _run(loop, write_tools._edit_text("src/pkg/core.py", old_string="zzz", new_string="y"))
 
 
 def test_given_new_file_when_check_edit_apply_then_created(project, loop):
 	# when
-	text = _run(loop, write_tools.check_edit("src/pkg/fresh.py", new_text="X = 1\n", apply=True))
+	text = _run(loop, write_tools._edit_text("src/pkg/fresh.py", new_text="X = 1\n", apply=True))
 	# then
 	assert "(new file)" in text
 	assert (project / "src/pkg/fresh.py").read_text() == "X = 1\n"
@@ -251,7 +253,7 @@ def test_given_new_file_when_check_edit_apply_then_created(project, loop):
 
 
 def test_given_non_python_file_when_check_edit_then_rejected(project, loop):
-	assert "only edits Python files" in _run(loop, write_tools.check_edit("README.md", new_text="x"))
+	assert "only edits Python files" in _run(loop, write_tools._edit_text("README.md", new_text="x"))
 
 
 def _git(root, *args):

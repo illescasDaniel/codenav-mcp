@@ -78,19 +78,19 @@ or fix. Nothing is written until that is on the table.**
 | Tool | Does |
 |------|------|
 | `rename_symbol` | Rename across the workspace (imports, aliases, keyword arguments, `parameter=` for a function's parameter). Also renames what ty's rename misses: overriding methods, `super().name()` calls, and Protocol members together with the classes that satisfy them (`linked=false` to opt out). Lists remaining mentions of the old name (untyped accesses, strings, comments, docs) |
+| `edit` | Type-checked text edit of a Python file: `old_string`/`new_string` or a whole `new_text`. For anything that is not a whole definition |
+| `edit_symbol` | `action="replace"` / `"insert"` / `"delete"` a function, method or class by name: re-indented to the file's style, PEP 8 spacing, `imports=[...]` added, syntax-checked. Delete refuses while anything uses the symbol and prunes now-dead imports |
+| `rename_symbol` | Rename across the workspace (imports, aliases, keyword arguments, `parameter=` for a function's parameter). Also renames what ty's rename misses: overriding methods, `super().name()` calls, and Protocol members together with the classes that satisfy them (`linked=false` to opt out). Lists remaining mentions of the old name (untyped accesses, strings, comments, docs; other worktrees are skipped) |
 | `change_signature` | Add / remove / reorder parameters and rewrite every call site (found through ty's references, so injected dependencies and typed attributes work). Overrides follow. `*args` calls and uses as a value are listed as manual work |
-| `move_symbol` | Move a module-level function or class to another file with the imports it needs; rewrites `from old import name` everywhere, drops imports only it used, warns about import cycles |
-| `move_module` | Move or rename a module file and update every import of it |
-| `safe_delete` | Delete a function/method/class only if nothing uses it (users listed otherwise); removes now-dead imports of it |
-| `replace_symbol` / `insert_symbol` | Replace or add a function, method or class by name: re-indented to the file's style, PEP 8 spacing, `imports=[...]` added, syntax-checked |
+| `move` | With `name`: move a module-level function or class to another file with the imports it needs; without it, move or rename the module `file_path`. Rewrites imports everywhere, drops imports only the moved code used, warns about import cycles |
 | `quick_fix` | Apply ty's own fixes (missing imports) with correct placement; ambiguous fixes are listed instead of guessed |
-| `check_edit` | Dry-run any edit (whole file or `old_string`/`new_string`) and see the new errors, or apply it with `apply=true` |
 | `verify_changes` | After editing with any tool: which type errors the working tree gained or lost since a git revision (default `HEAD`) |
 | `apply_edit` / `undo_edit` | Write a previewed edit by id; revert an applied one |
 
-Refactorings preview by default (`apply=false`) and return an id for `apply_edit`.
-Passing `apply=true` writes only if the new errors stay within `max_new_errors` (default 0).
-`replace_symbol`, `insert_symbol` and `quick_fix` write by default and report what they caused.
+One rule for every write tool: it writes when the edit adds no more than `max_new_errors`
+(default 0) type errors in the edited files and their importers. Otherwise nothing is
+written and you get the diagnostics plus an id for `apply_edit`. `apply=false` always
+previews. Hint-level diagnostics (unused, deprecated) are not counted.
 
 Safety rules, enforced in code:
 

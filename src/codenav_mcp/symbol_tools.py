@@ -59,8 +59,7 @@ async def _locate(session: Session, name: str, file_path: str | None) -> tuple[P
 	definition = find_definition(text, name_line=resolved.line + 1)
 	if definition is None:
 		raise ToolInputError(
-			f"{name!r} is not a class, function or method (found a variable or attribute); "
-			"edit it with check_edit instead."
+			f"{name!r} is not a class, function or method (found a variable or attribute); edit it with `edit` instead."
 		)
 	return path, text, definition
 
@@ -96,7 +95,7 @@ def _apply_imports(text: str, imports: list[str] | None) -> str:
 	return text
 
 
-async def replace_symbol(
+async def _replace_symbol(
 	name: str,
 	source: str,
 	file_path: str | None = None,
@@ -195,7 +194,7 @@ def _insert_block(text: str, anchor_line: int, snippet: str, *, before: bool, in
 	return head + eol + eol * _blank_lines_for(indent) + snippet + gap_after + rest
 
 
-async def insert_symbol(
+async def _insert_symbol(
 	source: str,
 	file_path: str,
 	after: str | None = None,
@@ -214,7 +213,7 @@ async def insert_symbol(
 	end of the file. Blank lines follow PEP 8 (two between top-level
 	definitions, one between methods), indentation matches the file, and
 	`imports` adds import statements the new code needs. Refuses a definition
-	whose name already exists in that scope (use replace_symbol).
+	whose name already exists in that scope (use action="replace").
 	"""
 	try:
 		if sum(x is not None for x in (after, before, into)) > 1:
@@ -262,7 +261,7 @@ async def insert_symbol(
 		]
 		if clashes:
 			raise ToolInputError(
-				f"{', '.join(clashes)} already defined in that scope; use replace_symbol to change it."
+				f"{', '.join(clashes)} already defined in that scope; use edit_symbol(action=replace) to change it."
 			)
 		fitted = fit_snippet(source, indent=indent, file_text=text)
 		if into is not None and _is_placeholder_body(container.node):
@@ -357,7 +356,7 @@ def _delete_span(text: str, definition: Definition, *, comments: bool = True) ->
 	return head + eol + gap + tail
 
 
-async def safe_delete(
+async def _safe_delete(
 	name: str,
 	file_path: str | None = None,
 	prune_imports: bool = True,
@@ -532,7 +531,7 @@ async def quick_fix(
 	choice: str | None = None,
 	allow_suppress: bool = False,
 	apply: bool = True,
-	max_new_errors: int | None = None,
+	max_new_errors: int | None = 0,
 	ctx: Context | None = None,
 ) -> str:
 	"""Apply ty's own fixes for a file's diagnostics (today: add the missing import). Example: `quick_fix(file_path="src/app.py")`.
@@ -635,8 +634,5 @@ def _same_edit(a: dict[str, Any], b: dict[str, Any]) -> bool:
 
 
 TOOLS: list[tuple[Any, Any]] = [
-	(replace_symbol, tool_base.WRITES),
-	(insert_symbol, tool_base.WRITES),
-	(safe_delete, tool_base.WRITES),
 	(quick_fix, tool_base.WRITES),
 ]

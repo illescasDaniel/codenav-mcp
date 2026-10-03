@@ -54,7 +54,7 @@ def _valid(root) -> None:
 def test_given_function_when_move_symbol_then_code_imports_and_importers_follow(project, loop):
 	# when
 	text = _run(
-		loop, refactor_tools.move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=0)
+		loop, refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=0)
 	)
 	# then
 	_valid(project)
@@ -80,7 +80,7 @@ def test_given_move_symbol_when_undo_then_new_file_removed_and_originals_back(pr
 	originals = {p: p.read_text() for p in project.rglob("*.py")}
 	_run(
 		loop,
-		refactor_tools.move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
+		refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
 	)
 	# when
 	_run(loop, write_tools.undo_edit())
@@ -91,7 +91,8 @@ def test_given_move_symbol_when_undo_then_new_file_removed_and_originals_back(pr
 def test_given_symbol_unused_in_old_file_when_move_then_no_import_back_unless_reexport(project, loop):
 	# when
 	_run(
-		loop, refactor_tools.move_symbol(name="today_path", to_file="src/pkg/paths.py", apply=True, max_new_errors=None)
+		loop,
+		refactor_tools._move_symbol(name="today_path", to_file="src/pkg/paths.py", apply=True, max_new_errors=None),
 	)
 	# then
 	dates = (project / "src/pkg/dates.py").read_text()
@@ -103,7 +104,7 @@ def test_given_symbol_unused_in_old_file_when_move_then_no_import_back_unless_re
 
 def test_given_attribute_user_when_move_symbol_then_listed_for_manual_update(project, loop):
 	# when
-	text = _run(loop, refactor_tools.move_symbol(name="today_path", to_file="src/pkg/paths.py"))
+	text = _run(loop, refactor_tools._move_symbol(name="today_path", to_file="src/pkg/paths.py"))
 	# then
 	assert "accessed through the old module" in text and "uses_mod.py:5" in text
 	assert "new error(s)" in text and "0 new error(s)" not in text  # and ty confirms it breaks
@@ -113,7 +114,7 @@ def test_given_reexport_flag_when_move_symbol_then_old_import_kept(project, loop
 	# when
 	_run(
 		loop,
-		refactor_tools.move_symbol(
+		refactor_tools._move_symbol(
 			name="today_path", to_file="src/pkg/paths.py", keep_reexport=True, apply=True, max_new_errors=None
 		),
 	)
@@ -127,14 +128,16 @@ def test_given_existing_destination_name_or_nested_symbol_when_move_then_refused
 	(project / "src/pkg/nested.py").write_text("class A:\n\tdef m(self): ...\n", encoding="utf-8")
 	# when / then
 	assert "already defines 'parse_date'" in _run(
-		loop, refactor_tools.move_symbol(name="parse_date", to_file="src/pkg/taken.py", file_path="src/pkg/dates.py")
+		loop, refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/taken.py", file_path="src/pkg/dates.py")
 	)
-	assert "only module-level symbols" in _run(loop, refactor_tools.move_symbol(name="A.m", to_file="src/pkg/other.py"))
+	assert "only module-level symbols" in _run(
+		loop, refactor_tools._move_symbol(name="A.m", to_file="src/pkg/other.py")
+	)
 	assert "already in" in _run(
-		loop, refactor_tools.move_symbol(name="parse_date", to_file="src/pkg/dates.py", file_path="src/pkg/dates.py")
+		loop, refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/dates.py", file_path="src/pkg/dates.py")
 	)
 	assert "must be a .py file" in _run(
-		loop, refactor_tools.move_symbol(name="parse_date", to_file="notes.md", file_path="src/pkg/dates.py")
+		loop, refactor_tools._move_symbol(name="parse_date", to_file="notes.md", file_path="src/pkg/dates.py")
 	)
 
 
@@ -146,7 +149,7 @@ def test_given_existing_destination_when_move_symbol_then_appended_and_merged_im
 	# when
 	_run(
 		loop,
-		refactor_tools.move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
+		refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
 	)
 	# then
 	parsing = (project / "src/pkg/parsing.py").read_text()
@@ -159,7 +162,7 @@ def test_given_module_when_move_module_then_all_import_styles_rewritten(project,
 	# when
 	text = _run(
 		loop,
-		refactor_tools.move_module(
+		refactor_tools._move_module(
 			from_file="src/pkg/dates.py", to_file="src/pkg/time/calendar.py", apply=True, max_new_errors=None
 		),
 	)
@@ -178,7 +181,7 @@ def test_given_in_place_rename_when_move_module_then_from_package_imports_and_us
 	# when
 	_run(
 		loop,
-		refactor_tools.move_module(
+		refactor_tools._move_module(
 			from_file="src/pkg/dates.py", to_file="src/pkg/calendar_utils.py", apply=True, max_new_errors=None
 		),
 	)
@@ -196,13 +199,13 @@ def test_given_relative_imports_when_move_module_then_made_absolute_on_both_side
 	# when
 	_run(
 		loop,
-		refactor_tools.move_module(
+		refactor_tools._move_module(
 			from_file="src/pkg/rel_dep.py", to_file="src/pkg/sub/rel_dep.py", apply=True, max_new_errors=None
 		),
 	)
 	_run(
 		loop,
-		refactor_tools.move_module(
+		refactor_tools._move_module(
 			from_file="src/pkg/dates.py", to_file="src/pkg/sub/dates.py", apply=True, max_new_errors=None
 		),
 	)
@@ -214,25 +217,25 @@ def test_given_relative_imports_when_move_module_then_made_absolute_on_both_side
 
 def test_given_bad_module_moves_when_requested_then_refused(project, loop):
 	assert "already exists" in _run(
-		loop, refactor_tools.move_module(from_file="src/pkg/dates.py", to_file="src/pkg/uses.py")
+		loop, refactor_tools._move_module(from_file="src/pkg/dates.py", to_file="src/pkg/uses.py")
 	)
 	assert "not an existing .py file" in _run(
-		loop, refactor_tools.move_module(from_file="src/pkg/nope.py", to_file="src/pkg/x.py")
+		loop, refactor_tools._move_module(from_file="src/pkg/nope.py", to_file="src/pkg/x.py")
 	)
 	assert "__init__.py is not supported" in _run(
-		loop, refactor_tools.move_module(from_file="src/pkg/__init__.py", to_file="src/pkg/y.py")
+		loop, refactor_tools._move_module(from_file="src/pkg/__init__.py", to_file="src/pkg/y.py")
 	)
 
 
 def test_given_move_module_preview_when_undo_after_apply_then_tree_restored(project, loop):
 	# given
 	originals = {p: p.read_text() for p in project.rglob("*.py")}
-	preview = _run(loop, refactor_tools.move_module(from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py"))
+	preview = _run(loop, refactor_tools._move_module(from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py"))
 	assert "Preview only" in preview and (project / "src/pkg/dates.py").exists()
 	# when
 	_run(
 		loop,
-		refactor_tools.move_module(
+		refactor_tools._move_module(
 			from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py", apply=True, max_new_errors=None
 		),
 	)

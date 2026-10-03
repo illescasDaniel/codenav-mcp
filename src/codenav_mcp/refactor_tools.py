@@ -106,7 +106,7 @@ async def change_signature(
 	reorder: list[str] | None = None,
 	file_path: str | None = None,
 	include_overrides: bool = True,
-	apply: bool = False,
+	apply: bool = True,
 	max_new_errors: int | None = 0,
 	allow_large: bool = False,
 	ctx: Context | None = None,
@@ -128,8 +128,8 @@ async def change_signature(
 	dependencies and typed attributes are found, not just textual matches. Overriding
 	methods get the same change (`include_overrides`). Calls using `*args`/`**kwargs`
 	and places where the function is passed around as a value are listed as manual
-	work rather than guessed at. The preview shows the diff and any errors left; nothing
-	is written unless `apply=true` (and only when new errors stay within `max_new_errors`).
+	work rather than guessed at. Writes when new errors stay within `max_new_errors`
+	(default 0), else previews with an id for `apply_edit`; `apply=false` always previews.
 	"""
 	try:
 		change = Change(add=list(add or []), remove=list(remove or []), reorder=list(reorder or []))
@@ -172,7 +172,7 @@ async def _plan_signature(
 		if init is None:
 			raise ToolInputError(
 				f"class {definition.qualname} defines no __init__ of its own (dataclass and inherited constructors "
-				"are not supported here); change the fields with replace_symbol, or the base class's __init__."
+				"are not supported here); change the fields with edit_symbol(action=replace), or the base class's __init__."
 			)
 		target_def = init
 	else:
@@ -298,7 +298,7 @@ async def _plan_signature(
 	return EditPlan(title, changes, notes)
 
 
-async def move_symbol(
+async def _move_symbol(
 	name: str,
 	to_file: str,
 	file_path: str | None = None,
@@ -339,7 +339,7 @@ async def move_symbol(
 	return outcome.text
 
 
-async def move_module(
+async def _move_module(
 	from_file: str,
 	to_file: str,
 	apply: bool = False,
@@ -377,6 +377,4 @@ async def move_module(
 
 TOOLS: list[tuple[Any, Any]] = [
 	(change_signature, tool_base.WRITES),
-	(move_symbol, tool_base.WRITES),
-	(move_module, tool_base.WRITES),
 ]
