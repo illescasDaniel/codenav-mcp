@@ -1,5 +1,8 @@
 # codenav-mcp
 
+[![version](https://img.shields.io/pypi/v/codenav-mcp)](https://pypi.org/project/codenav-mcp/)
+[![PyPI](https://img.shields.io/badge/PyPI-codenav--mcp-3775A9?logo=pypi&logoColor=white)](https://pypi.org/project/codenav-mcp/)
+
 An MCP server that gives AI agents type-resolved Python navigation, backed by
 [ty](https://github.com/astral-sh/ty)'s language server. Definitions,
 references and call sites go through real type inference (imports,
