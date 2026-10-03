@@ -5,6 +5,11 @@ An MCP server that gives AI agents type-resolved Python navigation, backed by
 references and call sites go through real type inference (imports,
 dependency-injected parameters, dataclass fields), not text grep.
 
+The same resolution powers its edits: rename a symbol, change a signature, or
+move a function or module, and every usage follows, including overriding
+methods and injected dependencies. Edits are type-checked and previewable
+before they are written, and can be undone.
+
 ## Quick start
 
 `ty` is installed with the package, so all you need is
