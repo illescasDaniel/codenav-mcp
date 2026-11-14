@@ -108,3 +108,56 @@ def test_given_structured_argument_when_change_signature_over_mcp_then_list_of_o
 	# then
 	assert "Applied as edit" in text
 	assert "compute(1, scale=2)" in (project / "src/pkg/user.py").read_text()
+
+
+def test_given_batch_when_reading_and_editing_several_files_over_mcp_then_all_done_in_one_call(project, loop):
+	calls = [
+		{"tool": "outline", "args": {"file_path": "src/pkg/core.py"}},
+		{"tool": "outline", "args": {"file_path": "src/pkg/user.py"}},
+		{
+			"tool": "edit",
+			"args": {"file_path": "src/pkg/core.py", "old_string": "return value", "new_string": "return value + 1"},
+		},
+		{
+			"tool": "edit",
+			"args": {"file_path": "src/pkg/user.py", "old_string": "compute(1)", "new_string": "compute(2)"},
+		},
+		{"tool": "symbol_info", "args": {"name": "compute"}},
+	]
+
+	async def scenario():
+		async with Client(codenav_server.mcp, mode="legacy") as client:
+			tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+			return tools, _text(await client.call_tool("batch", {"calls": calls}))
+
+	# when
+	tools, text = loop.run_until_complete(scenario())
+	# then
+	assert "batch" in tools
+	assert tools["batch"].annotations.destructive_hint is True
+	assert "batch: 5/5 ok" in text
+	assert text.count("Applied as edit") == 2
+	assert "return value + 1" in (project / "src/pkg/core.py").read_text()
+	assert "compute(2)" in (project / "src/pkg/user.py").read_text()
+	assert "return value + 1" in text.split("[5/5]")[1] or "compute" in text.split("[5/5]")[1]
+
+
+def test_given_batch_with_blocked_write_when_over_mcp_then_later_calls_skipped_and_file_untouched(project, loop):
+	calls = [
+		{"tool": "edit", "args": {"file_path": "src/pkg/core.py", "old_string": "-> int", "new_string": "-> str"}},
+		{
+			"tool": "edit",
+			"args": {"file_path": "src/pkg/user.py", "old_string": "compute(1)", "new_string": "compute(3)"},
+		},
+	]
+
+	async def scenario():
+		async with Client(codenav_server.mcp, mode="legacy") as client:
+			return _text(await client.call_tool("batch", {"calls": calls}))
+
+	# when
+	text = loop.run_until_complete(scenario())
+	# then
+	assert "NOT DONE" in text
+	assert "1 skipped" in text
+	assert "compute(1)" in (project / "src/pkg/user.py").read_text()

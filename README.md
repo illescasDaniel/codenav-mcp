@@ -118,6 +118,31 @@ tab counts as one character).
 
 Python only (`.py` / `.pyi`).
 
+## Several calls in one request: `batch`
+
+Reading three files or changing five symbols no longer costs one round-trip each.
+`batch` takes a list of calls for any tool above (reads and writes mixed):
+
+```json
+{"calls": [
+  {"tool": "outline", "args": {"file_path": "src/pkg/core.py"}},
+  {"tool": "symbol_info", "args": {"name": "Cart.total"}},
+  {"tool": "edit", "args": {"file_path": "src/pkg/core.py", "old_string": "x = 1", "new_string": "x = 2"}},
+  {"tool": "edit_symbol", "args": {"action": "delete", "name": "legacy_parse"}}
+]}
+```
+
+- Calls run **in order**, each through the real tool, so every write is type-checked,
+  previewed or applied, and undoable on its own (one edit id per write), and later calls
+  see what earlier ones wrote.
+- One numbered section per call, then a summary line (`batch: 3/4 ok, 1 failed`).
+- A bad tool name or argument is reported in its own section with a hint; the rest still run.
+- `stop_on_error` (default: stop when the batch contains a write, continue when it only
+  reads) skips the remaining calls after the first failure or write that was not applied.
+- Not atomic: calls that ran stay applied. After an edit, prefer name-based calls over
+  line/column positions computed earlier. Max 25 calls, no nesting, each result capped at
+  20,000 characters.
+
 ## Which `ty` runs
 
 1. The project's own `.venv/bin/ty` (`.venv\Scripts\ty.exe` on Windows), so

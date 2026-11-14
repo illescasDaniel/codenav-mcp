@@ -95,7 +95,8 @@ mcp = MCPServer(
 		"insert/delete a definition by name), rename_symbol, change_signature, move (a "
 		"symbol or a module), quick_fix. They type-check the edit before writing and write it "
 		"when it adds no errors (max_new_errors=0; apply=false only previews); verify_changes "
-		"shows what the working tree broke, undo_edit reverts. " + _POSITION_NOTE
+		"shows what the working tree broke, undo_edit reverts. To read or change several files or "
+		"symbols, send them as one batch(calls=[{tool, args}, ...]) instead of many separate calls. " + _POSITION_NOTE
 	),
 )
 
@@ -907,12 +908,28 @@ async def implementations(
 
 def _register_write_tools() -> None:
 	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
-	from codenav_mcp import edit_tools, refactor_tools, symbol_tools, tool_base, write_tools
+	from codenav_mcp import batch_tools, edit_tools, refactor_tools, symbol_tools, tool_base, write_tools
 
 	tool_base.bind(sys.modules[__name__])
+	for read_tool in (
+		workspace,
+		hover,
+		definition,
+		references,
+		search_symbol,
+		diagnostics,
+		symbol_info,
+		outline,
+		callers,
+		implementations,
+	):
+		batch_tools.register(read_tool.__name__, read_tool, writes=False)
 	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
 			mcp.tool(annotations=tool_annotations)(_notices.tool(fn))
+			batch_tools.register(fn.__name__, fn, writes=tool_annotations is tool_base.WRITES)
+	# Last: the batch can reach every tool registered above and carries the strictest hints of them.
+	mcp.tool(annotations=tool_base.WRITES)(_notices.tool(batch_tools.make_batch_tool()))
 
 
 _register_write_tools()

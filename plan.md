@@ -19,9 +19,9 @@ A new generic `batch` tool: `batch(calls=[{"tool": "<name>", "args": {...}}, ...
 
 ## Checklist
 - [x] 1. Branch + plan.md committed
-- [ ] 2. Opus review of the design (adjust plan if needed)
-- [ ] 3. Implement `batch` (src/codenav_mcp/batch_tools.py) + register in server
-- [ ] 4. Unit tests (fake tools: ordering, error isolation, stop_on_error, limits, arg validation)
-- [ ] 5. Live/MCP integration tests (multi-file read, multi-file edit via real ty and MCP client)
-- [ ] 6. Docs: README section + server instructions mention
-- [ ] 7. Full test run, lint, push, open PR
+- [x] 2. Opus review of the design (adjust plan if needed)
+- [x] 3. Implement `batch` (src/codenav_mcp/batch_tools.py) + register in server
+- [x] 4. Unit tests (fake tools: ordering, error isolation, stop_on_error, limits, arg validation)
+- [x] 5. Live/MCP integration tests (multi-file read, multi-file edit via real ty and MCP client)
+- [x] 6. Docs: README section + server instructions mention
+- [x] 7. Full test run, lint, push, open PR
