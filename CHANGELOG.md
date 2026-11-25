@@ -80,3 +80,12 @@ Release summary by area. Details and examples are in the [tool reference](docs/t
 ### Known limits
 
 - After SIGKILL, during a preview or in a worker-thread write, an edit can be left partly applied, and preview files are left for manual inspection. See [known limits](docs/tools.md#known-limits).
+- A rename of a symbol whose stub or alias twins live in a `.pyi` file or a sibling re-export package (attrs-style) rewrites the module and the package `__all__`, but re-exports in sibling packages can be left unrewritten; they are listed, not silently skipped.
+- A pre-existing diagnostic that moves with the code can still count as a new error when `allow_import_cycle=true` is passed.
+- A module that is moved out and then back leaves the previous destination file empty (named in the reply).
+- Replies larger than about 1 MB hit the language-server timeout (~20 s) and come back as an error; the call can be retried with a `limit=`.
+- Raw malformed input on stdin is dropped by the MCP SDK with no reply (by design, see development.md).
+- Files using Python 3.13/3.14-only syntax are refused for writes (the bundled parser is older); run the server under a newer Python to edit them.
+- A move that would create a module-level import cycle (including one that already exists through the destination) is refused unless `allow_import_cycle=true` is passed; cycles through function-level imports only get a note.
+- Changes under excluded directories are not scanned, written or watched; the directories are named in the replies.
+- `verify_changes` lists added Python files as not checked (no committed baseline) and refuses only when nothing can be compared.

@@ -312,7 +312,7 @@ wheels = [
 
 [[package]]
 name = "codenav-mcp"
-version = "0.3.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
@@ -335,7 +335,7 @@ uploader = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.2.0" },
-    { name = "mcp-nav-shared", specifier = ">=0.2.0,<0.3" },
+    { name = "mcp-nav-shared", specifier = ">=1.0,<2.0" },
     { name = "ruff", specifier = ">=0.15" },
     { name = "ty", specifier = ">=0.0.75" },
 ]
@@ -642,11 +642,11 @@ wheels = [
 
 [[package]]
 name = "mcp-nav-shared"
-version = "0.2.0"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/96/5a/1f19afa37ec36645a0caa49b2552959e13a61363d6172764ab58291bc16a/mcp_nav_shared-0.2.0.tar.gz", hash = "sha256:6821cd7edd13a07a7cc2a312ebe14a284305dcfaac5b5da6291350d6f6d3ed27", size = 37926, upload-time = "2026-10-03T22:29:07.078Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3d/d8/2ad2702b8e878ef41b5373a48bde7e95951ce64602d3ea93309f1a6ae6a2/mcp_nav_shared-1.0.0.tar.gz", hash = "sha256:2af08cdbfe12db90f7b89b5b45d65ba3314bab0f4388c871a814508ce686f063", size = 55866, upload-time = "2026-11-25T23:38:49.999Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/69/8b986f6857e65ac9ecef7591b2bc917a09bd43bac0474cadc5048092c152/mcp_nav_shared-0.2.0-py3-none-any.whl", hash = "sha256:cbda76b53b0de314ae7add947330ea3453ed70cd515c787bfc1402c486697160", size = 43600, upload-time = "2026-10-03T22:29:05.683Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/ed/75e60122d2e8baec495fd8cdb80e2acf31d1a0de8b31b5a6eb9ea5c1da44/mcp_nav_shared-1.0.0-py3-none-any.whl", hash = "sha256:d112d26857f52abac30d2258ef3ed81220ac4843302e8aa8275ed98d136ed629", size = 61363, upload-time = "2026-11-25T23:38:48.874Z" },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 [project]
 name = "codenav-mcp"
-version = "0.3.0"
+version = "1.0.0"
 description = "MCP server exposing ty's language-server features (hover, definition, references, workspace symbol search, diagnostics) as MCP tools, plus type-checked refactoring tools (rename, change signature, move, safe delete)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ authors = [{ name = "Daniel Illescas Romero", email = "contact@daniel-ir.eu" }]
 dependencies = [
 	"mcp>=2.2.0",
 	"ty>=0.0.75",
-	"mcp-nav-shared>=0.2.0,<0.3",
+	"mcp-nav-shared>=1.0,<2.0",
 	"ruff>=0.15",
 ]
 
