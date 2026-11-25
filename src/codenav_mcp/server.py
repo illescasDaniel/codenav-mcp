@@ -41,7 +41,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult, TextContent
 from mcp_nav_shared.edits import split_lines
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
-from mcp_nav_shared.exclude import is_excluded, is_inside_nested_repo
+from mcp_nav_shared.exclude import excluded_names, is_excluded, is_inside_nested_repo
 from mcp_nav_shared.format import (
 	STATIC_CALLERS_NOTE,
 	filter_symbols_by_kind_and_path,
@@ -77,6 +77,7 @@ from mcp_nav_shared.workspace import (
 
 import codenav_mcp
 from codenav_mcp import tool_base
+from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.pysource import reject_nul
 from codenav_mcp.ty_command import resolve_ty_command, ty_config_note
 from codenav_mcp.writes import READ_ONLY_ENV
@@ -856,17 +857,24 @@ async def search_symbol(
 	kept = [sym for sym in inside if not _in_nested_repo(sym)]
 	outside += len(inside) - len(kept)
 	inside = kept
+	# B28 / RC-002: excluded directories (build, env, dist, ... and CODENAV_MCP_EXCLUDE_DIRS / INCLUDE_DIRS) are skipped
+	# here too, as for importer discovery and writes.
+	excluded_dirs = [_excluded_dir_of(sym) for sym in inside]
+	inside = [sym for sym, excluded_dir in zip(inside, excluded_dirs, strict=True) if excluded_dir is None]
+	skipped = [d for d in excluded_dirs if d is not None]
 	if qualifier:
 		inside = await _owned_by(client, inside, qualifier)
 	if not inside:
-		return _with_outside_note(f"No symbols matching {query!r}.", outside)
+		return _with_search_notes(f"No symbols matching {query!r}.", outside, skipped)
 	matching = filter_symbols_by_kind_and_path(inside, WORKSPACE_ROOT, kinds=kinds, path=path)
 	if not matching:
 		filters = ", ".join(f"{k}={v!r}" for k, v in (("kind", kind), ("path", path)) if v)
-		return _with_outside_note(
-			f"No symbols matching {query!r} with {filters} ({len(inside)} without the filters).", outside
+		return _with_search_notes(
+			f"No symbols matching {query!r} with {filters} ({len(inside)} without the filters).", outside, skipped
 		)
-	return _with_outside_note(format_workspace_symbols(matching, WORKSPACE_ROOT, query=leaf, fuzzy=fuzzy), outside)
+	return _with_search_notes(
+		format_workspace_symbols(matching, WORKSPACE_ROOT, query=leaf, fuzzy=fuzzy), outside, skipped
+	)
 
 
 def _check_search_path(path: str) -> None:
@@ -881,6 +889,39 @@ def _in_nested_repo(sym: dict[str, Any]) -> bool:
 	"""True when the symbol's file sits in a nested git checkout below the workspace (SRCH-028 / ENV-018)."""
 	uri = _symbol_uri(sym)
 	return bool(uri) and is_inside_nested_repo(uri_to_path(uri), WORKSPACE_ROOT) is not None
+
+
+def _excluded_dir_of(sym: dict[str, Any]) -> str | None:
+	"""The workspace-relative excluded directory (`build/`, `app/env/`) holding the symbol's file, or None.
+	Uses the same names as importer discovery and the write guard (B28 / RC-002)."""
+	uri = _symbol_uri(sym)
+	if not uri:
+		return None
+	try:
+		parts = uri_to_path(uri).relative_to(WORKSPACE_ROOT).parts
+	except ValueError:
+		return None
+	names = excluded_names(ENV_PREFIX)
+	for index, part in enumerate(parts[:-1]):
+		if part in names:
+			return "/".join(parts[: index + 1]) + "/"
+	return None
+
+
+def _with_search_notes(text: str, outside: int, skipped_dirs: list[str]) -> str:
+	"""The reply plus the notes for results dropped as outside the workspace and as in excluded directories."""
+	notes = [outside_workspace_note(outside)] if outside > 0 else []
+	if skipped_dirs:
+		counts: dict[str, int] = {}
+		for directory in skipped_dirs:
+			counts[directory] = counts.get(directory, 0) + 1
+		groups = ", ".join(f"{directory} ({count})" for directory, count in counts.items())
+		names = ",".join(dict.fromkeys(d.rstrip("/").rsplit("/", 1)[-1] for d in counts))
+		notes.append(
+			f"Symbols in excluded directories were not shown: {groups}. "
+			f"Pass {ENV_PREFIX}_INCLUDE_DIRS={names} to include them."
+		)
+	return "\n".join([text, *notes]) if notes else text
 
 
 def _nfkc(text: str) -> str:
