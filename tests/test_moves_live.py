@@ -109,6 +109,9 @@ def test_given_symbol_unused_in_old_file_when_move_then_no_import_back_unless_re
 
 
 def test_given_attribute_user_when_move_symbol_then_listed_for_manual_update(project, loop):
+	# B23: a move preview that would create the destination file is refused (fail-closed), so the
+	# move gets an existing destination here to keep previewing the diagnostics for attribute users.
+	(project / "src/pkg/paths.py").write_text('"""Path helpers."""\n', encoding="utf-8")
 	# when
 	text = _run(loop, refactor_tools._move_symbol(name="today_path", to_file="src/pkg/paths.py"))
 	# then
@@ -243,8 +246,9 @@ def test_given_bad_module_moves_when_requested_then_refused(project, loop):
 def test_given_move_module_preview_when_undo_after_apply_then_tree_restored(project, loop):
 	# given
 	originals = {p: p.read_text() for p in project.rglob("*.py")}
+	# B23: the preview is refused (the destination file does not exist yet); nothing is written
 	preview = _run(loop, refactor_tools._move_module(from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py"))
-	assert "Preview only" in preview and (project / "src/pkg/dates.py").exists()
+	assert "Preview refused" in preview and (project / "src/pkg/dates.py").exists()
 	# when
 	_run(
 		loop,

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from mcp_nav_shared.diagnostics_delta import DiagnosticsDelta, entries_from_lsp, format_delta
-from mcp_nav_shared.edits import EditPlan, read_source, relative_name
+from mcp_nav_shared.edits import EditPlan, FileChange, read_source, relative_name
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError
 from mcp_nav_shared.lsp_client import LspClient
 from mcp_nav_shared.transaction import EditJournal, PlanStore, WriteGuard, read_only_from_env, refuse_home_path
@@ -144,6 +144,37 @@ async def errors_after_write(client: LspClient, root: Path, plan: EditPlan, *, l
 	)
 
 
+def _refuse_new_file_preview(
+	state: WriteState,
+	workspace: Path,
+	plan: EditPlan,
+	created: list[FileChange],
+	title: str,
+	diff_lines: int,
+) -> Outcome:
+	"""Refuse a preview that would create a file, and keep the plan for the existing approval flow.
+
+	Checking a new file needs it materialised in the workspace, which a crash (SIGKILL) could leave behind
+	(RC-091): a preview never creates files. The user approves the write through `apply_edit` (or `apply=true`).
+	"""
+	names = ", ".join(repr(relative_name(change.path, workspace)) for change in created)
+	preview_id = state.plans.add(plan)
+	lines = [
+		title,
+		"",
+		f"Preview refused: the plan creates {_count_label(len(created), 'new file')} ({names}). Checking a new file "
+		"needs a temporary file in the workspace that a crash could leave behind; previews never create files.",
+		f'To approve the write: apply_edit(id="{preview_id}") creates it (undo_edit(id="{preview_id}") reverts it), '
+		"or rerun the tool with apply=true to run the type check first.",
+		"",
+		"Files:",
+		plan.summary(workspace),
+	]
+	if diff_lines > 0:
+		lines += ["", plan.diff(workspace, max_lines=diff_lines).rstrip()]
+	return Outcome(FailedText("\n".join(lines)), preview_id=preview_id)
+
+
 async def finish_plan(
 	client: LspClient,
 	*,
@@ -171,6 +202,9 @@ async def finish_plan(
 	if any(change.is_noop for change in plan.changes):
 		changes = [change for change in plan.changes if not change.is_noop]
 		plan = EditPlan(plan.description, changes, plan.notes, {c.path: plan.base_hashes[c.path] for c in changes})
+	created = [change for change in plan.changes if change.kind == "create"]
+	if created and not apply:
+		return _refuse_new_file_preview(state, workspace, plan, created, title, diff_lines)
 	delta = await simulate_plan(client, workspace, roots, plan, include_dependents=include_dependents)
 	lines = [title, ""]
 	# Only real diagnostics gate the write. Importers past the check limit are a note (simulate.py), not a gate.

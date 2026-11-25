@@ -191,7 +191,9 @@ def test_rc_b19_moved_module_keeps_mode_and_undo_restores_it(tmp_path, monkeypat
 
 
 @needs_ty
-def test_rc_b19_held_back_move_preview_renders_and_says_held_back(tmp_path, monkeypatch, loop):
+def test_rc_b19_move_preview_creating_the_destination_is_refused(tmp_path, monkeypatch, loop):
+	# B23 decision: previews never create files, so a move preview whose destination does not
+	# exist is refused (it used to simulate and report "Held back" importers).
 	project = make_workspace(
 		tmp_path,
 		monkeypatch,
@@ -206,10 +208,10 @@ def test_rc_b19_held_back_move_preview_renders_and_says_held_back(tmp_path, monk
 		refactor_tools._move_module(from_file="src/pkg/util.py", to_file="src/pkg/common.py", apply=False)
 	)
 
-	assert "NOT applied" not in text
-	assert "Preview only" in text
-	assert "Held back" in text and "bad.py" in text
+	assert "Preview refused" in text and "src/pkg/common.py" in text
+	assert "previews never create files" in text
 	assert (project / "src/pkg/util.py").is_file()
+	assert not (project / "src/pkg/common.py").exists()
 
 
 # (7) Wording and dead code: the match list names each line once.
