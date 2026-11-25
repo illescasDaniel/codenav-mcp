@@ -72,7 +72,10 @@ async def _locate(session: Session, name: str, file_path: str | None) -> tuple[P
 	resolved = await resolve_symbol(session.client, session.workspace, name, file_path=file_path)
 	path = uri_to_path(resolved.uri).resolve()
 	text = read_source(path)[0]
-	definition = find_definition(text, name_line=resolved.line + 1, prefer_implementation=True)
+	# Name the real file in any parse error from this read (B27/B30: refusals never say <source>).
+	definition = find_definition(
+		text, name_line=resolved.line + 1, prefer_implementation=True, filename=relative_name(path, session.workspace)
+	)
 	if definition is None:
 		raise ToolInputError(
 			f"{name!r} is not a class, function or method (found a variable or attribute); edit it with `edit` instead."

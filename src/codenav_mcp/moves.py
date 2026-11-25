@@ -265,7 +265,8 @@ async def plan_move_symbol(
 		if isinstance(definition.parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
 			raise ToolInputError("nested functions cannot be moved; move the enclosing top-level function or class")
 		raise ToolInputError(
-			f"{definition.qualname} is nested inside {definition.parent.name}; only module-level symbols can be moved"
+			f"{definition.qualname} is nested inside {definition.parent.name}; only module-level symbols can be moved. "
+			"For a method, change the code with edit_symbol or edit instead; move cannot take a method with it."
 		)
 	dest = _resolve_dest(session, to_file)
 	if dest == src:
