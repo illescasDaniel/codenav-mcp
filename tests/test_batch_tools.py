@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from mcp_nav_shared.errors import FailedText
 
 from codenav_mcp import batch_tools
 
@@ -21,7 +22,7 @@ def fake_tools(monkeypatch):
 
 	async def write_file(file_path: str, ok: bool = True, ctx: Any = None) -> str:
 		log.append(f"write {file_path}")
-		return f"Applied as edit abc ({file_path})" if ok else f"NOT applied: errors in {file_path}"
+		return f"Applied as edit abc ({file_path})" if ok else FailedText(f"NOT applied: errors in {file_path}")
 
 	async def preview_file(file_path: str, ctx: Any = None) -> str:
 		return "Preview only, nothing written."
@@ -127,12 +128,11 @@ def test_given_typo_in_tool_name_then_suggests_closest():
 
 def test_given_unknown_parameter_then_lists_valid_parameters():
 	text = run([{"tool": "read_file", "args": {"path": "a.py"}}])
-	assert "no parameter 'path'" in text
-	assert "read_file(file_path, line=...)" in text
+	assert "unknown argument 'path' for read_file; allowed: file_path, line" in text
 
 
 def test_given_wrong_type_then_validation_hint():
-	assert "invalid 'line'" in run([{"tool": "read_file", "args": {"file_path": "a.py", "line": "x"}}])
+	assert "line must be a whole number" in run([{"tool": "read_file", "args": {"file_path": "a.py", "line": "x"}}])
 
 
 def test_given_missing_required_then_hint():
@@ -159,3 +159,13 @@ def test_given_empty_or_too_many_calls_then_refused():
 def test_given_huge_output_then_truncated(fake_tools):
 	text = run([{"tool": "huge"}])
 	assert "truncated 50 characters" in text
+
+
+def test_success_containing_failure_words_is_not_a_failure():
+	async def success() -> str:
+		return "Preview only\n+NOT applied: user text in diff"
+
+	batch_tools.register("success_with_diff", success, writes=True)
+	result = run([{"tool": "success_with_diff"}])
+	assert not isinstance(result, FailedText)
+	assert "1/1 ok" in result

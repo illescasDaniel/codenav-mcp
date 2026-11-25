@@ -56,11 +56,14 @@ class SourceMap:
 		)  # type: ignore[attr-defined]
 
 
-def tokenize_source(text: str) -> list[tokenize.TokenInfo]:
+def tokenize_source(text: str, filename: str = "<source>") -> list[tokenize.TokenInfo]:
 	try:
 		return list(tokenize.generate_tokens(io.StringIO(text).readline))
-	except (tokenize.TokenError, IndentationError) as exc:
-		raise PythonSyntaxError(f"cannot tokenize the file: {exc}") from exc
+	except tokenize.TokenError as exc:
+		reason = str(exc.args[0]) if exc.args else "incomplete statement"
+		raise PythonSyntaxError(f"{filename}: the file is not complete Python ({reason}); fix it first") from exc
+	except IndentationError as exc:
+		raise PythonSyntaxError(f"{filename}: line {exc.lineno}: {exc.msg}; fix the indentation first") from exc
 
 
 def _token_offset(starts: list[int], position: tuple[int, int]) -> int:
@@ -207,6 +210,12 @@ def new_params(signature: Signature, change: Change, name: str) -> tuple[list[Pa
 		removed.add(dropped)
 	values: dict[str, str] = {}
 	for spec in change.add:
+		allowed = {"name", "default", "value", "annotation", "keyword_only", "position"}
+		unknown = sorted(set(spec) - allowed)
+		if unknown:
+			raise ToolInputError(
+				f"add entry has unknown key(s) {', '.join(repr(k) for k in unknown)}; allowed: name, default, value, annotation, keyword_only, position"
+			)
 		pname = str(spec.get("name") or "")
 		if not pname.isidentifier():
 			raise ToolInputError(f"add: {pname!r} is not a valid parameter name")
@@ -306,6 +315,10 @@ class ManualCallError(Exception):
 	"""A call site this tool will not rewrite on its own; the message says why."""
 
 
+class CommentedCallError(ManualCallError):
+	"""A call whose argument list holds comments: rewriting it would move or drop them, so the change is refused."""
+
+
 def rebind_call(
 	args: list[CallArg],
 	old: list[Param],
@@ -321,6 +334,15 @@ def rebind_call(
 	"""
 	if any(a.starred for a in args):
 		raise ManualCallError("uses *args/**kwargs unpacking")
+	old_order = [p.name for p in old if p.kind in (POSONLY, NORMAL)]
+	new_order = [p.name for p in new if p.name in old_order and p.kind in (POSONLY, NORMAL)]
+	if new_order != [n for n in old_order if n in new_order] and len(args) - skip_leading > 1:
+		if any(
+			not isinstance(ast.parse(f"({a.value})", mode="eval").body, (ast.Constant, ast.Name))
+			for a in args[skip_leading:]
+			if a.keyword is None
+		):
+			raise ManualCallError("reordering effectful arguments could change evaluation order")
 	lead = [a.text for a in args[:skip_leading]]
 	rest_args = args[skip_leading:]
 	old_positional = [p for p in old if p.kind in (POSONLY, NORMAL)]
@@ -369,7 +391,14 @@ def rebind_call(
 	for name, value in new_values.items():
 		if name not in emitted:
 			keyword_out.append(f"{name}={value}")
-	return [*lead, *positional_out, *keyword_out]
+	result = [*lead, *positional_out, *keyword_out]
+	# Re-rendering can reorder keyword expressions or remove an expression entirely.
+	# Avoid changing evaluation order or discarding side effects.
+	if result[: len(args)] != [arg.text for arg in args] and any(
+		not isinstance(ast.parse(f"({arg.value})", mode="eval").body, (ast.Constant, ast.Name)) for arg in args
+	):
+		raise ManualCallError("changing effectful arguments could change evaluation order or discard side effects")
+	return result
 
 
 def call_edit(
@@ -377,6 +406,10 @@ def call_edit(
 ) -> tuple[int, int, str] | None:
 	"""(start, end, text) replacing only the tail of the argument list that differs."""
 	old_texts = [a.text for a in old_args]
+	span = paren_span(smap, tokens, smap.end(call.func))
+	if span is not None and old_texts != new_args:
+		if any(t.type == tokenize.COMMENT and span[0] <= _token_offset(smap.starts, t.start) < span[1] for t in tokens):
+			raise CommentedCallError("contains comments in the argument list")
 	if old_texts == new_args:
 		return None
 	common = 0

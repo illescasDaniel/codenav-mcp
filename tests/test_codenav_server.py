@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from mcp.types import CallToolResult
 from mcp_nav_shared.errors import ToolInputError, format_tool_error
 from mcp_nav_shared.lsp_client import LspRequestError
 
@@ -98,8 +99,9 @@ def test_given_neither_when_implementations_then_actionable_error():
 	# when
 	result = asyncio.run(codenav_server.implementations())
 	# then
-	assert "port_name" in result
-	assert "alias" in result.lower() or "aliases" in result.lower()
+	assert isinstance(result, CallToolResult) and result.is_error
+	assert "port_name" in result.content[0].text
+	assert "alias" in result.content[0].text.lower()
 
 
 def test_given_plain_protocol_base_when_protocol_class_names_then_included():
@@ -127,12 +129,11 @@ def test_given_nested_protocol_class_when_protocol_class_names_then_found_at_any
 	assert _protocol_class_names(source) == {"Inner"}
 
 
-def test_given_no_source_root_env_when_module_loaded_then_source_root_defaults_to_workspace_root():
-	# codenav_mcp.server reads CODENAV_MCP_SOURCE_ROOT once at import time; in
-	# a plain test environment (no .mcp.json-injected env) it should fall back
-	# to scanning/deriving import paths against the whole workspace, not a
-	# hardcoded "src" layout.
-	assert codenav_server.SOURCE_ROOT == codenav_server.WORKSPACE_ROOT
+def test_given_no_source_root_env_when_module_loaded_then_src_layout_is_autodetected():
+	# codenav_mcp.server reads CODENAV_MCP_SOURCE_ROOT once at import time. With no env set,
+	# a `src/` layout (this repository has one; RC-128) is the source root, else the workspace.
+	expected = codenav_server.WORKSPACE_ROOT / "src"
+	assert codenav_server.SOURCE_ROOT == expected
 
 
 def test_given_unchanged_file_when_cached_protocol_names_twice_then_parses_once(tmp_path, monkeypatch):
@@ -295,7 +296,9 @@ def test_given_file_path_when_implementations_then_passed_to_resolver(monkeypatc
 	monkeypatch.setattr(codenav_server, "get_client", _fake_client)
 	monkeypatch.setattr(codenav_server, "resolve_symbol", _fake_resolve)
 	# when
-	asyncio.run(codenav_server.implementations(port_name="Port", file_path="a/b.py"))
+	result = asyncio.run(codenav_server.implementations(port_name="Port", file_path="a/b.py"))
+	assert isinstance(result, CallToolResult) and result.is_error
+	assert "stop here" in result.content[0].text
 	# then
 	assert seen == {"name": "Port", "file_path": "a/b.py"}
 

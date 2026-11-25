@@ -11,21 +11,28 @@ from __future__ import annotations
 
 import difflib
 import inspect
+import re
+import types
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 import pydantic
 from mcp.server.mcpserver import Context
+from mcp_nav_shared.errors import FailedText
+from mcp_nav_shared.output import cap_output, max_output_chars
 
 from codenav_mcp import tool_base
 
 
 MAX_CALLS = 25
 MAX_CALL_CHARS = 20_000
-# Text a write tool returns when it did what was asked (applied, undone, previewed, or nothing to do).
-_WRITE_OK_MARKERS = ("Applied as edit", "Applied edit", "Reverted edit", "Preview only", "No changes")
+# Names echoed back in a refusal: at most this many, each cut short (callers may send anything).
+_MAX_NAMES = 5
+_MAX_NAME_PROBE = 64
+# A whole argument that names an earlier call's result, e.g. "$1" or "$2.path" (not supported in v1).
+_RESULT_REFERENCE = re.compile(r"\$\d+(?:\.\w+)*")
 
 ToolFn = Callable[..., Awaitable[str]]
 
@@ -40,6 +47,8 @@ class _Entry:
 
 
 _registry: dict[str, _Entry] = {}
+# Parameters of tools that are not batchable (`batch` itself), so direct calls can be checked too.
+_signatures: dict[str, ToolFn] = {}
 
 
 def _bare(fn: Any) -> ToolFn:
@@ -58,23 +67,113 @@ def register(name: str, fn: Any, *, writes: bool) -> None:
 	_registry[name] = _Entry(bare, writes, params, adapters, "ctx" in params)
 
 
+def register_signature(name: str, fn: Any) -> None:
+	"""Record the parameters of a tool that `batch` does not run (direct calls are still checked)."""
+	_signatures[name] = _bare(fn)
+
+
+def signature_of(name: str) -> ToolFn | None:
+	"""The tool function behind `name` for argument checks, or None for an unknown tool."""
+	entry = _registry.get(name)
+	return entry.fn if entry is not None else _signatures.get(name)
+
+
 def registered_tools() -> list[str]:
 	return sorted(_registry)
 
 
-def _hint_for(name: str) -> str:
-	close = difflib.get_close_matches(name, _registry, n=2)
+def unknown_tool_message(name: str) -> str:
+	"""The refusal for a tool name that is not registered. The name is cut short: callers may send anything."""
+	close = difflib.get_close_matches(name[:_MAX_NAME_PROBE], _registry, n=2)
 	suggestion = f" Did you mean {' or '.join(repr(c) for c in close)}?" if close else ""
-	return f"Unknown tool {name!r}.{suggestion} Available: {', '.join(registered_tools())}."
+	return f"Unknown tool {_short_repr(name)}.{suggestion} Available: {', '.join(registered_tools())}."
 
 
-def _signature_hint(name: str, entry: _Entry) -> str:
+def _signature_hint(name: str, params: Mapping[str, inspect.Parameter]) -> str:
 	parts = []
-	for key, param in entry.params.items():
+	for key, param in params.items():
 		if key == "ctx":
 			continue
 		parts.append(key if param.default is inspect.Parameter.empty else f"{key}=...")
 	return f"{name}({', '.join(parts)})"
+
+
+def _type_phrase(annotation: Any) -> str:
+	"""How a parameter's declared type reads in a refusal ("must be a whole number")."""
+	origin = typing.get_origin(annotation)
+	if origin is typing.Annotated:
+		return _type_phrase(typing.get_args(annotation)[0])
+	if origin in (typing.Union, types.UnionType):
+		members = [arg for arg in typing.get_args(annotation) if arg is not type(None)]
+		return _type_phrase(members[0]) if len(members) == 1 else "a value of the documented type"
+	base = origin or annotation
+	if base is bool:
+		return "true or false"
+	if base is int:
+		return "a whole number"
+	if base is float:
+		return "a number"
+	if base is str:
+		return "text"
+	if base is list:
+		element = next(iter(typing.get_args(annotation)), None)
+		if element is dict or typing.get_origin(element) is dict:
+			return "a list of objects"
+		return "a list"
+	if base is dict:
+		return "an object"
+	return "a value of the documented type"
+
+
+def _short_repr(value: Any) -> str:
+	text = repr(value)
+	return text if len(text) <= 40 else f"{text[:37]}..."
+
+
+def _names_text(names: list[Any]) -> str:
+	"""At most `_MAX_NAMES` names, each cut short, so a refusal stays small whatever the caller sent."""
+	shown = ", ".join(_short_repr(name) for name in names[:_MAX_NAMES])
+	more = f", ... and {len(names) - _MAX_NAMES} more" if len(names) > _MAX_NAMES else ""
+	return shown + more
+
+
+def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | None:
+	"""The refusal for arguments `fn` cannot take (unknown name, wrong type, missing), or None.
+
+	Shared by `batch` and the direct MCP path, so both answer the same way.
+	"""
+	bare = _bare(fn)
+	params = {key: param for key, param in inspect.signature(bare).parameters.items() if key != "ctx"}
+	hints = typing.get_type_hints(bare, include_extras=True)  # keep StrictBool: plain bool would accept "yes"
+	unknown = [key for key in args if key not in params]
+	if unknown:
+		allowed = ", ".join(params)
+		noun = "argument" if len(unknown) == 1 else "arguments"
+		return f"unknown {noun} {_names_text(unknown)} for {name}; allowed: {allowed}"
+	for key, value in args.items():
+		try:
+			# Strict: a string "3" or a bool is not a line number, as in every other parameter (NAVP-012).
+			pydantic.TypeAdapter(hints.get(key, Any)).validate_python(value, strict=True)
+		except pydantic.ValidationError:
+			return f"{name}: {key} must be {_type_phrase(hints.get(key))} (got {_short_repr(value)})"
+	missing = [key for key, param in params.items() if param.default is inspect.Parameter.empty and key not in args]
+	if missing:
+		hint = _signature_hint(name, params)
+		return f"{name}: missing required {', '.join(map(repr, missing))}. Parameters: {hint}."
+	return None
+
+
+def _result_reference(value: Any) -> str | None:
+	"""The first argument value (at any depth) that names an earlier call's result, e.g. "$1"."""
+	if isinstance(value, str):
+		found = _RESULT_REFERENCE.fullmatch(value.strip())
+		return found.group(0) if found else None
+	items = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
+	for item in items:
+		found_in = _result_reference(item)
+		if found_in is not None:
+			return found_in
+	return None
 
 
 def _prepare(index: int, raw: Any) -> tuple[str, _Entry, dict[str, Any]] | str:
@@ -89,31 +188,27 @@ def _prepare(index: int, raw: Any) -> tuple[str, _Entry, dict[str, Any]] | str:
 		return "batch calls cannot be nested."
 	entry = _registry.get(name)
 	if entry is None:
-		return _hint_for(name)
+		return unknown_tool_message(name)
 	args = raw.pop("args", None)
 	if args is None:
 		args = raw  # lenient: {"tool": "outline", "file_path": "x.py"}
 	elif raw:
-		return f'Put {sorted(raw)} inside "args" (call shape: {{"tool": ..., "args": {{...}}}}).'
+		return f'Put {_names_text(sorted(raw))} inside "args" (call shape: {{"tool": ..., "args": {{...}}}}).'
 	if not isinstance(args, dict):
-		return f'"args" must be an object of {name} parameters: {_signature_hint(name, entry)}.'
-	unknown = [key for key in args if key not in entry.params or key == "ctx"]
-	if unknown:
-		return f"{name} has no parameter {', '.join(map(repr, unknown))}. Parameters: {_signature_hint(name, entry)}."
-	kwargs: dict[str, Any] = {}
-	for key, value in args.items():
-		try:
-			kwargs[key] = entry.adapters[key].validate_python(value) if key in entry.adapters else value
-		except pydantic.ValidationError as exc:
-			first = exc.errors()[0]
-			return f"{name}: invalid {key!r}: {first['msg']}. Parameters: {_signature_hint(name, entry)}."
-	missing = [
-		key
-		for key, param in entry.params.items()
-		if key != "ctx" and param.default is inspect.Parameter.empty and key not in kwargs
-	]
-	if missing:
-		return f"{name}: missing required {', '.join(map(repr, missing))}. Parameters: {_signature_hint(name, entry)}."
+		return f'"args" must be an object of {name} parameters: {_signature_hint(name, entry.params)}.'
+	problem = argument_problem(name, entry.fn, args)
+	if problem is not None:
+		return problem
+	reference = _result_reference(args)
+	if reference is not None:
+		return (
+			f"batch call #{index}: result references ({reference}) are not supported in v1; "
+			"make the calls independent or run them one by one"
+		)
+	kwargs: dict[str, Any] = {
+		key: entry.adapters[key].validate_python(value) if key in entry.adapters else value
+		for key, value in args.items()
+	}
 	return name, entry, kwargs
 
 
@@ -122,15 +217,13 @@ def _label(name: str, kwargs: dict[str, Any]) -> str:
 	return f"{name}({shown})"
 
 
-def _write_failed(entry: _Entry, text: str) -> bool:
-	return entry.writes and ("NOT applied" in text or not any(marker in text for marker in _WRITE_OK_MARKERS))
-
-
 async def run_batch(calls: list[dict[str, Any]], stop_on_error: bool | None, ctx: Context | None) -> str:
 	if not isinstance(calls, list) or not calls:
-		return 'batch needs a non-empty "calls" list, e.g. [{"tool": "outline", "args": {"file_path": "src/a.py"}}].'
+		return FailedText(
+			'batch needs a non-empty "calls" list, e.g. [{"tool": "outline", "args": {"file_path": "src/a.py"}}].'
+		)
 	if len(calls) > MAX_CALLS:
-		return f"batch takes at most {MAX_CALLS} calls, got {len(calls)}. Split it into several batches."
+		return FailedText(f"batch takes at most {MAX_CALLS} calls, got {len(calls)}. Split it into several batches.")
 	if ctx is not None:
 		# Pick the workspace once; the calls then run with ctx=None, which skips the per-call lookup.
 		await tool_base.server()._use_workspace(ctx)
@@ -160,25 +253,39 @@ async def run_batch(calls: list[dict[str, Any]], stop_on_error: bool | None, ctx
 			failed += 1
 			halted = stop
 			continue
-		if _write_failed(entry, text):
+		if isinstance(text, FailedText):
 			failed += 1
 			halted = stop
 			text = f"NOT DONE\n{text}"
 		if len(text) > MAX_CALL_CHARS:
 			text = f"{text[:MAX_CALL_CHARS]}\n... [truncated {len(text) - MAX_CALL_CHARS} characters; narrow this call]"
 		sections.append(f"{header}\n{text}")
+	limit = max_output_chars()
+	shortened: list[int] = []
+	if sum(map(len, sections)) > limit:
+		share = max((limit - 300 - 2 * total) // total, 400)
+		for i, section in enumerate(sections):
+			if len(section) > share:
+				sections[i] = cap_output(section, share)
+				shortened.append(int(section[1 : section.index("/")]))
 	summary = f"batch: {total - failed - skipped}/{total} ok"
 	if failed:
 		summary += f", {failed} failed"
 	if skipped:
 		summary += f", {skipped} skipped after the first failure (stop_on_error)"
-	return "\n\n".join([*sections, summary])
+	if shortened:
+		numbers = ", ".join(f"#{n}" for n in shortened)
+		summary += f"\nOutput limit: call(s) {numbers} were shortened. Run them alone or narrow them (path=, limit=)."
+	result = "\n\n".join([*sections, summary])
+	return FailedText(result) if failed and (halted or failed == total) else result
 
 
 def make_batch_tool() -> ToolFn:
 	"""The `batch` tool function (call `register` for every tool it should reach first)."""
 
-	async def batch(calls: list[dict[str, Any]], stop_on_error: bool | None = None, ctx: Context | None = None) -> str:
+	async def batch(
+		calls: list[dict[str, Any]], stop_on_error: pydantic.StrictBool | None = None, ctx: Context | None = None
+	) -> str:
 		"""Run several codenav tool calls in ONE request (saves round-trips and tokens).
 
 		Example: `batch(calls=[{"tool": "outline", "args": {"file_path": "src/a.py"}},
@@ -194,7 +301,11 @@ def make_batch_tool() -> ToolFn:
 
 		`stop_on_error`: stop at the first call that fails or does not apply a write (the
 		rest are skipped and listed). Default (null): stop when the batch contains a write,
-		keep going when it only reads. Up to 25 calls; `batch` cannot be nested.
+		keep going when it only reads. Up to 25 calls; `batch` cannot be nested. A call cannot
+		refer to an earlier call's result (`"$1"` is refused): make the calls independent.
+
+		Annotated as possibly destructive because a batch may contain write calls; a batch
+		made only of read tools (outline, symbol_info, hover, ...) writes nothing.
 
 		Not atomic: calls that already ran stay applied (each has its own undo id). Line/column
 		positions you computed before the batch may be stale after an earlier edit in it, so

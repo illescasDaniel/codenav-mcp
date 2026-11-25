@@ -197,7 +197,7 @@ def test_given_no_anchor_when_insert_symbol_then_end_of_file_and_before_works(pr
 
 def test_given_existing_name_when_insert_symbol_then_refused(project, loop):
 	text = _run(loop, symbol_tools._insert_symbol(source="def helper(): ...\n", file_path="src/pkg/cart.py"))
-	assert "already defined in that scope" in text
+	assert "already exists in" in text
 	assert "no definition named 'nope'" in _run(
 		loop, symbol_tools._insert_symbol(source="def z(): ...\n", file_path="src/pkg/cart.py", after="nope")
 	)
@@ -249,7 +249,7 @@ def test_given_string_mention_when_safe_delete_then_held_as_preview(project, loo
 	# when
 	text = _run(loop, symbol_tools._safe_delete(name="unused_thing"))
 	# then
-	assert "kept as a preview" in text and "dyn.py:1" in text
+	assert "held back because" in text and "dyn.py:1" in text
 	assert "def unused_thing" in (project / "src/pkg/cart.py").read_text()
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import errno
 import os
 
 import pytest
@@ -140,17 +141,17 @@ def test_given_write_failure_midway_when_apply_edit_then_every_file_is_restored(
 	real = transaction._write_atomic
 	calls = {"n": 0}
 
-	def flaky(path, data):
+	def flaky(path, data, mode=None):
 		calls["n"] += 1
 		if calls["n"] == 2:
-			raise OSError("disk full")
-		real(path, data)
+			raise OSError(errno.ENOSPC, "disk full")
+		real(path, data, mode)
 
 	monkeypatch.setattr(transaction, "_write_atomic", flaky)
 	# when
 	text = _run(loop, write_tools.apply_edit(edit_id))
 	# then
-	assert "disk full" in text and "no changes were kept" in text
+	assert "could not write" in text and "disk full; nothing was changed" in text
 	monkeypatch.setattr(transaction, "_write_atomic", real)
 	assert {p: p.read_bytes() for p in project.rglob("*.py")} == originals
 	assert not [p for p in project.rglob("*.tmp")]

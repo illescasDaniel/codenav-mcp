@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass
+
+from mcp_nav_shared.errors import ToolInputError
 
 from codenav_mcp.pysource import detect_indent_unit, leading_whitespace, parse_python, source_lines
 
@@ -19,7 +22,9 @@ class ImportStmt:
 	module: str | None  # None for a plain `import x`
 	level: int
 	aliases: tuple[tuple[str, str | None], ...]  # (name, asname)
-	conditional: bool  # inside `if TYPE_CHECKING:` / `try:` at module level
+	comment: str = ""
+	scope: str = "module"
+	conditional: bool = False  # inside `if TYPE_CHECKING:` / `try:` at module level
 
 	@property
 	def is_from(self) -> bool:
@@ -30,8 +35,8 @@ class ImportStmt:
 		return [(asname or name).split(".")[0] for name, asname in self.aliases]
 
 
-def module_imports(tree: ast.Module) -> list[ImportStmt]:
-	"""Import statements at module level, including those nested in module-level `if`/`try`."""
+def module_imports(tree: ast.Module, *, include_nested: bool = False) -> list[ImportStmt]:
+	"""Find imports; type comments are not analyzed for imported names."""
 	found: list[ImportStmt] = []
 
 	def walk(body: list[ast.stmt], conditional: bool) -> None:
@@ -51,6 +56,19 @@ def module_imports(tree: ast.Module) -> list[ImportStmt]:
 				walk(stmt.finalbody, True)
 
 	walk(tree.body, False)
+	if include_nested:
+		seen = {id(item.node) for item in found}
+		for node in ast.walk(tree):
+			if isinstance(node, (ast.Import, ast.ImportFrom)) and id(node) not in seen:
+				item = _stmt(
+					node,
+					node.module if isinstance(node, ast.ImportFrom) else None,
+					node.level if isinstance(node, ast.ImportFrom) else 0,
+					True,
+				)
+				from dataclasses import replace
+
+				found.append(replace(item, scope="function"))
 	return found
 
 
@@ -90,8 +108,75 @@ def render_import(
 	return f"{head}(\n{inner}{indent})\n"
 
 
+def _render_existing(text: str, stmt: ImportStmt, aliases: list[tuple[str, str | None]], unit: str) -> str:
+	lines = source_lines(text)
+	original = lines[stmt.first_line - 1 : stmt.last_line]
+	indent = leading_whitespace(original[0])
+	comments = [line[line.index("#") :].rstrip("\r\n") for line in original if "#" in line]
+	multiline = len(original) > 1 and "(" in original[0]
+	if multiline:
+		by_name = {}
+		comment_line_by_name = {}
+		for line_index, line in enumerate(original):
+			if "#" not in line:
+				continue
+			line_number = stmt.first_line + line_index
+			on_line = [
+				alias for alias in stmt.node.names if alias.lineno <= line_number <= (alias.end_lineno or alias.lineno)
+			]
+			if on_line and (len(on_line) != 1 or line_index in (0, len(original) - 1)):
+				raise ToolInputError(
+					f"cannot safely preserve comments on import line {line_number}; put each name on its own line"
+				)
+			if on_line:
+				alias = on_line[0]
+				key = (alias.name, alias.asname)
+				by_name[key] = line[line.index("#") :].rstrip("\r\n")
+				comment_line_by_name[key] = line_index
+		head_comment = original[0][original[0].index("#") :].rstrip("\r\n") if "#" in original[0] else ""
+		close_comment = original[-1][original[-1].index("#") :].rstrip("\r\n") if "#" in original[-1] else ""
+		head = (
+			f"{indent}from {'.' * stmt.level}{stmt.module or ''} import ("
+			+ (f"  {head_comment}" if head_comment else "")
+			+ "\n"
+		)
+		body = "".join(
+			f"{indent}{unit}{render_alias(*alias)}," + (f"  {by_name[alias]}" if alias in by_name else "") + "\n"
+			for alias in aliases
+		)
+		consumed_lines = {0, len(original) - 1}
+		consumed_lines.update(comment_line_by_name[alias] for alias in aliases if alias in comment_line_by_name)
+		remaining = [
+			line[line.index("#") :].rstrip("\r\n")
+			for index, line in enumerate(original)
+			if "#" in line and index not in consumed_lines
+		]
+		return (
+			head
+			+ body
+			+ "".join(f"{indent}{unit}{comment}\n" for comment in remaining)
+			+ f"{indent})"
+			+ (f"  {close_comment}" if close_comment else "")
+			+ "\n"
+		)
+	result = render_import(stmt.module, aliases, level=stmt.level, indent_unit=unit, indent=indent)
+	if comments:
+		result = result.rstrip("\n") + "  " + " ".join(comments) + "\n"
+	return result
+
+
 def _replace_stmt_lines(text: str, stmt: ImportStmt, replacement: str) -> str:
 	lines = source_lines(text)
+	first = lines[stmt.first_line - 1].encode("utf-8")
+	last = lines[stmt.last_line - 1].encode("utf-8")
+	prefix = first[: stmt.node.col_offset].decode("utf-8")
+	suffix = last[stmt.node.end_col_offset :].decode("utf-8").strip()
+	if prefix.strip() or (suffix and not suffix.startswith("#")):
+		raise ToolInputError(
+			f"cannot safely edit an import sharing line {stmt.first_line} with other code; put it on its own line"
+		)
+	eol = "\r\n" if lines[stmt.first_line - 1].endswith("\r\n") else "\n"
+	replacement = replacement.replace("\r\n", "\n").replace("\n", eol)
 	return "".join(lines[: stmt.first_line - 1]) + replacement + "".join(lines[stmt.last_line :])
 
 
@@ -108,15 +193,20 @@ def remove_names(text: str, names: set[str], *, only_line: int | None = None) ->
 		kept = [alias for alias, bound in zip(stmt.aliases, stmt.bound_names, strict=True) if bound not in names]
 		if len(kept) == len(stmt.aliases):
 			continue
-		indent = leading_whitespace(lines[stmt.first_line - 1])
-		edits.append(
-			(
-				stmt,
-				render_import(stmt.module, list(kept), level=stmt.level, indent_unit=unit, indent=indent)
-				if kept
-				else "",
-			)
-		)
+		edits.append((stmt, _render_existing(text, stmt, list(kept), unit) if kept else ""))
+	removed = {id(stmt.node) for stmt, replacement in edits if not replacement}
+	for parent in ast.walk(tree):
+		if isinstance(parent, ast.Module):
+			continue
+		for _, value in ast.iter_fields(parent):
+			if not isinstance(value, list) or not value or not all(isinstance(item, ast.stmt) for item in value):
+				continue
+			if all(id(item) in removed for item in value):
+				first = value[0]
+				for index, (stmt, _replacement) in enumerate(edits):
+					if stmt.node is first:
+						edits[index] = (stmt, leading_whitespace(lines[stmt.first_line - 1]) + "pass\n")
+						break
 	for stmt, replacement in sorted(edits, key=lambda item: item[0].first_line, reverse=True):
 		text = _replace_stmt_lines(text, stmt, replacement)
 	return text
@@ -157,21 +247,26 @@ def add_from_import(text: str, module: str, names: list[str | tuple[str, str | N
 	existing = [
 		s for s in module_imports(tree) if s.is_from and not s.conditional and s.module == module and s.level == level
 	]
-	already = {bound for s in module_imports(tree) for bound in s.bound_names}
+	already = {bound for s in module_imports(tree) if not s.conditional for bound in s.bound_names}
 	wanted = [(name, asname) for name, asname in pairs if (asname or name) not in already]
 	if not wanted:
 		return text
 	if existing and all(alias != "*" for s in existing for alias, _ in s.aliases):
 		stmt = existing[0]
-		merged = [*stmt.aliases, *wanted]
-		return _replace_stmt_lines(text, stmt, render_import(module, merged, level=level, indent_unit=unit))
+		merged = sorted([*stmt.aliases, *wanted], key=lambda pair: (pair[0].casefold(), pair[0]))
+		return _replace_stmt_lines(text, stmt, _render_existing(text, stmt, merged, unit))
 	return _insert_statement(text, tree, render_import(module, wanted, level=level, indent_unit=unit))
 
 
 def add_import(text: str, module: str, asname: str | None = None) -> str:
 	"""Make `import <module> [as <asname>]` true at module level."""
 	tree = parse_python(text)
-	if any(a == module and b == asname for s in module_imports(tree) if not s.is_from for a, b in s.aliases):
+	if any(
+		a == module and b == asname
+		for s in module_imports(tree)
+		if not s.is_from and not s.conditional
+		for a, b in s.aliases
+	):
 		return text
 	return _insert_statement(text, tree, render_import(None, [(module, asname)]))
 
@@ -179,6 +274,12 @@ def add_import(text: str, module: str, asname: str | None = None) -> str:
 def _insert_statement(text: str, tree: ast.Module, statement: str) -> str:
 	lines = source_lines(text)
 	after, saw_import = _insertion_point(tree)
+	for index, line in enumerate(lines[:2]):
+		if (index == 0 and line.startswith("#!")) or (
+			re.match(r"^[ \t\f]*\#.*?coding[:=]\s*[-\w.]+", line)
+			and (index == 0 or re.match(r"^[ \t\f]*(?:\#|\r?$)", lines[0]))
+		):
+			after = max(after, index + 1)
 	eol = "\r\n" if "\r\n" in text else "\n"
 	statement = statement.replace("\n", eol)
 	head = "".join(lines[:after])

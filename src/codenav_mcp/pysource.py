@@ -8,14 +8,16 @@ deterministic and cheap. Line numbers are 1-based like the tool inputs.
 from __future__ import annotations
 
 import ast
-import io
 import re
+import sys
 import textwrap
 import tokenize
+import warnings
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from mcp_nav_shared.edits import convert_eol, detect_eol, split_lines
 from mcp_nav_shared.errors import ToolInputError
 
 
@@ -27,31 +29,81 @@ class PythonSyntaxError(ToolInputError):
 	"""The text isn't valid Python, so it must not be written."""
 
 
+_BOM = "\ufeff"
+_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+_VERSION_NOTE_HINTS = ("unsupported", "not supported", "requires python", "only supported")
+
+
+def reject_nul(text: str, filename: str = "<source>") -> None:
+	"""Raise `PythonSyntaxError` when `text` holds a NUL byte (not a text file)."""
+	if "\x00" in text:
+		raise PythonSyntaxError(f"{filename}: contains a NUL byte; not a text file")
+
+
+def _syntax_error(
+	exc: SyntaxError, filename: str, *, version_hint: bool = True, new_text: bool = False
+) -> PythonSyntaxError:
+	"""The one short message for a `SyntaxError`: file, line, what the parser said, and a version hint."""
+	where = f"line {exc.lineno}" if exc.lineno else "unknown line"
+	message = str(exc.msg or "invalid syntax")
+	if new_text and "U+FEFF" in message:
+		return PythonSyntaxError(
+			f"{filename}: remove the byte-order mark (U+FEFF) from new_text; the file's own BOM is kept"
+		)
+	text = f"{filename}: syntax error at {where}: {message}"
+	if version_hint and (sys.version_info < (3, 14) or any(hint in message.lower() for hint in _VERSION_NOTE_HINTS)):
+		v = sys.version_info
+		text += f" (the server parses with Python {v.major}.{v.minor}.{v.micro}; syntax newer than that is refused)"
+	return PythonSyntaxError(text)
+
+
 def parse_python(text: str, filename: str = "<source>") -> ast.Module:
+	"""`ast.parse` with short, file-named errors (`PythonSyntaxError`); NUL bytes are refused."""
+	reject_nul(text, filename)
 	try:
-		return ast.parse(text, filename=filename)
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			return ast.parse(text, filename=filename)
 	except SyntaxError as exc:
-		where = f"line {exc.lineno}" if exc.lineno else "unknown line"
-		raise PythonSyntaxError(f"{filename}: syntax error at {where}: {exc.msg}") from exc
-	except ValueError as exc:  # e.g. null bytes
-		raise PythonSyntaxError(f"{filename}: cannot parse: {exc}") from exc
+		raise _syntax_error(exc, filename) from exc
+	except (ValueError, RecursionError, MemoryError) as exc:
+		raise PythonSyntaxError(f"{filename}: cannot parse: the text is too deeply nested or not valid source") from exc
 
 
 def check_syntax(text: str, filename: str) -> None:
-	parse_python(text, filename)
+	"""Raise `PythonSyntaxError` unless `text` compiles as a module.
+
+	Stricter than `ast.parse`: the full compile also refuses what only the compiler sees
+	(`from __future__` after other code, `return`/`yield`/`await` outside a function, ...).
+	A leading U+FEFF is ignored: the file's own byte-order mark is kept by the write path.
+	"""
+	reject_nul(text, filename)
+	if text.startswith(_BOM):
+		text = text[1:]
+	_compile(text, filename, flags=ast.PyCF_ONLY_AST, new_text=True)
+	_compile(text, filename)
+
+
+def _compile(text: str, filename: str, *, flags: int = 0, version_hint: bool = True, new_text: bool = False) -> None:
+	try:
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			compile(text, filename, "exec", flags=flags, dont_inherit=True)
+	except SyntaxError as exc:
+		raise _syntax_error(exc, filename, version_hint=version_hint, new_text=new_text) from exc
+	except (ValueError, RecursionError, MemoryError) as exc:
+		raise PythonSyntaxError(f"{filename}: cannot parse: the text is too deeply nested or not valid source") from exc
 
 
 def line_start_offsets(text: str) -> list[int]:
-	offsets = [0]
-	for index, char in enumerate(text):
-		if char == "\n":
-			offsets.append(index + 1)
-	return offsets
+	"""Offset of the first character of every line; lines end at `\\r\\n`, `\\r` or `\\n` only (like `source_lines`)."""
+	return [0, *(match.end() for match in _LINE_BREAK_RE.finditer(text))]
 
 
 def source_lines(text: str) -> list[str]:
-	"""Lines with their terminators (`\\n`, `\\r\\n`), like `str.splitlines(True)` but only on real line ends."""
-	return text.splitlines(keepends=True)
+	"""Lines with their terminators (`\\n`, `\\r\\n`, `\\r`), like `str.splitlines(True)` but only on real line ends
+	(not on form feed, NEL, U+2028 ...)."""
+	return split_lines(text, keepends=True)
 
 
 def leading_whitespace(line: str) -> str:
@@ -122,14 +174,49 @@ def _child_bodies(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
 		yield case.body
 
 
-def find_definition(text: str, *, name_line: int | None = None, qualname: str | None = None) -> Definition | None:
-	"""The definition whose identifier is on `name_line`, or named `qualname` (`Class.method`)."""
+def _is_overload(node: _DefNode, direct: set[str], modules: set[str]) -> bool:
+	"""Recognize only decorators imported from typing or typing_extensions."""
+	for decorator in node.decorator_list:
+		target = decorator.func if isinstance(decorator, ast.Call) else decorator
+		if isinstance(target, ast.Name) and target.id in direct:
+			return True
+		if (
+			isinstance(target, ast.Attribute)
+			and target.attr == "overload"
+			and isinstance(target.value, ast.Name)
+			and target.value.id in modules
+		):
+			return True
+	return False
+
+
+def find_definition(
+	text: str, *, name_line: int | None = None, qualname: str | None = None, prefer_implementation: bool = False
+) -> Definition | None:
+	"""Find a definition; an explicit line stays exact unless implementation preference is requested."""
 	lines = source_lines(text)
 	tree = parse_python(text)
-	for definition in iter_definitions(tree, lines):
-		if name_line is not None and definition.def_line == name_line:
-			return definition
-		if qualname is not None and definition.qualname == qualname:
+	direct: set[str] = set()
+	modules: set[str] = set()
+	for stmt in tree.body:
+		if isinstance(stmt, ast.Import):
+			modules.update(
+				alias.asname or alias.name for alias in stmt.names if alias.name in {"typing", "typing_extensions"}
+			)
+		elif isinstance(stmt, ast.ImportFrom) and stmt.module in {"typing", "typing_extensions"}:
+			direct.update(alias.asname or alias.name for alias in stmt.names if alias.name == "overload")
+	definitions = list(iter_definitions(tree, lines))
+	for definition in definitions:
+		if (name_line is not None and definition.def_line == name_line) or (
+			qualname is not None and definition.qualname == qualname
+		):
+			if (prefer_implementation or (name_line is None and qualname is not None)) and _is_overload(
+				definition.node, direct, modules
+			):
+				for other in definitions:
+					if other.qualname == definition.qualname and other.parent is definition.parent:
+						if not _is_overload(other.node, direct, modules):
+							return other
 			return definition
 	return None
 
@@ -148,7 +235,7 @@ def leading_comment_start(lines: list[str], first_line: int) -> int:
 
 def detect_indent_unit(text: str) -> str:
 	"""`\\t` or N spaces: whichever the file's first indented line uses."""
-	for line in text.splitlines():
+	for line in split_lines(text):
 		if line.startswith("\t"):
 			return "\t"
 		stripped = line.lstrip(" ")
@@ -176,7 +263,8 @@ def _string_continuation_lines(source: str) -> set[int]:
 			):
 				docstring_lines.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
 	try:
-		for token in tokenize.generate_tokens(io.StringIO(source).readline):
+		lines = iter(source_lines(source))
+		for token in tokenize.generate_tokens(lambda: next(lines, "")):
 			if token.type == tokenize.STRING and token.end[0] > token.start[0]:
 				protected.update(
 					line for line in range(token.start[0] + 1, token.end[0] + 1) if line not in docstring_lines
@@ -220,14 +308,18 @@ def indent_block(source: str, indent: str) -> str:
 	return "".join(out)
 
 
-def fit_snippet(snippet: str, *, indent: str, file_text: str) -> str:
-	"""A snippet (any indentation, any indent unit) ready to be placed at `indent` in a file.
+def fit_snippet(snippet: str, *, indent: str, file_text: str, match_eol: bool = False) -> str:
+	"""A snippet (any indentation, any indent unit, any line endings) ready to be placed at `indent` in a file.
 
-	Always ends with exactly one newline.
+	Uses the file's own indent unit. Always ends with exactly one line ending: `\\n` by default, so callers
+	that convert endings themselves keep working; with `match_eol=True` every line ending of the block is
+	the file's dominant one (`\\r\\n` or `\\n`, `edits.detect_eol`), so a CRLF file stays CRLF. A caller
+	that passes `match_eol=True` must not convert the result again (`.replace("\\n", eol)` would give `\\r\\r\\n`).
 	"""
-	body = textwrap.dedent(snippet).strip("\n")
+	body = textwrap.dedent(convert_eol(snippet, "\n")).strip("\n")
 	body = convert_indent_unit(body, detect_indent_unit(file_text))
-	return indent_block(body, indent).rstrip() + "\n"
+	fitted = indent_block(body, indent).rstrip() + "\n"
+	return convert_eol(fitted, detect_eol(file_text)) if match_eol else fitted
 
 
 def top_level_names(tree: ast.Module) -> set[str]:

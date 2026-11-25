@@ -372,3 +372,78 @@ async def find_linked(
 				f"{'parameter ' + parameter + ' of ' if parameter else ''}{ref.name}.{member_name} renamed too ({how}: {ref.path.name}:{site.line})"
 			)
 	return result
+
+
+@dataclass(frozen=True)
+class ExternalBase:
+	"""A base class outside the workspace that already declares the member."""
+
+	name: str  # the base class, e.g. `Thread`
+	module: str  # the file's module name, e.g. `threading`
+
+
+MAX_SUPERTYPE_STEPS = 40
+
+
+def _inside(path: Path, workspace: Path) -> bool:
+	try:
+		path.relative_to(workspace.resolve())
+	except ValueError:
+		return False
+	return True
+
+
+def _declared_members(path: Path, def_line: int) -> frozenset[str] | None:
+	"""The members of the class declared at `def_line` of `path` (a stub or source file outside the workspace)."""
+	try:
+		text = read_source(path)[0]
+		tree = parse_python(text, str(path))
+	except (OSError, UnicodeDecodeError, ValueError, PythonSyntaxError):
+		return None
+	for definition in iter_definitions(tree, source_lines(text)):
+		if isinstance(definition.node, ast.ClassDef) and definition.def_line == def_line:
+			return _own_members(definition.node)
+	return None
+
+
+async def external_declaration(
+	client: LspClient, workspace: Path, *, origin_path: Path, member_line: int, member_name: str
+) -> ExternalBase | None:
+	"""The base class outside the workspace that declares `member_name`, when the method at `member_line` of
+	`origin_path` is an override of it (None when there is none or ty cannot say). The walk follows ty's type
+	hierarchy through workspace classes too, so `Child(Mid)` with `Mid(threading.Thread)` is covered."""
+	text = read_source(origin_path)[0]
+	container = locate_member_class(text, member_line, member_name)
+	if container is None:
+		return None
+	line, column = definition_name_position(source_lines(text), container)
+	try:
+		items = await client.prepare_type_hierarchy(str(origin_path), line, column)
+	except TOOL_ERRORS:
+		return None
+	pending = list(items[:1])
+	seen: set[str] = set()
+	steps = 0
+	while pending and steps < MAX_SUPERTYPE_STEPS:
+		item = pending.pop(0)
+		steps += 1
+		try:
+			supers = await client.supertypes(item)
+		except TOOL_ERRORS:
+			continue
+		for sup in supers:
+			uri = str(sup.get("uri") or "")
+			if not uri.startswith("file:"):
+				continue
+			sel = (sup.get("selectionRange") or sup.get("range") or {}).get("start") or {}
+			base_line = int(sel.get("line", 0)) + 1
+			if f"{uri}:{base_line}" in seen:
+				continue
+			seen.add(f"{uri}:{base_line}")
+			path = uri_to_path(uri).resolve()
+			if not _inside(path, workspace):
+				members = _declared_members(path, base_line)
+				if members is not None and member_name in members:
+					return ExternalBase(str(sup.get("name") or "?"), path.stem)
+			pending.append(sup)
+	return None

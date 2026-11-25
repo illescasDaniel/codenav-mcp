@@ -8,6 +8,7 @@ to fit, and refuses anything that is not valid Python before it is written.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import re
 import textwrap
 from pathlib import Path
@@ -19,19 +20,27 @@ from mcp_nav_shared.edits import (
 	FileChange,
 	TextEdit,
 	changes_from_edits,
+	convert_eol,
 	detect_eol,
 	parse_workspace_edit,
 	read_source,
 	relative_name,
 	replace_lines,
+	split_lines,
 )
-from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
+from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.format import uri_to_path
 from mcp_nav_shared.resolve import resolve_symbol
 
 from codenav_mcp import tool_base
-from codenav_mcp.deps import find_dependents, import_from_targets, module_names_for
-from codenav_mcp.imports import add_from_import, add_import, remove_names
+from codenav_mcp.deps import (
+	Skipped,
+	find_dependents_report,
+	format_skipped,
+	import_from_targets,
+	module_names_for,
+)
+from codenav_mcp.imports import add_from_import, add_import, module_imports, remove_names
 from codenav_mcp.mentions import find_mentions, format_mentions
 from codenav_mcp.pysource import (
 	Definition,
@@ -43,10 +52,11 @@ from codenav_mcp.pysource import (
 	fit_snippet,
 	leading_comment_start,
 	leading_whitespace,
+	names_used_outside,
 	parse_python,
 	source_lines,
-	top_level_names,
 )
+from codenav_mcp.tidy import sort_failure, sort_imports
 from codenav_mcp.tool_base import Session, open_session
 from codenav_mcp.writes import finish_plan, require_workspace_file
 
@@ -56,7 +66,7 @@ async def _locate(session: Session, name: str, file_path: str | None) -> tuple[P
 	resolved = await resolve_symbol(session.client, session.workspace, name, file_path=file_path)
 	path = uri_to_path(resolved.uri).resolve()
 	text = read_source(path)[0]
-	definition = find_definition(text, name_line=resolved.line + 1)
+	definition = find_definition(text, name_line=resolved.line + 1, prefer_implementation=True)
 	if definition is None:
 		raise ToolInputError(
 			f"{name!r} is not a class, function or method (found a variable or attribute); edit it with `edit` instead."
@@ -89,7 +99,7 @@ def _apply_imports(text: str, imports: list[str] | None) -> str:
 				)
 			elif isinstance(node, ast.Import):
 				for alias in node.names:
-					text = add_import(text, alias.name)
+					text = add_import(text, alias.name, alias.asname)
 			else:
 				raise ToolInputError(f"`imports` takes import statements only, got: {statement!r}")
 	return text
@@ -149,7 +159,7 @@ async def _replace_symbol(
 		]
 		if dropped:
 			notes.append(f"decorators not in the new source were removed: {', '.join('@' + d for d in dropped)}")
-		fitted = fit_snippet(source, indent=old.indent, file_text=text)
+		fitted = fit_snippet(source, indent=old.indent, file_text=text, match_eol=True)
 		new_text = replace_lines(text, old.first_line, old.last_line, fitted)
 		new_text = _apply_imports(new_text, imports)
 		rel = relative_name(path, session.workspace)
@@ -178,7 +188,7 @@ def _insert_block(text: str, anchor_line: int, snippet: str, *, before: bool, in
 	two blank lines around top-level code, one inside classes, none right after a block opener."""
 	eol = detect_eol(text)
 	lines = source_lines(text)
-	snippet = snippet.replace("\n", eol)
+	snippet = convert_eol(snippet, eol)  # the snippet may already carry the file's endings (fit_snippet)
 	if before:
 		head = "".join(lines[: anchor_line - 1]).rstrip("\r\n")
 		rest = "".join(lines[anchor_line - 1 :])
@@ -189,7 +199,7 @@ def _insert_block(text: str, anchor_line: int, snippet: str, *, before: bool, in
 	rest = "".join(lines[anchor_line:]).lstrip("\r\n")
 	if not rest.strip():
 		return head + eol + eol * _blank_lines_for(indent) + snippet
-	rest_indent = leading_whitespace(rest.splitlines()[0])
+	rest_indent = leading_whitespace(split_lines(rest)[0])
 	gap_after = eol * _blank_lines_for(rest_indent if len(rest_indent) < len(indent) else indent)
 	return head + eol + eol * _blank_lines_for(indent) + snippet + gap_after + rest
 
@@ -219,6 +229,11 @@ async def _insert_symbol(
 		if sum(x is not None for x in (after, before, into)) > 1:
 			raise ToolInputError("give at most one of `after`, `before`, `into`")
 		session = await open_session(ctx)
+		candidate = Path(file_path)
+		if not candidate.is_absolute():
+			candidate = session.workspace / candidate
+		if candidate.resolve().is_relative_to(session.workspace.resolve()) and not candidate.is_file():
+			raise ToolInputError(f"{file_path} does not exist; create it with edit(file_path=..., new_text=...) first")
 		path = require_workspace_file(session.workspace, file_path)
 		text = read_source(path)[0]
 		body = _parse_snippet(source, "definition")
@@ -253,17 +268,64 @@ async def _insert_symbol(
 			insert_before = False
 		else:
 			indent, scope_parent, line, insert_before = "", None, len(source_lines(text)), False
-		existing = _names_in_scope(text, scope_parent)
-		clashes = [
-			s.name
-			for s in body
-			if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and s.name in existing
-		]
-		if clashes:
-			raise ToolInputError(
-				f"{', '.join(clashes)} already defined in that scope; use edit_symbol(action=replace) to change it."
+		scope_body = scope_parent.body if isinstance(scope_parent, ast.ClassDef) else parse_python(text).body
+		existing: dict[str, int] = {}
+
+		class Bindings(ast.NodeVisitor):
+			def visit_Name(self, node: ast.Name) -> None:
+				if isinstance(node.ctx, ast.Store):
+					existing[node.id] = node.lineno
+
+			def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+				existing[node.name] = node.lineno
+
+			visit_AsyncFunctionDef = visit_FunctionDef
+
+			def visit_ClassDef(self, node: ast.ClassDef) -> None:
+				existing[node.name] = node.lineno
+
+			def visit_Import(self, node: ast.Import | ast.ImportFrom) -> None:
+				for alias in node.names:
+					existing[alias.asname or alias.name.split(".")[0]] = node.lineno
+
+			visit_ImportFrom = visit_Import
+
+			def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+				if node.name:
+					existing[node.name] = node.lineno
+				self.generic_visit(node)
+
+			def visit_MatchAs(self, node: ast.MatchAs) -> None:
+				if node.name:
+					existing[node.name] = node.lineno
+				self.generic_visit(node)
+
+			def visit_MatchStar(self, node: ast.MatchStar) -> None:
+				if node.name:
+					existing[node.name] = node.lineno
+
+			def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+				if node.rest:
+					existing[node.rest] = node.lineno
+				self.generic_visit(node)
+
+		bindings = Bindings()
+		for stmt in scope_body:
+			bindings.visit(stmt)
+		for stmt in body:
+			names = (
+				[stmt.name]
+				if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+				else [n.id for n in ast.walk(stmt) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)]
 			)
-		fitted = fit_snippet(source, indent=indent, file_text=text)
+			for inserted_name in names:
+				if inserted_name in existing:
+					raise ToolInputError(
+						f"{inserted_name} already exists in {relative_name(path, session.workspace)} at line {existing[inserted_name]}; use action=replace"
+					)
+				existing[inserted_name] = stmt.lineno
+
+		fitted = fit_snippet(source, indent=indent, file_text=text, match_eol=True)
 		if into is not None and _is_placeholder_body(container.node):
 			first = container.node.body[-1]
 			new_text = replace_lines(text, first.lineno, first.end_lineno or first.lineno, fitted)
@@ -301,37 +363,10 @@ def _is_placeholder_body(node: ast.ClassDef) -> bool:
 	)
 
 
-def _names_in_scope(text: str, scope: ast.AST | None) -> set[str]:
-	tree = parse_python(text)
-	if scope is None:
-		return top_level_names(tree)
-	for node in ast.walk(tree):
-		if (
-			isinstance(node, ast.ClassDef)
-			and isinstance(scope, ast.ClassDef)
-			and node.name == scope.name
-			and node.lineno == scope.lineno
-		):
-			return {
-				n
-				for stmt in node.body
-				for n in (
-					[stmt.name]
-					if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-					else [t.id for t in getattr(stmt, "targets", []) if isinstance(t, ast.Name)]
-					+ (
-						[stmt.target.id]
-						if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name)
-						else []
-					)
-				)
-			}
-	return set()
-
-
-def _delete_span(text: str, definition: Definition, *, comments: bool = True) -> str:
-	"""`text` without the definition (decorators and the comment block right above included),
-	spacing repaired, and `pass` left behind when it was the only statement of its block."""
+def _delete_span(text: str, definition: Definition, *, comments: bool = False, replacement: str = "") -> str:
+	"""`text` without the definition (and its decorators; leading comments are optional),
+	spacing repaired, and `pass` left behind when it was the only statement of its block.
+	`replacement` (one top-level statement) takes the definition's place instead, so it keeps the position."""
 	lines = source_lines(text)
 	first = leading_comment_start(lines, definition.first_line) if comments else definition.first_line
 	last = definition.last_line
@@ -347,13 +382,14 @@ def _delete_span(text: str, definition: Definition, *, comments: bool = True) ->
 		return replace_lines(text, first, last, definition.indent + "pass" + eol)
 	head = "".join(lines[: first - 1]).rstrip("\r\n")
 	tail = "".join(lines[last:]).lstrip("\r\n")
-	if not tail.strip():
-		return (head + eol) if head else ""
-	if not head:
-		return tail
 	gap = eol * _blank_lines_for(definition.indent)
+	stub = replacement.rstrip("\r\n") + eol if replacement else ""
+	if not tail.strip():
+		return (head + eol + (gap + stub if stub else "")) if head else stub
+	if not head:
+		return stub + gap + tail if stub else tail
 	# keep the original spacing style: methods get one blank line, top level two
-	return head + eol + gap + tail
+	return head + eol + gap + stub + (gap if stub else "") + tail
 
 
 async def _safe_delete(
@@ -394,21 +430,41 @@ async def _safe_delete(
 				import_only.setdefault(ref_path, []).append(ref_line)
 			else:
 				blockers.append((ref_path, ref_line, ref_col))
+		skipped: list[Skipped] = []
 		if definition.parent is None:
-			for ref_path, lines in _importing_statements(session, path, definition.name).items():
+			for ref_path, lines in _importing_statements(session, path, definition.name, skipped).items():
 				import_only.setdefault(ref_path, []).extend(lines)
 		if blockers and not force:
 			shown = "\n".join(
 				f"  {relative_name(p, session.workspace)}:{ln}:{col}: {_line_of(p, ln)}" for p, ln, col in blockers[:12]
 			)
 			more = f"\n  ... {len(blockers) - 12} more" if len(blockers) > 12 else ""
-			return (
+			return FailedText(
 				f"Not deleted: {definition.qualname} is still used in {len({p for p, _, _ in blockers})} file(s):\n{shown}{more}\n"
 				"Remove or change those first, or pass force=true to delete anyway and see what breaks."
 			)
 		changes = []
 		notes = []
-		new_text = _delete_span(text, definition)
+		new_text = _delete_span(text, definition, comments=False)
+		if prune_imports:
+			tree = parse_python(text)
+			# `import x` may be there for its side effects (a plugin registry, a backend switch): only names
+			# bound by `from x import name` are pruned, and plain imports left unused are reported instead.
+			statements = module_imports(tree)
+			bound = {name for stmt in statements if stmt.is_from for name in stmt.bound_names}
+			plain = {name for stmt in statements if not stmt.is_from for name in stmt.bound_names}
+			used_before = names_used_outside(tree, 0, 0)
+			used_after = names_used_outside(parse_python(new_text), 0, 0)
+			unused = bound & (used_before - used_after)
+			if unused:
+				new_text = remove_names(new_text, unused)
+				notes.append(f"Also removed now-unused import(s): {', '.join(sorted(unused))}.")
+			kept = plain & (used_before - used_after)
+			if kept:
+				notes.append(
+					f"Kept import(s) that may exist for their side effects: {', '.join(sorted(kept))}; "
+					"remove them by hand if they are not needed."
+				)
 		if import_only and not prune_imports and not force:
 			raise ToolInputError(
 				"imports of the symbol remain: "
@@ -438,14 +494,22 @@ async def _safe_delete(
 			if not (m.path == rel and m.line in own_lines)
 			and (m.path, m.line) not in pruned
 			and m.kind in ("code", "string")
+			and not (
+				m.kind == "code"
+				and m.path != rel
+				and re.match(rf"(?:async\s+)?(?:def|class)\s+{re.escape(definition.name)}\b", m.snippet)
+				and len(re.findall(rf"(?<!\w){re.escape(definition.name)}(?!\w)", m.snippet)) == 1
+			)
 		]
 		notes += format_mentions(unseen, definition.name)
+		# Importers in excluded directories are never examined: say so instead of reporting the delete as safe.
+		notes += format_skipped([s for s in skipped if s.reason == "excluded dir"], verb="checked")
 		plan = EditPlan(f"Delete {definition.qualname} from {rel}", changes, notes)
 		hold_back = bool(unseen) and apply and not force
 		if hold_back:
 			plan.notes.insert(
 				0,
-				"kept as a preview because the name still appears where the type checker could not link it; apply_edit to confirm",
+				f"held back because {len(unseen)} reference(s) remain; remove them or pass force=true",
 			)
 		outcome = await finish_plan(
 			session.client,
@@ -458,16 +522,24 @@ async def _safe_delete(
 		)
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)
+	if hold_back and outcome.preview_id:
+		return outcome.text.replace(
+			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with apply=true.',
+			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with force=true.',
+		)
 	return outcome.text
 
 
-def _importing_statements(session: Session, target: Path, name: str) -> dict[Path, list[int]]:
+def _importing_statements(session: Session, target: Path, name: str, skipped: list[Skipped]) -> dict[Path, list[int]]:
 	"""Files with `from <target module> import name`, and the lines of those statements.
 
-	The type checker reports usages but not an unused import, so importers are found from the syntax."""
+	The type checker reports usages but not an unused import, so importers are found from the syntax.
+	Importers that were not examined (excluded directories, ...) are added to `skipped`."""
 	targets = module_names_for(target, session.roots)
 	found: dict[Path, list[int]] = {}
-	for dependent in find_dependents(session.workspace, [target], session.roots):
+	report = find_dependents_report(session.workspace, [target], session.roots)
+	skipped.extend(report.skipped)
+	for dependent in report.files:
 		own = module_names_for(dependent, session.roots)
 		try:
 			tree = ast.parse(read_source(dependent)[0])
@@ -482,7 +554,7 @@ def _importing_statements(session: Session, target: Path, name: str) -> dict[Pat
 
 def _line_of(path: Path, line: int) -> str:
 	try:
-		return read_source(path)[0].splitlines()[line - 1].strip()[:120]
+		return split_lines(read_source(path)[0])[line - 1].strip()[:120]
 	except (OSError, IndexError, UnicodeDecodeError):
 		return ""
 
@@ -528,7 +600,7 @@ async def quick_fix(
 	file_path: str,
 	line: int | None = None,
 	code: str | None = None,
-	choice: str | None = None,
+	choice: str | int | None = None,
 	allow_suppress: bool = False,
 	apply: bool = True,
 	max_new_errors: int | None = 0,
@@ -542,14 +614,22 @@ async def quick_fix(
 	an existing `from x import ...` where there is one. When a diagnostic has
 	several equally good fixes (two modules that both export `Path`) nothing is
 	applied: the options are listed, and you repeat the call with `choice` set to
-	part of the title you want (`choice="pathlib"`). Fixes that only silence the
+	part of the title you want (`choice="pathlib"`) or a 1-based choice number. Fixes that only silence the
 	error (`# ty: ignore`) are skipped unless `allow_suppress=true`.
 	"""
 	try:
+		if line is not None and line < 1:
+			raise ToolInputError("line must be 1 or more")
 		session = await open_session(ctx)
 		path = require_workspace_file(session.workspace, file_path)
 		rel = relative_name(path, session.workspace)
 		text = read_source(path)[0]
+		try:
+			ast.parse(text)
+		except SyntaxError as exc:
+			raise ToolInputError(
+				f"{rel} has a syntax error at line {exc.lineno}; fix it first (quick fixes need a parsable file)."
+			) from None
 		items = await session.client.diagnostics(str(path))
 		wanted = [
 			d
@@ -558,10 +638,32 @@ async def quick_fix(
 			and (code is None or str(d.get("code")) == code)
 		]
 		if not wanted:
-			return f"No diagnostics to fix in {rel}" + (f" at line {line}" if line else "") + "."
+			fixable = []
+			for diagnostic in items:
+				start, end = diagnostic["range"]["start"], diagnostic["range"]["end"]
+				actions = await session.client.code_actions(
+					str(path),
+					(start["line"] + 1, start["character"] + 1),
+					(end["line"] + 1, end["character"] + 1),
+					diagnostics=[diagnostic],
+					only=["quickfix"],
+				)
+				if actions:
+					fixable.append(diagnostic)
+			lines = sorted({d["range"]["start"]["line"] + 1 for d in fixable})
+			codes = sorted({str(d["code"]) for d in fixable if d.get("code") is not None})
+			return (
+				f"No diagnostics to fix in {rel}"
+				+ (f" at line {line}" if line else "")
+				+ "."
+				+ (f" Lines with fixes: {', '.join(map(str, lines))}." if lines else "")
+				+ (f" Available codes with fixes: {', '.join(codes)}." if codes else "")
+			)
 		chosen: list[tuple[dict[str, Any], dict[str, Any]]] = []
 		ambiguous: list[str] = []
 		unfixable: list[str] = []
+		suppression_only = False
+		available_choices: list[str] = []
 		for diagnostic in wanted[:25]:
 			start, end = diagnostic["range"]["start"], diagnostic["range"]["end"]
 			actions = await session.client.code_actions(
@@ -572,48 +674,84 @@ async def quick_fix(
 				only=["quickfix"],
 			)
 			usable = [a for a in actions if allow_suppress or not _is_suppression(a)]
-			if choice:
-				usable = [a for a in usable if choice.lower() in str(a.get("title", "")).lower()]
+			if choice is not None:
+				choice_text = str(choice)
+				options = usable
+				if choice_text.isdigit():
+					index = int(choice_text) - 1
+					usable = options[index : index + 1] if index >= 0 else []
+				else:
+					usable = [a for a in options if choice_text.lower() in str(a.get("title", "")).lower()]
+				if not usable and options:
+					available_choices.extend(f"{i}. {a.get('title')}" for i, a in enumerate(options, 1))
+			if actions and not usable and not allow_suppress and all(_is_suppression(a) for a in actions):
+				suppression_only = True
 			label = f"line {start['line'] + 1}: {str(diagnostic.get('message', '')).splitlines()[0]}"
 			if not usable:
 				unfixable.append(label)
 			elif len(usable) == 1 or all(_same_edit(usable[0], other) for other in usable[1:]):
 				chosen.append((diagnostic, usable[0]))
 			else:
-				ambiguous.append(f"{label}\n" + "\n".join(f"      - {a.get('title')}" for a in usable[:8]))
+				ambiguous.append(
+					f"{label}\n      Choices: " + " ".join(f"{i}. {a.get('title')}" for i, a in enumerate(usable, 1))
+				)
 		if ambiguous:
-			return (
+			return FailedText(
 				'Several fixes apply; nothing was changed. Repeat with choice="<part of a title>":\n  '
 				+ "\n  ".join(ambiguous)
 			)
 		if not chosen:
-			return "ty offers no quick fix for: " + "; ".join(unfixable[:6]) + "."
+			if available_choices:
+				return FailedText("Choices: " + " ".join(available_choices))
+			if suppression_only:
+				return FailedText("Only suppression fixes are available; pass allow_suppress=true to apply one.")
+			return FailedText("ty offers no quick fix for: " + "; ".join(unfixable[:6]) + ".")
 		new_text = text
 		other_edits: dict[Path, list[TextEdit]] = {}
+		seen_imports: set[tuple[Path, str, str]] = set()
 		titles = []
 		for _diagnostic, action in chosen:
 			titles.append(str(action.get("title")))
 			edits = parse_workspace_edit(action.get("edit"))
 			for edit_path, edit_list in edits.items():
+				if len(edit_list) == 1:
+					edit = edit_list[0]
+					match = _SIMPLE_IMPORT_RE.match(edit.new_text)
+					if match and (edit.start_line, edit.start_character) == (edit.end_line, edit.end_character):
+						key = (edit_path.resolve(), match.group(1) or match.group(3), match.group(2) or "")
+						if key in seen_imports:
+							continue
+						seen_imports.add(key)
 				insertion = _import_insertion(edit_list) if edit_path.resolve() == path else None
 				if insertion is not None:
 					module, names, plain = insertion
 					new_text = add_import(new_text, module) if plain else add_from_import(new_text, module, names)
 				else:
-					other_edits.setdefault(edit_path.resolve(), []).extend(edit_list)
+					pending = other_edits.setdefault(edit_path.resolve(), [])
+					for edit in edit_list:
+						if edit not in pending:
+							pending.append(edit)
 		changes = []
 		if other_edits:
 			if path in other_edits and new_text != text:
 				raise ToolInputError(
 					"fixes mix import insertion with other edits to the same file; apply them one at a time with `line`"
 				)
+			# Open state can change while an action is computed, so a first-line BOM
+			# edit without a provable convention must be refused.
 			changes = changes_from_edits(other_edits)
 		if new_text != text:
 			changes.append(FileChange(path, text, new_text))
 		check_syntax(new_text, rel)
+		sort_notes: list[str] = []
+		changes = [_with_sorted_imports(session.workspace, change, sort_notes) for change in changes]
 		notes = [f"fix: {title}" for title in dict.fromkeys(titles)]
+		for change in changes:
+			if change.old_text is not None and change.new_text is not None and change.path.suffix in {".py", ".pyi"}:
+				notes.extend(_quick_fix_cycle_notes(session, change.path, change.old_text, change.new_text))
 		if unfixable:
 			notes.append("no fix offered for: " + "; ".join(unfixable[:5]))
+		notes += sort_notes
 		plan = EditPlan(f"Quick fixes in {rel} ({len(chosen)})", changes, notes)
 		outcome = await finish_plan(
 			session.client,
@@ -629,8 +767,56 @@ async def quick_fix(
 	return outcome.text
 
 
+def _quick_fix_cycle_notes(session: Session, path: Path, before: str, after: str) -> list[str]:
+	"""Warn on direct cycles introduced by imports; dynamic and longer cycles may go undetected."""
+	own_names = module_names_for(path, session.roots)
+
+	def imports(text: str) -> set[str]:
+		found: set[str] = set()
+		for stmt in module_imports(ast.parse(text)):
+			node = stmt.node
+			if isinstance(node, ast.Import):
+				found.update(alias.name for alias in node.names)
+			else:
+				bases = import_from_targets(node, own_names, is_package_init=path.name == "__init__.py")
+				found.update(bases)
+				found.update(f"{base}.{alias.name}" for base in bases for alias in node.names)
+		return found
+
+	try:
+		added = imports(after) - imports(before)
+	except (SyntaxError, ValueError):
+		return [f"Could not check imports for cycles in {relative_name(path, session.workspace)}; review the changes."]
+	if not added:
+		return []
+	report = find_dependents_report(session.workspace, [path], session.roots)
+	cycles = sorted(
+		name
+		for other in report.files
+		if other.resolve() != path.resolve()
+		for name in module_names_for(other, session.roots)
+		if name in added
+	)
+	if not cycles:
+		return []
+	return ["Warning: added import(s) may create an import cycle: " + ", ".join(cycles) + ". Check runtime imports."]
+
+
 def _same_edit(a: dict[str, Any], b: dict[str, Any]) -> bool:
 	return a.get("edit") == b.get("edit")
+
+
+def _with_sorted_imports(workspace: Path, change: FileChange, notes: list[str]) -> FileChange:
+	"""The change with its imports in isort order (a merged name lands where ruff would put it). A sort that
+	could not run is named in `notes`, and the change is kept as the fix made it."""
+	if change.old_text is None or change.new_text is None:
+		return change
+	rel = relative_name(change.path, workspace)
+	edited = sort_imports(workspace, change.old_text, change.new_text, rel)
+	reason = sort_failure()
+	if reason:
+		notes.append(f"{rel}: {reason}")
+	return dataclasses.replace(change, new_text=edited) if edited != change.new_text else change
 
 
 TOOLS: list[tuple[Any, Any]] = [

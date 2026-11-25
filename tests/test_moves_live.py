@@ -54,7 +54,10 @@ def _valid(root) -> None:
 def test_given_function_when_move_symbol_then_code_imports_and_importers_follow(project, loop):
 	# when
 	text = _run(
-		loop, refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=0)
+		loop,
+		refactor_tools._move_symbol(
+			name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=0, allow_import_cycle=True
+		),
 	)
 	# then
 	_valid(project)
@@ -65,6 +68,7 @@ def test_given_function_when_move_symbol_then_code_imports_and_importers_follow(
 	assert "# Parse a date.\ndef parse_date(text: str) -> date:" in parsing
 	dates = (project / "src/pkg/dates.py").read_text()
 	assert "def parse_date" not in dates
+	assert "# Parse a date." not in dates
 	assert "from pkg.parsing import parse_date" in dates  # render() still uses it
 	assert "import re" not in dates and "FORMAT" not in dates  # only the moved code used them
 	assert "import os" in dates and "from datetime import date" in dates
@@ -80,7 +84,9 @@ def test_given_move_symbol_when_undo_then_new_file_removed_and_originals_back(pr
 	originals = {p: p.read_text() for p in project.rglob("*.py")}
 	_run(
 		loop,
-		refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
+		refactor_tools._move_symbol(
+			name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None, allow_import_cycle=True
+		),
 	)
 	# when
 	_run(loop, write_tools.undo_edit())
@@ -115,7 +121,12 @@ def test_given_reexport_flag_when_move_symbol_then_old_import_kept(project, loop
 	_run(
 		loop,
 		refactor_tools._move_symbol(
-			name="today_path", to_file="src/pkg/paths.py", keep_reexport=True, apply=True, max_new_errors=None
+			name="today_path",
+			to_file="src/pkg/paths.py",
+			keep_reexport=True,
+			apply=True,
+			max_new_errors=None,
+			allow_import_cycle=True,
 		),
 	)
 	# then
@@ -149,7 +160,9 @@ def test_given_existing_destination_when_move_symbol_then_appended_and_merged_im
 	# when
 	_run(
 		loop,
-		refactor_tools._move_symbol(name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None),
+		refactor_tools._move_symbol(
+			name="parse_date", to_file="src/pkg/parsing.py", apply=True, max_new_errors=None, allow_import_cycle=True
+		),
 	)
 	# then
 	parsing = (project / "src/pkg/parsing.py").read_text()
@@ -211,7 +224,7 @@ def test_given_relative_imports_when_move_module_then_made_absolute_on_both_side
 	)
 	# then
 	assert (project / "src/pkg/sub/rel_dep.py").read_text().startswith("from pkg.consts import FORMAT")
-	assert "from pkg.sub.dates import render" in (project / "src/pkg/rel_user.py").read_text()
+	assert "from .sub.dates import render" in (project / "src/pkg/rel_user.py").read_text()
 	_valid(project)
 
 
