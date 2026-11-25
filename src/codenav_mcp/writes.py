@@ -187,6 +187,7 @@ async def finish_plan(
 	allow_large: bool = False,
 	include_dependents: bool = True,
 	diff_lines: int = DEFAULT_DIFF_LINES,
+	hold_back: str = "",
 ) -> Outcome:
 	"""Simulate `plan`, then preview it or apply it, and describe what happened."""
 	if max_new_errors is not None and max_new_errors < 0:
@@ -209,7 +210,9 @@ async def finish_plan(
 	lines = [title, ""]
 	# Only real diagnostics gate the write. Importers past the check limit are a note (simulate.py), not a gate.
 	refusal = ""
-	if max_new_errors is not None and delta.unchecked:
+	if hold_back and not allow_large:
+		refusal = hold_back  # files the plan could not rewrite: held back like `move` holds back unreadable importers
+	elif max_new_errors is not None and delta.unchecked:
 		refusal = (
 			"diagnostics could not be checked for all files; review the unchecked files or set max_new_errors=null."
 		)

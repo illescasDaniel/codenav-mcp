@@ -135,6 +135,12 @@ async def rename_symbol(
 			apply=apply,
 			max_new_errors=max_new_errors,
 			allow_large=allow_large,
+			hold_back=(
+				f"importers that cannot be rewritten would be left broken ({'; '.join(plan.left_out)}); "
+				"fix or include them, or rerun with allow_large=true to rename anyway."
+			)
+			if plan.left_out
+			else "",
 		)
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)

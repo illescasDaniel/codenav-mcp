@@ -431,6 +431,14 @@ async def plan_move_symbol(
 			f"Note: the import cycle {dest_module} -> {src_module} -> {dest_module} goes only through "
 			"function-level imports; it can fail only if those run at import time"
 		)
+	else:
+		texts = {src: new_src, dest: body, **{path: after for path, (_, after, _) in changed.items()}}
+		longer = _lazy_cycle_path(dest_module, dest_own, session.roots, texts)
+		if longer:
+			notes.append(
+				f"Note: the import cycle {' -> '.join(longer)} goes only through function-level imports; "
+				"it can fail only if those run at import time"
+			)
 
 	# the text is written with the line endings of each file it lands in (inserted lines too)
 	if new_src.strip() == "":
@@ -521,6 +529,64 @@ def _runtime_targets(text: str, own: set[str], path: Path) -> tuple[set[str], se
 		else:
 			bucket |= {name for name, _ in stmt.aliases}
 	return module_level, function_level
+
+
+def _module_file(module: str, roots: list[Path]) -> Path | None:
+	relative = Path(*module.split("."))
+	for root in roots:
+		for candidate in (root / f"{relative}.py", root / relative / "__init__.py"):
+			if candidate.is_file():
+				return candidate.resolve()
+	return None
+
+
+_CYCLE_SEARCH_LIMIT = 400
+
+
+def _lazy_cycle_path(dest_module: str, dest_own: set[str], roots: list[Path], texts: dict[Path, str]) -> list[str]:
+	"""A cycle back to `dest_module` that needs at least one function-level import, as the modules on the way.
+
+	Empty when there is none, or when one exists through module-level imports alone (the caller refuses those
+	for direct cycles). `texts` holds the post-move text of the files the move writes; other files are read."""
+	targets = {dest_module, *dest_own}
+	written = {name: (path, text) for path, text in texts.items() for name in module_names_for(path, roots)}
+	edges: dict[str, tuple[set[str], set[str]]] = {}
+
+	def outgoing(module: str) -> tuple[set[str], set[str]]:
+		if module not in edges:
+			edges[module] = (set(), set())
+			path = _module_file(module, roots)
+			text: str | None = None
+			if module in written:
+				path, text = written[module]
+			if path is not None:
+				try:
+					text = text if text is not None else read_source(path)[0]
+					edges[module] = _runtime_targets(text, module_names_for(path, roots), path)
+				except (OSError, SyntaxError, UnicodeDecodeError, ToolInputError):
+					pass
+		return edges[module]
+
+	def search(*, with_function_level: bool) -> list[str]:
+		parents: dict[str, str | None] = {dest_module: None}
+		queue = [dest_module]
+		while queue and len(parents) < _CYCLE_SEARCH_LIMIT:
+			current = queue.pop(0)
+			module_level, function_level = outgoing(current)
+			for target in sorted(module_level | function_level if with_function_level else module_level):
+				if target in targets and current != dest_module:
+					chain = [dest_module]
+					walk: str | None = current
+					while walk is not None and walk != dest_module:
+						chain.insert(1, walk)
+						walk = parents[walk]
+					return [*chain, dest_module]
+				if target not in parents and (target in written or _module_file(target, roots) is not None):
+					parents[target] = current
+					queue.append(target)
+		return []
+
+	return [] if search(with_function_level=False) else search(with_function_level=True)
 
 
 def _module_attribute_users(workspace: Path, src: Path, roots: list[Path], src_names: set[str], name: str) -> list[str]:
@@ -617,9 +683,10 @@ def plan_move_module(
 
 
 def _drop_self_imports(text: str, module: str, path: Path, roots: list[Path]) -> str:
-	"""A moved module that imported itself (its old name) must not import itself under the new one."""
+	"""A moved module that imported itself (its old name) must not import itself under the new one, unless it uses it."""
 	tree = parse_python(text, str(path))
 	own = module_names_for(path, roots)
+	used = names_used_outside(tree, 0, 0)
 	for stmt in sorted(module_imports(tree), key=lambda s: -s.first_line):
 		node = stmt.node
 		if not isinstance(node, ast.ImportFrom):
@@ -633,6 +700,9 @@ def _drop_self_imports(text: str, module: str, path: Path, roots: list[Path]) ->
 				for alias in node.names
 				if any(f"{t}.{alias.name}" == module for t in targets)
 			}
+		# A self-import whose name the body still reads (`return mod`) stays: it points at the new name already,
+		# and dropping it would leave that name undefined.
+		bounds -= used
 		if bounds:
 			text = remove_names(text, bounds, only_line=stmt.first_line)
 	return text

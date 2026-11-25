@@ -207,12 +207,8 @@ def _is_overload(node: _DefNode, direct: set[str], modules: set[str]) -> bool:
 	return False
 
 
-def find_definition(
-	text: str, *, name_line: int | None = None, qualname: str | None = None, prefer_implementation: bool = False
-) -> Definition | None:
-	"""Find a definition; an explicit line stays exact unless implementation preference is requested."""
-	lines = source_lines(text)
-	tree = parse_python(text)
+def _overload_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
+	"""Names bound to `typing.overload` (direct) and to the typing modules (for `typing.overload`)."""
 	direct: set[str] = set()
 	modules: set[str] = set()
 	for stmt in tree.body:
@@ -222,6 +218,34 @@ def find_definition(
 			)
 		elif isinstance(stmt, ast.ImportFrom) and stmt.module in {"typing", "typing_extensions"}:
 			direct.update(alias.asname or alias.name for alias in stmt.names if alias.name == "overload")
+	return direct, modules
+
+
+def _parent_line(definition: Definition) -> int | None:
+	return definition.parent.lineno if definition.parent is not None else None
+
+
+def overload_stubs(text: str, definition: Definition) -> list[Definition]:
+	"""The `@overload` stubs that share `definition`'s name and scope (empty when it is not overloaded)."""
+	tree = parse_python(text)
+	direct, modules = _overload_aliases(tree)
+	return [
+		other
+		for other in iter_definitions(tree, source_lines(text))
+		if other.def_line != definition.def_line
+		and other.qualname == definition.qualname
+		and _parent_line(other) == _parent_line(definition)
+		and _is_overload(other.node, direct, modules)
+	]
+
+
+def find_definition(
+	text: str, *, name_line: int | None = None, qualname: str | None = None, prefer_implementation: bool = False
+) -> Definition | None:
+	"""Find a definition; an explicit line stays exact unless implementation preference is requested."""
+	lines = source_lines(text)
+	tree = parse_python(text)
+	direct, modules = _overload_aliases(tree)
 	definitions = list(iter_definitions(tree, lines))
 	for definition in definitions:
 		if (name_line is not None and definition.def_line == name_line) or (

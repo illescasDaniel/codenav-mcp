@@ -62,7 +62,13 @@ from codenav_mcp.writes import finish_plan, require_workspace_file
 
 
 async def _locate(session: Session, name: str, file_path: str | None) -> tuple[Path, str, Definition]:
-	"""The class/function/method called `name` (dotted `Class.method` accepted), with its file's text."""
+	"""The class/function/method called `name` (dotted `Class.method` accepted), with its file's text.
+
+	A given `file_path` is a hard scope for every write tool that resolves by name: outside the workspace it is
+	refused before any lookup, never replaced by a same-named symbol inside the workspace (RC-092).
+	"""
+	if file_path:
+		require_workspace_file(session.workspace, file_path)
 	resolved = await resolve_symbol(session.client, session.workspace, name, file_path=file_path)
 	path = uri_to_path(resolved.uri).resolve()
 	text = read_source(path)[0]

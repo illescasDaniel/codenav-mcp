@@ -7,6 +7,7 @@ import keyword
 import re
 import unicodedata
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,12 +21,13 @@ from mcp_nav_shared.edits import (
 	relative_name,
 )
 from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError
+from mcp_nav_shared.exclude import excluded_names, is_inside_nested_repo
 from mcp_nav_shared.format import uri_to_path
 from mcp_nav_shared.lsp_client import LspClient
 from mcp_nav_shared.resolve import resolve_symbol
 from mcp_nav_shared.transaction import WriteGuard
 
-from codenav_mcp.deps import find_dependents, module_names_for
+from codenav_mcp.deps import Skipped, SkipReason, find_dependents, format_skipped, module_names_for
 from codenav_mcp.linked import Conforms, classes_in_file, external_declaration, find_linked, locate_member_class
 from codenav_mcp.mentions import Mention, covered_positions, find_mentions, format_mentions
 from codenav_mcp.pysource import (
@@ -358,6 +360,13 @@ def _declaration_at(text: str, target: Target) -> Definition | None:
 	return definition if definition is not None and target.parameter is None else None
 
 
+@dataclass
+class RenamePlan(EditPlan):
+	"""A rename plan that also knows which importers it did not rewrite (excluded directories, nested repositories)."""
+
+	left_out: list[str] = field(default_factory=list)
+
+
 async def plan_rename(
 	client: LspClient,
 	workspace: Path,
@@ -368,7 +377,7 @@ async def plan_rename(
 	linked: bool,
 	conforms: Conforms | None,
 	roots: Sequence[Path] = (),
-) -> EditPlan:
+) -> RenamePlan:
 	text = read_source(target.path)[0]
 	prep = await client.prepare_rename(str(target.path), target.line, target.column)
 	if prep is None:
@@ -392,8 +401,17 @@ async def plan_rename(
 	edits: dict[Path, list[TextEdit]] = {}
 	conventions: dict[Path, bool | None] = {}
 
+	left_out: dict[Path, Skipped] = {}
+
 	def merge_server_edits(raw: dict[str, Any] | None) -> None:
 		parsed = parse_workspace_edit(raw)
+		for path in list(parsed):
+			# An importer in an excluded directory or a nested git repository is not rewritten: it is listed
+			# below, like `move` lists it, instead of refusing the whole rename (RC-040 policy, docs/tools.md).
+			group = _unwritable_importer_group(path.resolve(), workspace, guard.exclude_prefix)
+			if group is not None and path.resolve() != target.path.resolve():
+				left_out[path.resolve()] = group
+				del parsed[path]
 		for path in parsed:
 			resolved = path.resolve()
 			guard.check_path(resolved)
@@ -480,9 +498,34 @@ async def plan_rename(
 		m for m in find_mentions(workspace, old_name, covered_positions(edits)) if not _synced_export(m, synced_exports)
 	]
 	notes += format_mentions(kept, old_name)
+	left: list[str] = []
+	if left_out:
+		counts: dict[tuple[str, SkipReason], int] = {}
+		for group in left_out.values():
+			key = (group.path_or_dir, group.reason)
+			counts[key] = counts.get(key, 0) + 1
+		skipped = [Skipped(path, reason, "", count) for (path, reason), count in sorted(counts.items())]
+		notes = [*format_skipped(skipped), *notes]
+		left = [f"{path} ({count} file{'s' if count != 1 else ''})" for (path, _), count in sorted(counts.items())]
 	total = sum(len(es) for es in edits.values())
 	title = f"Rename {old_name} -> {new_name} ({target.display}): {total} edit(s) in {len(changes)} file(s)"
-	return EditPlan(title, changes, notes)
+	return RenamePlan(title, changes, notes, left_out=left)
+
+
+def _unwritable_importer_group(path: Path, workspace: Path, exclude_prefix: str) -> Skipped | None:
+	"""The excluded directory or nested git repository a file sits in (as a `Skipped` group), else None."""
+	try:
+		rel = path.relative_to(workspace.resolve())
+	except ValueError:
+		return None
+	excluded = excluded_names(exclude_prefix)
+	for index, part in enumerate(rel.parts[:-1]):
+		if part in excluded:
+			return Skipped("/".join(rel.parts[: index + 1]) + "/", "excluded dir", "")
+	nested = is_inside_nested_repo(path, workspace.resolve())
+	if nested is not None:
+		return Skipped(nested.relative_to(workspace.resolve()).as_posix() + "/", "nested repo", "")
+	return None
 
 
 def _synced_export(mention: Mention, synced: set[tuple[str, int]]) -> bool:

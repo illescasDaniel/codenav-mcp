@@ -25,6 +25,7 @@ from codenav_mcp.pysource import (
 	definitions_in,
 	detect_indent_unit,
 	find_definition,
+	overload_stubs,
 	parse_python,
 )
 from codenav_mcp.signature import (
@@ -169,6 +170,14 @@ async def _plan_signature(
 	session: Session, name: str, file_path: str | None, change: Change, include_overrides: bool
 ) -> EditPlan:
 	path, text, definition = await _locate(session, name, file_path)
+	stubs = overload_stubs(text, definition)
+	if stubs:
+		where = ", ".join(f"{relative_name(path, session.workspace)}:{stub.def_line}" for stub in stubs)
+		raise ToolInputError(
+			f"{definition.qualname} has {len(stubs)} @overload stub(s) ({where}); changing only the implementation "
+			"would leave them with the old signature. Change the stubs and the implementation with edit_symbol "
+			"and update the call sites by hand."
+		)
 	files: dict[Path, FileCtx] = {}
 
 	def load(p: Path) -> FileCtx:
