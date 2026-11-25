@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -13,18 +14,24 @@ from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
 from mcp_nav_shared.format import uri_to_path
 
 from codenav_mcp import tool_base
+from codenav_mcp.deps import import_from_targets, iter_python_files, module_names_for
 from codenav_mcp.linked import find_linked
 from codenav_mcp.moves import plan_move_module, plan_move_symbol
 from codenav_mcp.pysource import (
 	Definition,
+	NulByteError,
+	PythonSyntaxError,
 	check_syntax,
 	definition_name_position,
 	definitions_in,
 	detect_indent_unit,
 	find_definition,
+	overload_stubs,
+	parse_python,
 )
 from codenav_mcp.signature import (
 	Change,
+	CommentedCallError,
 	ManualCallError,
 	SourceMap,
 	apply_offset_edits,
@@ -56,7 +63,7 @@ class FileCtx:
 	@classmethod
 	def load(cls, path: Path) -> FileCtx:
 		text = read_source(path)[0]
-		return cls(path, text, SourceMap(text), tokenize_source(text), ast.parse(text))
+		return cls(path, text, SourceMap(text), tokenize_source(text, path.name), parse_python(text, path.name))
 
 
 @dataclass
@@ -70,7 +77,13 @@ class Declaration:
 
 
 def _validate_params(params_text: str, name: str) -> None:
-	check_syntax(f"def _({params_text}):\n\tpass\n", f"the new parameter list of {name}")
+	try:
+		ast.parse(f"def _({params_text}):\n\tpass\n")
+	except (SyntaxError, ValueError) as exc:
+		detail = exc.msg if isinstance(exc, SyntaxError) else "source contains a null character"
+		raise ToolInputError(
+			f"the new parameter list is not valid Python: {detail}; give a `default` or adjust `position`"
+		) from exc
 
 
 def _decorators(definition: Definition) -> set[str]:
@@ -128,7 +141,9 @@ async def change_signature(
 	dependencies and typed attributes are found, not just textual matches. Overriding
 	methods get the same change (`include_overrides`). Calls using `*args`/`**kwargs`
 	and places where the function is passed around as a value are listed as manual
-	work rather than guessed at. Writes when new errors stay within `max_new_errors`
+	work rather than guessed at. Unresolved alias calls, calls with comments, and
+	effectful argument reorderings are also listed for manual review. Decorators
+	and docstrings mentioning removed parameters produce notes. Writes when new errors stay within `max_new_errors`
 	(default 0), else previews with an id for `apply_edit`; `apply=false` always previews.
 	"""
 	try:
@@ -156,6 +171,15 @@ async def _plan_signature(
 	session: Session, name: str, file_path: str | None, change: Change, include_overrides: bool
 ) -> EditPlan:
 	path, text, definition = await _locate(session, name, file_path)
+	rel_path = relative_name(path, session.workspace)
+	stubs = overload_stubs(text, definition, filename=rel_path)
+	if stubs:
+		where = ", ".join(f"{relative_name(path, session.workspace)}:{stub.def_line}" for stub in stubs)
+		raise ToolInputError(
+			f"{definition.qualname} has {len(stubs)} @overload stub(s) ({where}); changing only the implementation "
+			"would leave them with the old signature. Change the stubs and the implementation with edit_symbol "
+			"and update the call sites by hand."
+		)
 	files: dict[Path, FileCtx] = {}
 
 	def load(p: Path) -> FileCtx:
@@ -165,10 +189,27 @@ async def _plan_signature(
 		return files[resolved]
 
 	origin_ctx = load(path)
-	is_constructor = isinstance(definition.node, ast.ClassDef)
-	ref_line, ref_col = definition_name_position(origin_ctx.smap.lines, definition)
-	if is_constructor:
-		init = next((d for d in definitions_in(text) if d.qualname == f"{definition.qualname}.__init__"), None)
+	is_constructor = isinstance(definition.node, ast.ClassDef) or (
+		definition.name == "__init__" and bool(definition.parents) and isinstance(definition.parents[-1], ast.ClassDef)
+	)
+	ref_definition = definition
+	if is_constructor and not isinstance(definition.node, ast.ClassDef):
+		ref_definition = next(
+			(
+				d
+				for d in definitions_in(text, filename=rel_path)
+				if isinstance(d.node, ast.ClassDef) and d.node.lineno == definition.parents[-1].lineno
+			),
+			None,
+		)
+		if ref_definition is None:
+			raise ToolInputError("could not resolve the constructor's class; retry with the class name")
+	ref_line, ref_col = definition_name_position(origin_ctx.smap.lines, ref_definition)
+	if isinstance(definition.node, ast.ClassDef):
+		init = next(
+			(d for d in definitions_in(text, filename=rel_path) if d.qualname == f"{definition.qualname}.__init__"),
+			None,
+		)
 		if init is None:
 			raise ToolInputError(
 				f"class {definition.qualname} defines no __init__ of its own (dataclass and inherited constructors "
@@ -178,10 +219,10 @@ async def _plan_signature(
 	else:
 		target_def = definition
 	declarations = [
-		Declaration(origin_ctx, target_def, ref_line, ref_col, is_constructor, frozenset({definition.name}))
+		Declaration(origin_ctx, target_def, ref_line, ref_col, is_constructor, frozenset({ref_definition.name}))
 	]
 	notes: list[str] = []
-	if include_overrides and target_def.kind == "method" and target_def.name not in ("__init__", "__new__"):
+	if target_def.kind == "method" and target_def.name not in ("__init__", "__new__"):
 		related = await find_linked(
 			session.client,
 			session.workspace,
@@ -191,12 +232,26 @@ async def _plan_signature(
 			new_name=target_def.name,
 			conforms=conforms_probe(session),
 		)
+	else:
+		related = None
+	if related is not None and not include_overrides and related.sites:
+		left = ", ".join(
+			f"{site.cls.name}.{target_def.name} ({relative_name(site.cls.path, session.workspace)}:{site.line})"
+			for site in related.sites
+		)
+		notes.append(
+			f"overrides left unchanged (include_overrides=false): {left}; "
+			"pass include_overrides=true to change them with the method"
+		)
+	if include_overrides and related is not None:
 		names = {target_def.parents[-1].name} if target_def.parents else set()
 		names |= {site.cls.name for site in related.sites}
 		declarations[0] = Declaration(origin_ctx, target_def, ref_line, ref_col, False, frozenset(names))
 		for site in related.sites:
 			site_ctx = load(site.cls.path)
-			other = find_definition(site_ctx.text, name_line=site.line)
+			other = find_definition(
+				site_ctx.text, name_line=site.line, filename=relative_name(site.cls.path, session.workspace)
+			)
 			if other is None:
 				continue
 			line, col = definition_name_position(site_ctx.smap.lines, other)
@@ -207,6 +262,7 @@ async def _plan_signature(
 
 	updated_calls = 0
 	manual: list[str] = []
+	commented: list[str] = []
 	summary_bits: list[str] = []
 	for declaration in declarations:
 		ctx = declaration.ctx
@@ -236,6 +292,16 @@ async def _plan_signature(
 		old_callable = signature.callable_params
 		new_callable = params[1:] if signature.has_self else params
 		decorators = _decorators(declaration.definition)
+		for decorator in sorted(decorators):
+			notes.append(
+				f"Note: {declaration.definition.qualname} is decorated with @{decorator}; callers of the decorated object may have a different signature."
+			)
+		doc = ast.get_docstring(declaration.definition.node) or ""
+		mentioned = sorted(n for n in removed if re.search(r":param\s+" + re.escape(n) + r"\s*:", doc))
+		if mentioned:
+			notes.append(
+				f"Note: docstring of {declaration.definition.qualname} still mentions parameter(s) {', '.join(repr(n) for n in mentioned)}; update it manually."
+			)
 		call_sites: list[tuple[FileCtx, ast.Call, int]] = []
 		locations = await session.client.references(
 			str(ctx.path), declaration.ref_line, declaration.ref_column, include_declaration=False
@@ -258,6 +324,38 @@ async def _plan_signature(
 				and call.func.value.id in declaration.receiver_classes
 			)
 			call_sites.append((target_ctx, call, 1 if unbound else 0))
+		# ty references may stop at an import alias. Report calls through such aliases
+		# rather than silently claiming all calls were updated.
+		if declaration is declarations[0] and (is_constructor or not declaration.definition.parents):
+			target_modules = module_names_for(ctx.path, session.roots)
+			for candidate in iter_python_files(session.workspace):
+				if candidate.resolve() == ctx.path.resolve():
+					continue
+				try:
+					candidate_ctx = load(candidate)
+				except NulByteError:
+					raise  # a NUL-text file in the workspace refuses the whole change, like the target file does
+				except (OSError, UnicodeError, SyntaxError, ValueError, PythonSyntaxError):
+					continue
+				own_names = module_names_for(candidate, session.roots)
+				aliases = {
+					a.asname
+					for node in ast.walk(candidate_ctx.tree)
+					if isinstance(node, ast.ImportFrom)
+					and target_modules
+					& import_from_targets(node, own_names, is_package_init=candidate.name == "__init__.py")
+					for a in node.names
+					if a.name == ref_definition.name and a.asname
+				}
+				for node in ast.walk(candidate_ctx.tree):
+					if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in aliases:
+						if not any(
+							c.path == candidate_ctx.path and c.smap.start(call) == candidate_ctx.smap.start(node)
+							for c, call, _ in call_sites
+						):
+							manual.append(
+								f"{relative_name(candidate, session.workspace)}:{node.lineno}: call left as is, imported alias {node.func.id!r} requires review"
+							)
 		if signature.has_self and declaration.definition.parents:
 			for call in _super_calls(ctx, declaration.definition.parents[-1], declaration.definition.name):
 				call_sites.append((ctx, call, 0))
@@ -271,12 +369,25 @@ async def _plan_signature(
 				old_args = read_call_args(target_ctx.smap, call)
 				new_args = rebind_call(old_args, old_callable, new_callable, values, removed, skip_leading=skip)
 				edit = call_edit(target_ctx.smap, target_ctx.tokens, call, old_args, new_args)
+			except CommentedCallError:
+				commented.append(rel)
+				continue
 			except ManualCallError as exc:
 				manual.append(f"{rel}: call left as is, {exc}")
 				continue
 			if edit is not None:
 				target_ctx.edits.append(edit)
 				updated_calls += 1
+	if commented:
+		# Refused outright (no preview id): a rewrite would move or drop the comments, and leaving the call as it
+		# is would break it once the parameter goes.
+		raise ToolInputError(
+			f"{len(commented)} call site(s) have comments inside their argument list, so the change cannot be "
+			"written safely: "
+			+ ", ".join(commented[:10])
+			+ (f" (and {len(commented) - 10} more)" if len(commented) > 10 else "")
+			+ ". Move those comments out of the calls (or edit the calls by hand), then rerun change_signature."
+		)
 	changes = []
 	for ctx in files.values():
 		if not ctx.edits:
@@ -306,6 +417,7 @@ async def _move_symbol(
 	apply: bool = False,
 	max_new_errors: int | None = 0,
 	allow_large: bool = False,
+	allow_import_cycle: bool = False,
 	ctx: Context | None = None,
 ) -> str:
 	"""Move a module-level function or class to another file and fix the imports. Example:
@@ -316,14 +428,25 @@ async def _move_symbol(
 	moved code used are dropped from the old file, and if the old file still uses the symbol
 	it imports it from the new place (`keep_reexport=true` leaves such an import
 	regardless, so old `from old import name` keeps working). Every `from old import name`
-	elsewhere is rewritten to the new module. A warning is given when the move creates an
-	import cycle risk, and uses through the old module (`old.name`) or strings naming it
-	are listed for you to handle. Preview by default; `apply=true` writes only if the new
-	errors stay within `max_new_errors`. `undo_edit` reverts it.
+	elsewhere is rewritten to the new module. Uses through the old module (`old.name`) or
+	strings naming it are listed for you to handle, and importers the move cannot update are
+	reported by name. A move that would create a module-level import cycle is refused unless
+	`allow_import_cycle=true`.
+	Preview by default; `apply=true` writes only if the new errors stay within `max_new_errors`.
+	`undo_edit` reverts it.
 	"""
 	try:
 		session = await open_session(ctx)
-		plan = await plan_move_symbol(session, name, to_file, file_path, keep_reexport)
+		plan = await plan_move_symbol(
+			session,
+			name,
+			to_file,
+			file_path,
+			keep_reexport,
+			allow_import_cycle=allow_import_cycle,
+			allow_held_back=allow_large,
+			apply=apply,
+		)
 		outcome = await finish_plan(
 			session.client,
 			workspace=session.workspace,
@@ -359,7 +482,7 @@ async def _move_module(
 	"""
 	try:
 		session = await open_session(ctx)
-		plan = plan_move_module(session, from_file, to_file)
+		plan = plan_move_module(session, from_file, to_file, allow_held_back=allow_large, apply=apply)
 		outcome = await finish_plan(
 			session.client,
 			workspace=session.workspace,

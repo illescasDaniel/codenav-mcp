@@ -37,7 +37,7 @@ See [configuration](docs/configuration.md) for Claude Code and Cursor configurat
 - Python 3.11 or later; the package installs ty and its other dependencies.
 - Navigation and edits target Python (`.py` and `.pyi`). Positions are 1-indexed; columns use UTF-16 offsets.
 - Edit tools normally check type diagnostics and allow no new errors by default. Use `apply=false` to preview; `apply_edit` can explicitly apply a preview despite its diagnostic limit. Read-only mode disables writes. Checks are not a substitute for tests.
-- Batch calls run in order and are not atomic. See the [tool reference](docs/tools.md) for safety rules and limits.
+- Batch calls run in order and are not atomic. Tool results are capped at 30,000 characters by default (`CODENAV_MCP_MAX_OUTPUT_CHARS`). See the [tool reference](docs/tools.md) for safety rules, output limits and [known limits](docs/tools.md#known-limits).
 
 ## Environment
 

@@ -8,6 +8,14 @@ import sys
 from pathlib import Path
 
 
+last_sort_failed: str | None = None
+
+
+def sort_failure() -> str | None:
+	"""Return the reason the most recent sort failed, for caller notes."""
+	return last_sort_failed
+
+
 def find_ruff(workspace: Path) -> list[str] | None:
 	"""The project's own ruff, else the one installed beside this package, else `PATH`."""
 	for candidate in (
@@ -44,10 +52,27 @@ def sort_imports(workspace: Path, original: str, edited: str, filename: str) -> 
 	"""`edited` with its imports sorted by ruff's isort rule, but only when `original` was already
 	sorted that way: a file whose imports ruff would reorder anyway is left as the edit made it,
 	so a refactoring never reshuffles imports it didn't touch."""
+	global last_sort_failed
+	last_sort_failed = None
 	ruff = find_ruff(workspace)
-	if ruff is None or original == edited:
+	if original == edited:
 		return edited
-	if _run_fix(ruff, original, filename, workspace, "I001") not in (None, original):
+	if ruff is None:
+		last_sort_failed = "imports were not sorted (ruff unavailable or failed)"
+		return edited
+	before = _run_fix(ruff, original, filename, workspace, "I001")
+	if before is None:
+		last_sort_failed = "imports were not sorted (ruff unavailable or failed)"
+		return edited
+	if before != original:
 		return edited
 	fixed = _run_fix(ruff, edited, filename, workspace, "I001")
-	return fixed if fixed is not None else edited
+	if fixed is None:
+		last_sort_failed = "imports were not sorted (ruff unavailable or failed)"
+		return edited
+	if fixed.count("\f") != edited.count("\f"):
+		# ruff's isort fix normalizes the whitespace around the import block and silently drops form-feed
+		# (page break) lines there; keeping the edit as written beats deleting characters nobody asked to touch.
+		last_sort_failed = "imports were not sorted (ruff would drop form-feed lines)"
+		return edited
+	return fixed

@@ -36,8 +36,10 @@ async def edit(
 	add or delete a function/method/class by name use `edit_symbol`.
 
 	Give either `old_string` -> `new_string` (`old_string` must match exactly once unless
-	`replace_all=true`) or the complete `new_text` (also creates a new file). The text must
-	be valid Python. Writes when the new errors in the file and in the files that import it
+	`replace_all=true`; the reply gives the matching lines and the replacement count) or the
+	complete `new_text` (also creates a new file), never both. Each text is at most 1,000,000
+	characters. The text must be valid Python; new lines take the file's line endings (CRLF
+	stays CRLF). Writes when the new errors in the file and in the files that import it
 	stay within `max_new_errors` (default 0, null = no limit); otherwise nothing is written
 	and the result lists the errors plus an id for `apply_edit`. `apply=false` always
 	previews. `undo_edit` reverts.
@@ -90,7 +92,8 @@ async def edit_symbol(
 	- `action="delete"`: `name` only. Deletes only when nothing uses it, otherwise lists the
 	users and writes nothing (`force=true` deletes anyway and shows what breaks). Imports
 	that are the only remaining users are removed (`prune_imports`). Uses the type checker
-	cannot see (strings, `getattr`, docs) are listed and the deletion is previewed.
+	cannot see (strings, `getattr`, docs) are listed and the deletion is previewed. Comments
+	directly above a definition are kept.
 
 	`file_path` narrows `name` when several symbols share it. `imports` (replace/insert) is a
 	list of import statements the new code needs, added if missing. Writes when the new errors
@@ -147,6 +150,7 @@ async def move(
 	apply: bool = True,
 	max_new_errors: int | None = 0,
 	allow_large: bool = False,
+	allow_import_cycle: bool = False,
 	ctx: Context | None = None,
 ) -> str:
 	"""Move a function/class to another file, or a whole module file, and fix every import. Examples:
@@ -158,12 +162,16 @@ async def move(
 	(relative ones made absolute), imports only the moved code used are dropped from the old
 	file, and if the old file still uses it, it imports it from the new place
 	(`keep_reexport=true` always leaves that import so old `from old import name` keeps
-	working). Every `from old import name` elsewhere is rewritten. Import-cycle risks are
-	warned about; uses through the old module (`old.name`) and strings are listed for you.
+	working). Every `from old import name` elsewhere is rewritten. A move that would create a
+	module-level import cycle is refused unless `allow_import_cycle=true`. Importers the move
+	cannot update (too many, unreadable, unparsable) are reported by name and held back unless
+	`apply=true` and `allow_large=true`; uses through the old module (`old.name`) and strings
+	are listed for you.
 
 	Without `name`: `file_path` is the module to move or rename (required); every
-	`from old import x`, `import old [as y]` and `from package import old` is rewritten,
-	relative imports become absolute. Strings and docs naming the old path are listed.
+	`from old import x`, `import old [as y]` and `from package import old` is rewritten
+	(a relative import stays relative when the module stays in its package, else it becomes
+	absolute). Strings and docs naming the old path are listed.
 
 	Writes when the new errors stay within `max_new_errors` (default 0); else previews with
 	an id for `apply_edit`; `apply=false` always previews. `undo_edit` reverts.
@@ -178,12 +186,15 @@ async def move(
 				apply=apply,
 				max_new_errors=max_new_errors,
 				allow_large=allow_large,
+				allow_import_cycle=allow_import_cycle,
 				ctx=ctx,
 			)
 		if not file_path:
 			raise ToolInputError("pass `name` (a symbol to move) or `file_path` (the module file to move)")
 		if keep_reexport:
 			raise ToolInputError("`keep_reexport` only applies when moving a symbol (`name`)")
+		if allow_import_cycle:
+			raise ToolInputError("`allow_import_cycle` only applies when moving a symbol (`name`)")
 		return await refactor_tools._move_module(
 			file_path, to_file, apply=apply, max_new_errors=max_new_errors, allow_large=allow_large, ctx=ctx
 		)

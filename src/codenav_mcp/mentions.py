@@ -14,11 +14,11 @@ import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
-from mcp_nav_shared.edits import TextEdit, relative_name
-from mcp_nav_shared.exclude import EXCLUDED_DIR_NAMES
+from mcp_nav_shared.edits import TextEdit, decode_source, relative_name
+from mcp_nav_shared.exclude import excluded_names
 
-from codenav_mcp.deps import iter_python_files
-from codenav_mcp.pysource import utf16_column
+from codenav_mcp.deps import ENV_PREFIX, iter_python_files
+from codenav_mcp.pysource import reject_nul, utf16_column
 
 
 _TEXT_SUFFIXES = {".md", ".rst", ".txt", ".toml", ".yml", ".yaml", ".cfg", ".ini", ".json"}
@@ -35,18 +35,24 @@ class Mention:
 	snippet: str
 
 
+def _lines(text: str) -> list[str]:
+	"""Lines as the tokenizer numbers them (only `\\n` ends a line; a trailing `\\r` is dropped)."""
+	return [line.removesuffix("\r") for line in text.split("\n")]
+
+
 def covered_positions(edits_by_path: dict[Path, list[TextEdit]]) -> dict[Path, set[tuple[int, int]]]:
 	return {path.resolve(): {(e.start_line, e.start_character) for e in edits} for path, edits in edits_by_path.items()}
 
 
 def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, int]]) -> list[Mention]:
 	try:
-		text = path.read_text(encoding="utf-8")
+		text = decode_source(path.read_bytes())[0]  # a BOM is not part of the source (tokenize would see U+FEFF)
 	except (OSError, UnicodeDecodeError):
 		return []
+	reject_nul(text, rel)  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
 	if name not in text:
 		return []
-	lines = text.splitlines()
+	lines = _lines(text)
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 	found: list[Mention] = []
 
@@ -72,11 +78,12 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 
 def _text_files(workspace: Path) -> list[Path]:
 	files: list[Path] = []
+	skip = excluded_names(ENV_PREFIX)
 	for directory, dirs, names in os.walk(workspace):
 		if Path(directory) != workspace and ".git" in dirs + names:
 			dirs[:] = []  # another checkout or linked worktree (e.g. .claude/worktrees/*), not this workspace
 			continue
-		dirs[:] = sorted(d for d in dirs if d not in EXCLUDED_DIR_NAMES)
+		dirs[:] = sorted(d for d in dirs if d not in skip)
 		for filename in sorted(names):
 			if Path(filename).suffix.lower() in _TEXT_SUFFIXES:
 				files.append(Path(directory) / filename)
@@ -95,7 +102,7 @@ def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int,
 		try:
 			if path.stat().st_size > _MAX_TEXT_BYTES:
 				continue
-			lines = path.read_text(encoding="utf-8").splitlines()
+			lines = _lines(decode_source(path.read_bytes())[0])
 		except (OSError, UnicodeDecodeError):
 			continue
 		rel = relative_name(path, workspace)

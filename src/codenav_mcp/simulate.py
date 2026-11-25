@@ -23,18 +23,11 @@ from mcp_nav_shared.edits import EditPlan, read_source, relative_name
 from mcp_nav_shared.errors import TOOL_ERRORS
 from mcp_nav_shared.lsp_client import LspClient
 
-from codenav_mcp.deps import find_dependents
+from codenav_mcp.deps import Skipped, find_dependents_report, format_skipped
 
 
 CHECK_LIMIT = 60
 _PYTHON_SUFFIXES = {".py", ".pyi"}
-
-
-def _disk_text(path: Path) -> str | None:
-	try:
-		return read_source(path)[0]
-	except (OSError, UnicodeDecodeError):
-		return None
 
 
 async def _collect(
@@ -49,9 +42,11 @@ async def _collect(
 				continue
 			text = overlays.get(path)
 			if text is None:
-				text = _disk_text(path)
-				if text is None:
-					continue  # not on disk (and not overlaid): nothing to check on this side
+				try:
+					text = read_source(path)[0]
+				except (OSError, UnicodeDecodeError):
+					unchecked.append(relative_name(path, root))
+					continue
 			try:
 				items = await client.diagnostics(str(path))
 			except TOOL_ERRORS:
@@ -70,6 +65,7 @@ async def diagnostics_delta(
 	check: Iterable[Path],
 	skip_before: set[Path] | None = None,
 	skip_after: set[Path] | None = None,
+	renames: dict[str, str] | None = None,
 ) -> DiagnosticsDelta:
 	"""Diagnostics of `check` with the `after` overlay minus the same with the `before` overlay
 	(an empty overlay means the disk as it is). `skip_*` are files that don't exist on that side."""
@@ -80,8 +76,9 @@ async def diagnostics_delta(
 	# uses it would otherwise be reported as a "new warning" on every such edit.
 	before_entries = [e for e in before_entries if e.severity != HINT_SEVERITY]
 	after_entries = [e for e in after_entries if e.severity != HINT_SEVERITY]
-	delta = diff_diagnostics(before_entries, after_entries)
-	delta.files_checked = len(paths)
+	# A missing explicit mapping is not evidence that two identical files are a move.
+	delta = diff_diagnostics(before_entries, after_entries, renames=renames)
+	delta.files_checked = len(paths) - len(set(unchecked_before) | set(unchecked_after))
 	delta.unchecked = sorted(set(unchecked_before) | set(unchecked_after))
 	return delta
 
@@ -94,10 +91,20 @@ def files_to_check(
 	include_dependents: bool = True,
 	limit: int = CHECK_LIMIT,
 	is_excluded: Callable[[Path], bool] | None = None,
+	skipped: list[Skipped] | None = None,
 ) -> tuple[list[Path], int]:
-	"""(edited Python files first, then their importers; how many were left out by `limit`)."""
+	"""(edited Python files first, then their importers; how many were left out by `limit`).
+
+	Importers that were not examined (excluded directories, nested checkouts, unreadable files) are added to
+	`skipped` when a list is given.
+	"""
 	edited_py = [p.resolve() for p in edited if p.suffix.lower() in _PYTHON_SUFFIXES]
-	dependents = find_dependents(workspace, edited_py, roots) if include_dependents else []
+	dependents: list[Path] = []
+	if include_dependents:
+		report = find_dependents_report(workspace, edited_py, roots)
+		dependents = report.files
+		if skipped is not None:
+			skipped.extend(report.skipped)
 	if is_excluded is not None:
 		dependents = [p for p in dependents if not is_excluded(p)]
 	ordered = list(dict.fromkeys([*edited_py, *dependents]))
@@ -125,12 +132,31 @@ async def simulate_plan(
 			created.add(path)
 		elif change.kind == "delete":
 			deleted.add(path)
+	skipped: list[Skipped] = []
 	paths, left_out = files_to_check(
-		workspace, roots, [c.path for c in plan.changes], include_dependents=include_dependents
+		workspace, roots, [c.path for c in plan.changes], include_dependents=include_dependents, skipped=skipped
 	)
+	# Pair unambiguous deletion/creation plans as file moves.
+	renames: dict[str, str] = {}
+	if plan.description.startswith("Move module ") and len(created) == 1 and len(deleted) == 1:
+		renames[relative_name(next(iter(deleted)), workspace)] = relative_name(next(iter(created)), workspace)
 	delta = await diagnostics_delta(
-		client, workspace, before={}, after=after, check=paths, skip_before=created, skip_after=deleted
+		client, workspace, before={}, after=after, check=paths, skip_before=created, skip_after=deleted, renames=renames
 	)
-	if left_out:
-		delta.unchecked.append(f"{left_out} more importing file(s) beyond the {CHECK_LIMIT}-file limit")
+	if deleted:
+		# An empty open document is not a deleted module: ty can still resolve the path.
+		# Keep the normal gate closed unless the caller explicitly waives diagnostics.
+		unverified = {relative_name(path, workspace) for path in deleted}
+		newly_unchecked = unverified.intersection(relative_name(path, workspace) for path in paths) - set(
+			delta.unchecked
+		)
+		delta.unchecked = sorted(set(delta.unchecked) | unverified)
+		delta.files_checked = max(0, delta.files_checked - len(newly_unchecked))
+		delta.notes.append(
+			"Deleted Python modules cannot be accurately simulated; check their importers after writing."
+		)
+	if left_out:  # a note, not an unchecked diagnostic: the write tools gate only on real unchecked files
+		delta.notes.append(f"{left_out} more importing file(s) beyond the {CHECK_LIMIT}-file limit were not checked")
+	# Importers in excluded directories are not checked on purpose; say so instead of passing silently.
+	delta.notes.extend(format_skipped([s for s in skipped if s.reason == "excluded dir"], verb="checked"))
 	return delta

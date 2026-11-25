@@ -44,11 +44,11 @@ def test_given_names_when_remove_names_then_aliases_dropped_or_statement_removed
 	assert result == "import os\nfrom a import b\n\nuse(b, os)\n"
 
 
-def test_given_multiline_import_when_remove_names_then_rewritten_compactly():
+def test_given_multiline_import_when_remove_names_then_preserves_layout():
 	# given
 	text = "from a import (\n\tone,\n\ttwo,\n\tthree,\n)\n"
 	# when / then
-	assert remove_names(text, {"two"}) == "from a import one, three\n"
+	assert remove_names(text, {"two"}) == "from a import (\n\tone,\n\tthree,\n)\n"
 
 
 def test_given_existing_import_from_same_module_when_add_then_merged():
