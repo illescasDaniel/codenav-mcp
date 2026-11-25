@@ -40,21 +40,33 @@ def reject_nul(text: str, filename: str = "<source>") -> None:
 		raise PythonSyntaxError(f"{filename}: contains a NUL byte; not a text file")
 
 
-def _syntax_error(
-	exc: SyntaxError, filename: str, *, version_hint: bool = True, new_text: bool = False
-) -> PythonSyntaxError:
-	"""The one short message for a `SyntaxError`: file, line, what the parser said, and a version hint."""
+def _syntax_error(exc: SyntaxError, filename: str) -> PythonSyntaxError:
+	"""The one short message for a `SyntaxError` on reads: file, line, what the parser said, and a version hint."""
 	where = f"line {exc.lineno}" if exc.lineno else "unknown line"
+	message = str(exc.msg or "invalid syntax")
+	text = f"{filename}: syntax error at {where}: {message}"
+	if sys.version_info < (3, 14) or any(hint in message.lower() for hint in _VERSION_NOTE_HINTS):
+		v = sys.version_info
+		text += f" (the server parses with Python {v.major}.{v.minor}.{v.micro}; syntax newer than that is refused)"
+	return PythonSyntaxError(text)
+
+
+def _write_refusal(exc: SyntaxError, filename: str, *, new_text: bool = False) -> PythonSyntaxError:
+	"""The refusal for a write whose text does not parse with the server's own Python (one paragraph, no traceback)."""
 	message = str(exc.msg or "invalid syntax")
 	if new_text and "U+FEFF" in message:
 		return PythonSyntaxError(
 			f"{filename}: remove the byte-order mark (U+FEFF) from new_text; the file's own BOM is kept"
 		)
-	text = f"{filename}: syntax error at {where}: {message}"
-	if version_hint and (sys.version_info < (3, 14) or any(hint in message.lower() for hint in _VERSION_NOTE_HINTS)):
-		v = sys.version_info
-		text += f" (the server parses with Python {v.major}.{v.minor}.{v.micro}; syntax newer than that is refused)"
-	return PythonSyntaxError(text)
+	v = sys.version_info
+	where = f"line {exc.lineno}" if exc.lineno else "an unknown line"
+	return PythonSyntaxError(
+		f"{filename}: not written: it does not parse with this server's Python {v.major}.{v.minor}.{v.micro} parser "
+		f"({where}: {message}). If the file uses newer syntax (Python 3.13 or 3.14, for example PEP 696 "
+		'`class C[T = int]:`, PEP 758 `except A, B:` or a `t"..."` string), this server cannot check it and refuses '
+		"the write: run the server under a newer Python (3.14 or later) to edit it, or edit the file with another "
+		f"tool. Otherwise fix the syntax error at {where}."
+	)
 
 
 def parse_python(text: str, filename: str = "<source>") -> ast.Module:
@@ -76,21 +88,26 @@ def check_syntax(text: str, filename: str) -> None:
 	Stricter than `ast.parse`: the full compile also refuses what only the compiler sees
 	(`from __future__` after other code, `return`/`yield`/`await` outside a function, ...).
 	A leading U+FEFF is ignored: the file's own byte-order mark is kept by the write path.
+	A text that does not parse is refused with `_write_refusal`, which names the parser version and the limit.
 	"""
 	reject_nul(text, filename)
 	if text.startswith(_BOM):
 		text = text[1:]
-	_compile(text, filename, flags=ast.PyCF_ONLY_AST, new_text=True)
-	_compile(text, filename)
+	try:
+		_compile(text, filename, flags=ast.PyCF_ONLY_AST)
+	except SyntaxError as exc:
+		raise _write_refusal(exc, filename, new_text=True) from exc
+	try:
+		_compile(text, filename)
+	except SyntaxError as exc:
+		raise _write_refusal(exc, filename) from exc
 
 
-def _compile(text: str, filename: str, *, flags: int = 0, version_hint: bool = True, new_text: bool = False) -> None:
+def _compile(text: str, filename: str, *, flags: int = 0) -> None:
 	try:
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
 			compile(text, filename, "exec", flags=flags, dont_inherit=True)
-	except SyntaxError as exc:
-		raise _syntax_error(exc, filename, version_hint=version_hint, new_text=new_text) from exc
 	except (ValueError, RecursionError, MemoryError) as exc:
 		raise PythonSyntaxError(f"{filename}: cannot parse: the text is too deeply nested or not valid source") from exc
 

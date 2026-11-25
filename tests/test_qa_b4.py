@@ -179,7 +179,7 @@ def test_rc_020_future_import_after_code_is_refused():
 	parse_python(text)
 	with pytest.raises(
 		PythonSyntaxError,
-		match=r"^future\.py: syntax error at line 2: from __future__ imports must occur at the beginning of the file",
+		match=r"^future\.py: not written: .*\(line 2: from __future__ imports must occur at the beginning of the file\)",
 	):
 		check_syntax(text, "future.py")
 
@@ -189,7 +189,7 @@ def test_rc_020_future_import_after_code_is_refused():
 	["return 1\n", "def f():\n\tpass\nyield 1\n", "class A:\n\tbreak\n", "nonlocal x\n", "def f():\n\tawait g()\n"],
 )
 def test_rc_020_compile_time_errors_are_refused(text):
-	with pytest.raises(PythonSyntaxError, match=r"^m\.py: syntax error at line \d+: "):
+	with pytest.raises(PythonSyntaxError, match=r"^m\.py: not written: "):
 		check_syntax(text, "m.py")
 
 
@@ -206,7 +206,8 @@ def test_rc_034_syntax_error_names_the_file_and_the_line():
 	with pytest.raises(PythonSyntaxError) as info:
 		check_syntax("x = 1\ndef broken(:\n\tpass\n", "pkg/lib.py")
 	message = str(info.value)
-	assert message.startswith("pkg/lib.py: syntax error at line 2: ")
+	assert message.startswith("pkg/lib.py: not written: ")
+	assert "(line 2: " in message
 	assert "<source>" not in message
 	assert "SyntaxError(" not in message
 
@@ -221,9 +222,9 @@ def test_rc_034_newer_syntax_gets_a_version_hint(monkeypatch):
 	message = str(info.value)
 	if sys.version_info < (3, 14):
 		v = sys.version_info
-		assert message.endswith(
-			f"(the server parses with Python {v.major}.{v.minor}.{v.micro}; syntax newer than that is refused)"
-		)
+		assert f"this server's Python {v.major}.{v.minor}.{v.micro} parser" in message
+		assert "PEP 758" in message
+		assert "run the server under a newer Python" in message
 	else:  # pragma: no cover - the server itself accepts it
 		pytest.skip("this interpreter parses the construct")
 
@@ -328,7 +329,7 @@ def test_rename_bom_convention_requires_unique_identifier_match(tmp_path):
 
 def test_compiler_only_syntax_error_includes_version_hint():
 	if sys.version_info < (3, 14):
-		with pytest.raises(PythonSyntaxError, match="server parses with Python"):
+		with pytest.raises(PythonSyntaxError, match="does not parse with this server's Python"):
 			check_syntax("return 1\n", "a.py")
 
 

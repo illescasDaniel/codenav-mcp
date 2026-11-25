@@ -37,4 +37,4 @@ On SIGINT or SIGTERM the server stops its ty language server and exits with stat
 
 ## Dropped input
 
-A line on stdin that is not a JSON-RPC request (for example `42`, `[]`, or a response to no request of the server) gets no reply, as the MCP SDK requires. The server writes `codenav-mcp: ignored a non-request message (...); no reply is sent` to stderr. A lone UTF-16 surrogate inside a JSON string is not reported this way, because the SDK drops it at a point this code does not see.
+A line on stdin that is not a JSON-RPC request (for example `42`, `[]`, or a response to no request of the server) gets no reply, as the MCP SDK requires. The server writes `codenav-mcp: ignored a non-request message (...); no reply is sent` to stderr. A lone UTF-16 surrogate inside a JSON string is not reported this way, because the SDK drops it at a point this code does not see. The public MCP SDK exposes no interception point for raw malformed input, so codenav cannot guarantee its own error text for such frames (decision: BY DESIGN, QA PROTO-005/007).

@@ -232,7 +232,8 @@ def test_given_invalid_python_when_check_edit_then_rejected_without_simulation(p
 	# when
 	text = _run(loop, write_tools._edit_text("src/pkg/core.py", new_text="def broken(:\n"))
 	# then
-	assert "syntax error at line 1" in text
+	assert "not written: it does not parse with this server's Python" in text
+	assert "(line 1: " in text
 
 
 def test_given_ambiguous_old_string_when_check_edit_then_asks_for_unique_match(project, loop):
