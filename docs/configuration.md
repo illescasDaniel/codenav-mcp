@@ -4,7 +4,7 @@ title: Configuration
 summary: MCP host setup, workspace selection, environment variables and ty selection
 type: reference
 status: current
-updated: 2026-11-25
+updated: 2026-11-26
 verified:
 covers: [src/codenav_mcp/server.py, src/codenav_mcp/ty_command.py, src/codenav_mcp/writes.py, src/codenav_mcp/deps.py, pyproject.toml]
 related: []
@@ -65,10 +65,11 @@ A workspace folder without its own `pyproject.toml` gets a warning from `workspa
 | `CODENAV_MCP_ALLOW_READONLY_FILES` | unset | `1`/`true`/`yes`/`on`: write tools may overwrite read-only (0444) Python files and keep their mode. Otherwise such a file is refused with `<file> is read-only; make it writable or set CODENAV_MCP_ALLOW_READONLY_FILES=1` |
 | `CODENAV_MCP_EXCLUDE_DIRS` | unset | Comma-separated directory names added to the built-in list of directories that are never scanned or written (for example `generated`). See [directories](tools.md#directories-never-scanned-or-written) |
 | `CODENAV_MCP_INCLUDE_DIRS` | unset | Comma-separated directory names removed from that list, for example `build` to treat a first-party `build/` package as source (scanned and writable). Repository metadata folders such as `.git` are never editable, whatever this variable says |
+| `CODENAV_MCP_MAX_FILES` | `250000` | Maximum number of Python files (`.py`/`.pyi`) a workspace may hold; the count covers everything ty indexes, so only the folders ty skips by default (`.git`, `.venv`, `venv`, `node_modules`, `dist`, `.tox` and similar) are left out; `CODENAV_MCP_EXCLUDE_DIRS` does not change it. A larger tree is refused before the language server starts: at startup the server exits with code 2 and a one-line message, and a client-driven switch to such a tree is refused with the same message. Meant to stop a whole home directory from exhausting memory. A value that is not a whole number or is below 1 uses the default |
 
 Startup and source-root rules:
 
-- `CODENAV_MCP_WORKSPACE` and `CODENAV_MCP_SOURCE_ROOT` are checked at startup. The server refuses to start when the pinned workspace is not an existing folder, when the workspace is a filesystem root (`/`), or when `CODENAV_MCP_SOURCE_ROOT` is not a folder inside the workspace. The error names the setting and its value.
+- `CODENAV_MCP_WORKSPACE` and `CODENAV_MCP_SOURCE_ROOT` are checked at startup. The server refuses to start when the pinned workspace is not an existing folder, when the workspace is a filesystem root (`/`), when `CODENAV_MCP_SOURCE_ROOT` is not a folder inside the workspace, or when the workspace holds more than `CODENAV_MCP_MAX_FILES` Python files. The error names the setting and its value.
 - Without `CODENAV_MCP_SOURCE_ROOT`, a workspace with a `src/` folder that holds a package or module (and has no `__init__.py` itself) scans and derives import paths from `src/`. Set `CODENAV_MCP_SOURCE_ROOT` to `.` to use the whole workspace instead. The `workspace` tool reports this as `Source root: src (auto-detected)`.
 - `CODENAV_MCP_EXTRA_SOURCE_ROOTS` entries that are not existing folders inside the workspace are skipped, and the server says so in the next tool reply (`Ignored extra source root: <entry>`).
 - `VIRTUAL_ENV` is not read by the server itself; ty reads it, so when it is set, ty resolves imports against that environment's packages.

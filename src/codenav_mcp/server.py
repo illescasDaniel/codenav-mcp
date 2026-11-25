@@ -79,6 +79,7 @@ import codenav_mcp
 from codenav_mcp import tool_base
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.pysource import reject_nul
+from codenav_mcp.scan_cap import workspace_too_large
 from codenav_mcp.ty_command import resolve_ty_command, ty_config_note
 from codenav_mcp.writes import READ_ONLY_ENV
 
@@ -92,6 +93,10 @@ try:
 	_selector = WorkspaceSelector("CODENAV_MCP_WORKSPACE")
 	WORKSPACE_ROOT = _selector.base
 	_workspace_source = _selector.base_source
+	# Before anything reads the tree: a huge workspace (a whole home directory) would exhaust memory in the
+	# language server and the file watcher. The refusal is the same one-line startup exit as the checks below.
+	if (_too_large := workspace_too_large(WORKSPACE_ROOT)) is not None:
+		raise WorkspaceConfigError(_too_large)
 	# Root for import-path derivation and implementations' workspace-wide class
 	# scan. Defaults to the workspace's `src/` layout when there is one, else the
 	# whole workspace; set CODENAV_MCP_SOURCE_ROOT (e.g. to "src") in a project's
@@ -177,6 +182,8 @@ async def _configure_workspace(root: Path, source: str) -> None:
 	# Resolve the new paths first: a config error must not leave a half-switched server.
 	source_root = resolve_source_root("CODENAV_MCP_SOURCE_ROOT", root, autodetect_src=True)
 	extra_roots = resolve_extra_source_roots("CODENAV_MCP_EXTRA_SOURCE_ROOTS", root)
+	if (too_large := await asyncio.to_thread(workspace_too_large, root)) is not None:
+		raise ToolInputError(too_large)  # refused before the old server is stopped or a new one started
 	if _client is not None:
 		try:
 			await _client.stop()

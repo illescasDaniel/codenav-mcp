@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+### Fixed
+
+- A workspace with a huge number of Python files (for example a whole home directory, 700k+ files) no longer exhausts memory: the server counts Python files before starting the language server and refuses a tree over the cap (startup exit code 2 with a one-line message; a client-driven switch to such a tree is refused the same way).
+
+### Added
+
+- `CODENAV_MCP_MAX_FILES` (default 250,000) sets that cap. See [configuration](docs/configuration.md).
+
 ## 1.0.0
 
 Release summary by area. Details and examples are in the [tool reference](docs/tools.md); settings are in [configuration](docs/configuration.md).
