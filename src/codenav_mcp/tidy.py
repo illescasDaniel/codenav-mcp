@@ -69,4 +69,10 @@ def sort_imports(workspace: Path, original: str, edited: str, filename: str) -> 
 	fixed = _run_fix(ruff, edited, filename, workspace, "I001")
 	if fixed is None:
 		last_sort_failed = "imports were not sorted (ruff unavailable or failed)"
-	return fixed if fixed is not None else edited
+		return edited
+	if fixed.count("\f") != edited.count("\f"):
+		# ruff's isort fix normalizes the whitespace around the import block and silently drops form-feed
+		# (page break) lines there; keeping the edit as written beats deleting characters nobody asked to touch.
+		last_sort_failed = "imports were not sorted (ruff would drop form-feed lines)"
+		return edited
+	return fixed
