@@ -17,7 +17,14 @@ from typing import Any
 
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp.pysource import Definition, PythonSyntaxError, parse_python, source_lines, utf16_column
+from codenav_mcp.pysource import (
+	Definition,
+	PythonSyntaxError,
+	parse_python,
+	reject_nul,
+	source_lines,
+	utf16_column,
+)
 
 
 # -- offsets -------------------------------------------------------------------
@@ -57,6 +64,7 @@ class SourceMap:
 
 
 def tokenize_source(text: str, filename: str = "<source>") -> list[tokenize.TokenInfo]:
+	reject_nul(text, filename)  # a NUL can escape the tokenizer as SystemError after a block; refuse it first
 	try:
 		return list(tokenize.generate_tokens(io.StringIO(text).readline))
 	except tokenize.TokenError as exc:

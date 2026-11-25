@@ -18,7 +18,7 @@ from mcp_nav_shared.edits import TextEdit, decode_source, relative_name
 from mcp_nav_shared.exclude import excluded_names
 
 from codenav_mcp.deps import ENV_PREFIX, iter_python_files
-from codenav_mcp.pysource import utf16_column
+from codenav_mcp.pysource import reject_nul, utf16_column
 
 
 _TEXT_SUFFIXES = {".md", ".rst", ".txt", ".toml", ".yml", ".yaml", ".cfg", ".ini", ".json"}
@@ -49,6 +49,7 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 		text = decode_source(path.read_bytes())[0]  # a BOM is not part of the source (tokenize would see U+FEFF)
 	except (OSError, UnicodeDecodeError):
 		return []
+	reject_nul(text, rel)  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
 	if name not in text:
 		return []
 	lines = _lines(text)

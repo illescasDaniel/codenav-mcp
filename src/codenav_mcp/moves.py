@@ -424,21 +424,30 @@ async def plan_move_symbol(
 				f"moving {definition.qualname} to {relative_dest} creates an import cycle "
 				f"({dest_module} -> {src_module} -> {dest_module}); pass allow_import_cycle=true to move anyway"
 			)
-	elif (src_module in dest_module_level | dest_function_level) and (
-		dest_module in src_module_level | src_function_level
-	):
-		notes.append(
-			f"Note: the import cycle {dest_module} -> {src_module} -> {dest_module} goes only through "
-			"function-level imports; it can fail only if those run at import time"
-		)
 	else:
 		texts = {src: new_src, dest: body, **{path: after for path, (_, after, _) in changed.items()}}
-		longer = _lazy_cycle_path(dest_module, dest_own, session.roots, texts)
-		if longer:
+		# a module-level cycle of any length (2 or more modules) is refused, like the direct one above
+		module_cycle = _cycle_path(dest_module, dest_own, session.roots, texts, with_function_level=False)
+		if module_cycle:
+			if not allow_import_cycle:
+				raise ToolInputError(
+					f"moving {definition.qualname} to {relative_dest} creates an import cycle "
+					f"({' -> '.join(module_cycle)}); pass allow_import_cycle=true to move anyway"
+				)
+		elif (src_module in dest_module_level | dest_function_level) and (
+			dest_module in src_module_level | src_function_level
+		):
 			notes.append(
-				f"Note: the import cycle {' -> '.join(longer)} goes only through function-level imports; "
-				"it can fail only if those run at import time"
+				f"Note: the import cycle {dest_module} -> {src_module} -> {dest_module} goes only through "
+				"function-level imports; it can fail only if those run at import time"
 			)
+		else:
+			longer = _cycle_path(dest_module, dest_own, session.roots, texts, with_function_level=True)
+			if longer:
+				notes.append(
+					f"Note: the import cycle {' -> '.join(longer)} goes only through function-level imports; "
+					"it can fail only if those run at import time"
+				)
 
 	# the text is written with the line endings of each file it lands in (inserted lines too)
 	if new_src.strip() == "":
@@ -543,11 +552,20 @@ def _module_file(module: str, roots: list[Path]) -> Path | None:
 _CYCLE_SEARCH_LIMIT = 400
 
 
-def _lazy_cycle_path(dest_module: str, dest_own: set[str], roots: list[Path], texts: dict[Path, str]) -> list[str]:
-	"""A cycle back to `dest_module` that needs at least one function-level import, as the modules on the way.
+def _cycle_path(
+	dest_module: str,
+	dest_own: set[str],
+	roots: list[Path],
+	texts: dict[Path, str],
+	*,
+	with_function_level: bool,
+) -> list[str]:
+	"""A cycle back to `dest_module` in its import closure, as the modules on the way (empty when there is none).
 
-	Empty when there is none, or when one exists through module-level imports alone (the caller refuses those
-	for direct cycles). `texts` holds the post-move text of the files the move writes; other files are read."""
+	`with_function_level=False` follows module-level (top-of-file) imports only: the caller refuses such a cycle,
+	of any length. `True` also follows function-level imports: the caller only notes those. The search is bounded
+	by `_CYCLE_SEARCH_LIMIT` modules; hitting the bound without a cycle returns empty (a note at most, never a refusal).
+	`texts` holds the post-move text of the files the move writes; other files are read."""
 	targets = {dest_module, *dest_own}
 	written = {name: (path, text) for path, text in texts.items() for name in module_names_for(path, roots)}
 	edges: dict[str, tuple[set[str], set[str]]] = {}
@@ -586,7 +604,7 @@ def _lazy_cycle_path(dest_module: str, dest_own: set[str], roots: list[Path], te
 					queue.append(target)
 		return []
 
-	return [] if search(with_function_level=False) else search(with_function_level=True)
+	return search(with_function_level=with_function_level)
 
 
 def _module_attribute_users(workspace: Path, src: Path, roots: list[Path], src_names: set[str], name: str) -> list[str]:

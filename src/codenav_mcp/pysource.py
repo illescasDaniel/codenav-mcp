@@ -34,10 +34,14 @@ _LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
 _VERSION_NOTE_HINTS = ("unsupported", "not supported", "requires python", "only supported")
 
 
+class NulByteError(PythonSyntaxError):
+	"""The text holds a NUL byte, so it is not a text file (refused before any tokenizer sees it)."""
+
+
 def reject_nul(text: str, filename: str = "<source>") -> None:
-	"""Raise `PythonSyntaxError` when `text` holds a NUL byte (not a text file)."""
+	"""Raise `NulByteError` when `text` holds a NUL byte (not a text file)."""
 	if "\x00" in text:
-		raise PythonSyntaxError(f"{filename}: contains a NUL byte; not a text file")
+		raise NulByteError(f"{filename}: contains a NUL byte; not a text file")
 
 
 def _syntax_error(exc: SyntaxError, filename: str) -> PythonSyntaxError:

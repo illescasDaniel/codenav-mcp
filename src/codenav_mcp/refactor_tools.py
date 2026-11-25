@@ -19,6 +19,7 @@ from codenav_mcp.linked import find_linked
 from codenav_mcp.moves import plan_move_module, plan_move_symbol
 from codenav_mcp.pysource import (
 	Definition,
+	NulByteError,
 	PythonSyntaxError,
 	check_syntax,
 	definition_name_position,
@@ -314,6 +315,8 @@ async def _plan_signature(
 					continue
 				try:
 					candidate_ctx = load(candidate)
+				except NulByteError:
+					raise  # a NUL-text file in the workspace refuses the whole change, like the target file does
 				except (OSError, UnicodeError, SyntaxError, ValueError, PythonSyntaxError):
 					continue
 				own_names = module_names_for(candidate, session.roots)
