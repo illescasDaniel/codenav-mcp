@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 270" role="img" aria-labelledby="title desc">
+<title id="title">From request to resolved navigation or checked edit</title>
+<desc id="desc">An MCP client sends a request to codenav-mcp. ty resolves Python code. Navigation returns results; edits are simulated and checked before preview or application.</desc>
+<rect width="1000" height="270" rx="22" fill="#111c2e"/>
+<g font-family="sans-serif">
+<text x="34" y="39" fill="#a5b9d2" font-size="15" font-weight="bold" letter-spacing="2">CODENAV WORKFLOW</text>
+<g fill="#20334b" stroke="#415b77" stroke-width="2"><rect x="30" y="75" width="185" height="110" rx="14"/><rect x="260" y="75" width="200" height="110" rx="14"/><rect x="505" y="75" width="205" height="110" rx="14"/><rect x="755" y="75" width="215" height="110" rx="14"/></g>
+<g fill="#78e2c1" font-size="13" font-weight="bold"><text x="50" y="103">01 / REQUEST</text><text x="280" y="103">02 / RESOLVE</text><text x="525" y="103">03 / CHECK</text><text x="775" y="103">04 / RESULT</text></g>
+<g fill="#ffffff" font-size="19" font-weight="bold"><text x="50" y="133">MCP client</text><text x="280" y="133">ty + Python</text><text x="525" y="133">Simulate edits</text><text x="775" y="133">Review or apply</text></g>
+<g fill="#bdcde0" font-size="13"><text x="50" y="158">Navigate or edit</text><text x="280" y="158">Resolve code</text><text x="525" y="158">Compare diagnostics</text><text x="775" y="158">Undo if unchanged</text></g>
+<g stroke="#78e2c1" stroke-width="3" fill="none"><path d="M216 130h34m-8-7 8 7-8 7"/><path d="M461 130h34m-8-7 8 7-8 7"/><path d="M360 186v20h500v-20m-7 8 7-8 7 8"/><path d="M711 130h34m-8-7 8 7-8 7"/></g>
+<text x="34" y="231" fill="#bdcde0" font-size="15">Lower path: navigation results. Upper path: simulated and checked edits.</text>
+</g></svg>

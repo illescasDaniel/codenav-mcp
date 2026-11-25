@@ -1,185 +1,61 @@
+[![version](https://img.shields.io/pypi/v/codenav-mcp)](https://pypi.org/project/codenav-mcp/)
+
 # codenav-mcp
 
-[![version](https://img.shields.io/pypi/v/codenav-mcp)](https://pypi.org/project/codenav-mcp/)
-[![PyPI](https://img.shields.io/badge/PyPI-codenav--mcp-3775A9?logo=pypi&logoColor=white)](https://pypi.org/project/codenav-mcp/)
+Give AI agents Python code navigation and refactoring through the Model Context Protocol. codenav-mcp uses [ty](https://github.com/astral-sh/ty)'s language server to resolve definitions, references and call sites, and checks proposed edits for type diagnostics before writing them.
 
-An MCP server that gives AI agents type-resolved Python navigation, backed by
-[ty](https://github.com/astral-sh/ty)'s language server. Definitions,
-references and call sites go through real type inference (imports,
-dependency-injected parameters, dataclass fields), not text grep.
+![Infographic showing an MCP client requesting navigation or an edit, ty resolving code, and edits being checked before preview or application.](assets/workflow.svg)
 
-The same resolution powers its edits: rename a symbol, change a signature, or
-move a function or module, and every usage follows, including overriding
-methods and injected dependencies. Edits are type-checked and previewable
-before they are written, and can be undone.
+An MCP client sends a request to codenav-mcp. Navigation uses ty to resolve code; edits are simulated and checked before they are previewed or applied. Applied edits can be undone while the server retains its edit journal, if the files have not changed since.
 
 ## Quick start
 
-`ty` is installed with the package, so all you need is
-[uv](https://docs.astral.sh/uv/) (or `pipx`):
+Install [uv](https://docs.astral.sh/uv/), then register the server with your MCP host from the project root. The host starts it when needed.
 
-```bash
-uvx codenav-mcp
-```
-
-Register it with your MCP host. For Claude Code, from the project root:
+**Claude Code:**
 
 ```bash
 claude mcp add codenav -- uvx codenav-mcp
 ```
 
-Or add it to a project `.mcp.json` (Claude Code) or `.cursor/mcp.json` (Cursor):
+**Codex** (user configuration):
 
-```json
-{
-	"mcpServers": {
-		"codenav": {
-			"command": "uvx",
-			"args": ["codenav-mcp"],
-			"env": {
-				"CODENAV_MCP_SOURCE_ROOT": "src"
-			}
-		}
-	}
-}
+```bash
+codex mcp add codenav -- uvx codenav-mcp
 ```
 
-In Cursor, also set `"CODENAV_MCP_WORKSPACE": "${workspaceFolder}"`, because
-Cursor may start MCP servers with your home directory as the working directory.
+**OpenCode** (project configuration):
 
-## Tools
-
-**Start with the name-based tools:**
-
-| Tool | Answers |
-|------|---------|
-| `symbol_info` | What is this? Header, hover, definition and references in one call |
-| `outline` | What's in this file? (classes, methods, functions) |
-| `callers` | Who actually calls this function? (call hierarchy, not imports) |
-| `implementations` | Which classes structurally implement this `Protocol`? (type-checked) |
-| `search_symbol` | Workspace symbol search by name (ranked, capped; optional `kind=` / `path=` filters; production code before tests; fuzzy-only hits summarised unless `fuzzy=true`) |
-| `workspace` | Which directory is being navigated, and why |
-
-Then use the position tools once you have a `path:line:col`:
-
-| Tool | Answers |
-|------|---------|
-| `hover` | Type and docs at a position |
-| `definition` | Go to definition (resolves through injected parameters) |
-| `references` | All usages across the workspace |
-| `diagnostics` | ty type-check diagnostics for one file |
-
-`name` and `query` are accepted as aliases on the name-based tools
-(`port_name` / `name` / `query` on `implementations`). A missing or wrong
-parameter gets a short hint back instead of a validation error. Dotted names
-may nest (`Outer.Inner.method`). `implementations` also takes `file_path` to
-pick one port when the name exists in several files, and counts inherited
-members and dataclass/`self.x` fields toward a port's required names.
-
-## Write tools: change code with a type check before every write
-
-The navigation tools above are read-only. These change code, and share one rule:
-**the edit is applied to in-memory copies first, ty re-checks the edited files and
-the files importing them, and the response says which diagnostics the edit would add
-or fix. Nothing is written until that is on the table.**
-
-| Tool | Does |
-|------|------|
-| `edit` | Type-checked text edit of a Python file: `old_string`/`new_string` or a whole `new_text`. For anything that is not a whole definition |
-| `edit_symbol` | `action="replace"` / `"insert"` / `"delete"` a function, method or class by name: re-indented to the file's style, PEP 8 spacing, `imports=[...]` added, syntax-checked. Delete refuses while anything uses the symbol and prunes now-dead imports |
-| `rename_symbol` | Rename across the workspace (imports, aliases, keyword arguments, `parameter=` for a function's parameter). Also renames what ty's rename misses: overriding methods, `super().name()` calls, and Protocol members together with the classes that satisfy them (`linked=false` to opt out). Lists remaining mentions of the old name (untyped accesses, strings, comments, docs; other worktrees are skipped) |
-| `change_signature` | Add / remove / reorder parameters and rewrite every call site (found through ty's references, so injected dependencies and typed attributes work). Overrides follow. `*args` calls and uses as a value are listed as manual work |
-| `move` | With `name`: move a module-level function or class to another file with the imports it needs; without it, move or rename the module `file_path`. Rewrites imports everywhere, drops imports only the moved code used, warns about import cycles |
-| `quick_fix` | Apply ty's own fixes (missing imports) with correct placement; ambiguous fixes are listed instead of guessed |
-| `verify_changes` | After editing with any tool: which type errors the working tree gained or lost since a git revision (default `HEAD`) |
-| `apply_edit` / `undo_edit` | Write a previewed edit by id; revert an applied one |
-
-One rule for every write tool: it writes when the edit adds no more than `max_new_errors`
-(default 0) type errors in the edited files and their importers. Otherwise nothing is
-written and you get the diagnostics plus an id for `apply_edit`. `apply=false` always
-previews. Hint-level diagnostics (unused, deprecated) are not counted.
-
-Safety rules, enforced in code:
-
-- Only `.py`/`.pyi` files inside the workspace are written; virtualenvs, `site-packages`,
-  typeshed and symlinks that leave the workspace are refused.
-- A preview remembers the exact bytes of every file; `apply_edit` refuses if any file changed
-  since. Files are replaced atomically, and a failure part-way restores the ones already written.
-- Every applied edit is undoable (`undo_edit`) unless the files were changed after it.
-- Output is never written if it is not valid Python.
-- Edits touching more than 40 files need `allow_large=true`.
-- `CODENAV_MCP_READ_ONLY=1` turns every write into a refusal (previews still work).
-
-New files an edit would create are written to disk for the few moments of the type check
-(ty finds modules through the file system) and removed again, even on errors.
-
-Positions are **1-indexed**. `column` is a UTF-16 character offset (a leading
-tab counts as one character).
-
-Python only (`.py` / `.pyi`).
-
-## Several calls in one request: `batch`
-
-Reading three files or changing five symbols no longer costs one round-trip each.
-`batch` takes a list of calls for any tool above (reads and writes mixed):
-
-```json
-{"calls": [
-  {"tool": "outline", "args": {"file_path": "src/pkg/core.py"}},
-  {"tool": "symbol_info", "args": {"name": "Cart.total"}},
-  {"tool": "edit", "args": {"file_path": "src/pkg/core.py", "old_string": "x = 1", "new_string": "x = 2"}},
-  {"tool": "edit_symbol", "args": {"action": "delete", "name": "legacy_parse"}}
-]}
+```bash
+opencode mcp add codenav -- uvx codenav-mcp
 ```
 
-- Calls run **in order**, each through the real tool, so every write is type-checked,
-  previewed or applied, and undoable on its own (one edit id per write), and later calls
-  see what earlier ones wrote.
-- One numbered section per call, then a summary line (`batch: 3/4 ok, 1 failed`).
-- A bad tool name or argument is reported in its own section with a hint; the rest still run.
-- `stop_on_error` (default: stop when the batch contains a write, continue when it only
-  reads) skips the remaining calls after the first failure or write that was not applied.
-- Not atomic: calls that ran stay applied. After an edit, prefer name-based calls over
-  line/column positions computed earlier. Max 25 calls, no nesting, each result capped at
-  20,000 characters.
+See [configuration](docs/configuration.md) for Claude Code and Cursor configuration, workspace selection and environment variables.
 
-## Which `ty` runs
+## Requirements and limits
 
-1. The project's own `.venv/bin/ty` (`.venv\Scripts\ty.exe` on Windows), so
-   the ty version matches the project's pin and config.
-2. The `ty` installed alongside codenav-mcp.
-3. `ty` on `PATH`.
-4. `uvx ty server` as a last resort.
+- Python 3.11 or later; the package installs ty and its other dependencies.
+- Navigation and edits target Python (`.py` and `.pyi`). Positions are 1-indexed; columns use UTF-16 offsets.
+- Edit tools normally check type diagnostics and allow no new errors by default. Use `apply=false` to preview; `apply_edit` can explicitly apply a preview despite its diagnostic limit. Read-only mode disables writes. Checks are not a substitute for tests.
+- Batch calls run in order and are not atomic. See the [tool reference](docs/tools.md) for safety rules and limits.
 
 ## Environment
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `CODENAV_MCP_WORKSPACE` | unset: follows the client's MCP roots when they name a worktree of the same git repository, else `CLAUDE_PROJECT_DIR`, else the working directory | Pins the project root (never overridden). See the `workspace` tool |
-| `CODENAV_MCP_SOURCE_ROOT` | whole workspace | Directory scanned for `implementations` candidates and used to derive dotted import paths (e.g. `src`) |
-| `CODENAV_MCP_READ_ONLY` | unset | `1`/`true`: write tools refuse to write (previews and checks still work) |
-| `CODENAV_MCP_EXTRA_SOURCE_ROOTS` | none | Comma-separated directories (e.g. `tests`) that `implementations` also scans; matches (test doubles) are listed under a separate heading |
+See [configuration](docs/configuration.md#environment) for environment variables.
 
-## Requirements
+## Tests
 
-- Python ≥ 3.11
-- Installed automatically: [`mcp`](https://pypi.org/project/mcp/),
-  [`ty`](https://pypi.org/project/ty/),
-  [`ruff`](https://pypi.org/project/ruff/) (sorts imports in files a move touched, only where they were already sorted),
-  [`mcp-nav-shared`](https://pypi.org/project/mcp-nav-shared/)
+From a checkout, run `uv sync --group dev` and `uv run pytest`. See [development](docs/development.md) for lint and package smoke-test commands. No evaluation score is reported here.
 
-## Related
+## Documentation
 
-- [`webnav-mcp`](https://pypi.org/project/webnav-mcp/): the same kind of
-  navigation for JS/TS/HTML/CSS.
-- Design notes (Protocol conformance probe, positioning, output formats):
-  [docs/agent-tooling.md](https://github.com/illescasDaniel/SpaceMaker/blob/main/docs/agent-tooling.md).
+- [Tool reference](docs/tools.md): navigation, edits, safety and batching.
+- [Configuration](docs/configuration.md): host setup, workspace and ty selection.
+- [Development](docs/development.md): local setup and tests.
+- [Documentation index](docs/INDEX.md).
 
-## Development
-
-Source: [github.com/illescasDaniel/codenav-mcp](https://github.com/illescasDaniel/codenav-mcp). From a
-checkout: `uv sync --group dev`, then `uv run codenav-mcp`.
+Related: [webnav-mcp](https://pypi.org/project/webnav-mcp/) provides navigation for JS/TS/HTML/CSS. [Design notes](https://github.com/illescasDaniel/SpaceMaker/blob/main/docs/agent-tooling.md) cover Protocol conformance, positioning and output formats.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/illescasDaniel/codenav-mcp/blob/main/LICENSE).
+[MIT](LICENSE).
