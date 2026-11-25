@@ -9,6 +9,7 @@ edit if its files are untouched since.
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import subprocess  # noqa: S404
 from pathlib import Path
@@ -316,16 +317,21 @@ def _has_commits(workspace: Path) -> bool:
 
 def _git(workspace: Path, *args: str) -> str:
 	try:
+		# LC_ALL=C: git translates its messages, and the not-a-repository check below matches English (RC-104).
 		result = subprocess.run(  # noqa: S603
 			["git", "-C", str(workspace), *args],  # noqa: S607
 			capture_output=True,
 			text=True,
 			timeout=30,
 			check=False,
+			env={**os.environ, "LC_ALL": "C"},
 		)
 	except (OSError, subprocess.TimeoutExpired) as exc:
 		raise ToolInputError(f"git is not usable here: {exc}") from exc
 	if result.returncode != 0:
+		if "not a git repository" in result.stderr:
+			# Git's own wording names $GIT_DISCOVERY_ACROSS_FILESYSTEM and the parent folders; one next step is enough.
+			raise ToolInputError("not a git repository: run verify_changes inside the project's git repository")
 		lines = (result.stderr.strip() or result.stdout.strip()).splitlines()
 		first = (lines[0] if lines else f"exit status {result.returncode}")[:200]
 		raise ToolInputError(f"git failed: {first}")
@@ -415,13 +421,14 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 				if since == "HEAD"
 				else f"No Python files differ from {since}."
 			)
-		if added:
-			# The server sees the working tree during both passes; it cannot hide newly
-			# added modules while checking the historical snapshot and its importers.
+		# Added files have no committed baseline, so they cannot be compared: they are reported as unchecked.
+		# Only a diff with nothing else to compare is refused.
+		modified = [path for path in touched if path not in added]
+		if added and not modified and not config:
 			names = ", ".join(sorted(relative_name(path, workspace) for path in added))
 			raise ToolInputError(
-				"Cannot verify changes: the historical comparison cannot hide added Python files "
-				f"({names}); inspect the changes manually."
+				f"Cannot verify changes: the only changed Python file(s) are new ({names}), and new files have no "
+				"baseline to compare with, so nothing can be checked. Run diagnostics on each of them instead."
 			)
 		skipped: list[Skipped] = []
 		if config:
@@ -431,8 +438,10 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 			skip_before = set(paths)
 		else:
 			paths, left_out = files_to_check(
-				workspace, session.roots, touched, include_dependents=include_dependents, skipped=skipped
+				workspace, session.roots, modified, include_dependents=include_dependents, skipped=skipped
 			)
+			# An added file that imports a changed module is a dependent here, but it stays unchecked.
+			paths = [path for path in paths if path not in added]
 			skip_before = added | missing_base
 		delta = await diagnostics_delta(
 			session.client,
@@ -445,6 +454,12 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 		)
 		delta.unchecked = sorted(set(delta.unchecked) | {relative_name(p, workspace) for p in missing_base})
 		delta.files_checked -= len(missing_base.intersection(paths))
+		if added and not config:
+			names = ", ".join(sorted(relative_name(path, workspace) for path in added))
+			delta.notes.append(
+				f"{len(added)} added Python file(s) not checked: {names} (new files have no baseline to compare); "
+				"errors they cause in the files that import them are not reported"
+			)
 		if left_out:
 			delta.unchecked.append(f"{left_out} more importing file(s) beyond the check limit")
 		# Importers in excluded directories are not checked on purpose; say so instead of passing silently.

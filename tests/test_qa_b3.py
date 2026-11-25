@@ -315,9 +315,10 @@ def test_verify_added_module_does_not_claim_a_complete_comparison(
 				await server._client.stop()
 
 	result = asyncio.run(run())
+	# B29: an added-only diff has nothing to compare, so it is refused with the reason (not checked silently).
 	assert "Cannot verify changes" in result
 	assert "src/newmod.py" in result
-	assert "cannot hide added Python files" in result
+	assert "new files have no baseline to compare" in result
 	assert new_module.read_text() == 'value: str = "incompatible"\n'
 
 

@@ -106,6 +106,8 @@ def _type_phrase(annotation: Any) -> str:
 	if origin in (typing.Union, types.UnionType):
 		members = [arg for arg in typing.get_args(annotation) if arg is not type(None)]
 		return _type_phrase(members[0]) if len(members) == 1 else "a value of the documented type"
+	if origin is typing.Literal:
+		return _one_of(typing.get_args(annotation))
 	base = origin or annotation
 	if base is bool:
 		return "true or false"
@@ -123,6 +125,22 @@ def _type_phrase(annotation: Any) -> str:
 	if base is dict:
 		return "an object"
 	return "a value of the documented type"
+
+
+def _one_of(values: tuple[Any, ...]) -> str:
+	"""The allowed values of an enum-like parameter, quoted: "one of 'replace', 'insert', 'delete'"."""
+	return "one of " + ", ".join(repr(value) for value in values)
+
+
+def _allowed_values(annotation: Any) -> str | None:
+	"""The allowed values behind a Literal parameter (optionally Optional), or None for other types."""
+	origin = typing.get_origin(annotation)
+	if origin in (typing.Union, types.UnionType):
+		members = [arg for arg in typing.get_args(annotation) if arg is not type(None)]
+		return _allowed_values(members[0]) if len(members) == 1 else None
+	if origin is typing.Annotated:
+		return _allowed_values(typing.get_args(annotation)[0])
+	return _one_of(typing.get_args(annotation)) if origin is typing.Literal else None
 
 
 def _short_repr(value: Any) -> str:
@@ -159,7 +177,10 @@ def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | No
 	missing = [key for key, param in params.items() if param.default is inspect.Parameter.empty and key not in args]
 	if missing:
 		hint = _signature_hint(name, params)
-		return f"{name}: missing required {', '.join(map(repr, missing))}. Parameters: {hint}."
+		# Enum-like parameters name their allowed values, so the agent does not have to guess (RC-031).
+		choices = [f"allowed {key}: {allowed}" for key in missing if (allowed := _allowed_values(hints.get(key)))]
+		extra = f" ({'; '.join(choices)})" if choices else ""
+		return f"{name}: missing required {', '.join(map(repr, missing))}{extra}. Parameters: {hint}."
 	return None
 
 

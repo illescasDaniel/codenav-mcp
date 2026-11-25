@@ -22,7 +22,7 @@ Release summary by area. Details and examples are in the [tool reference](docs/t
 - Nested git checkouts, excluded directories and symlinks that leave the workspace are never written.
 - Failed writes name the file and the reason, roll back what was written, and report `COULD NOT RESTORE` if rollback fails.
 - Undo keeps the last 20 applied edits and removes the files and directories an edit created.
-- `verify_changes` refuses when Python files were added since the revision, instead of guessing.
+- `verify_changes` checks modified Python files and reports added ones as not checked; it refuses only when every changed Python file is new.
 
 ### Language server
 

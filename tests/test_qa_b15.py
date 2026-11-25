@@ -185,9 +185,9 @@ def test_rc_104_git_failure_is_reported_as_one_short_line(tmp_path):
 	with pytest.raises(ToolInputError) as caught:
 		write_tools._git(tmp_path, "rev-parse", "--show-toplevel")
 	message = str(caught.value)
-	assert message.startswith("git failed: ")
+	# A folder outside any repository gets the house sentence (B29), not git's raw stderr.
+	assert message == "not a git repository: run verify_changes inside the project's git repository"
 	assert "\n" not in message
-	assert len(message) <= len("git failed: ") + 200
 
 
 def test_rc_088_changed_config_file_is_reported_and_checked(project, loop):
