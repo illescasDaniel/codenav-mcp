@@ -37,7 +37,7 @@ def test_rc_002_build_dir_importer_reported(tmp_path, monkeypatch):
 	assert [(s.path_or_dir, s.reason, s.count) for s in report.skipped] == [("app/build/", "excluded dir", 1)]
 	lines = format_skipped(report.skipped)
 	assert lines == [
-		"Importers not updated (excluded directories): app/build/ (1 file). Pass CODENAV_MCP_INCLUDE_DIRS=build to include them."
+		"Importers not updated (excluded directories): app/build/ (1 file: app/build/inner_user.py). Pass CODENAV_MCP_INCLUDE_DIRS=build to include them."
 	]
 	monkeypatch.setenv("CODENAV_MCP_INCLUDE_DIRS", "build")
 	included = find_dependents_report(tmp_path, [tmp_path / "app/target.py"], [tmp_path])

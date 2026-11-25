@@ -40,4 +40,4 @@ def test_rc_002_edit_reports_excluded_importers_not_checked(tmp_path, monkeypatc
 
 	assert checked["paths"] == ["target.py", "main.py"]
 	text = format_delta(delta)
-	assert "Importers not checked (excluded directories): app/build/ (1 file)" in text, text
+	assert "Importers not checked (excluded directories): app/build/ (1 file: " in text, text

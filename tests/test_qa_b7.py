@@ -69,7 +69,7 @@ def test_rc_009_same_named_class_outside_protocol_is_not_renamed(tmp_path, monke
 	ports = _run(loop, codenav_server.implementations(port_name="Repo", file_path="src/pkg/ports.py"))
 	# then
 	assert "renamed too" not in text
-	assert "0 class(es) implement Repo" in ports
+	assert "0 implementation(s) of Repo in 0 file(s)" in ports
 	assert (project / "src/pkg/legacy.py").read_text().count("def save") == 1
 
 
@@ -89,7 +89,7 @@ def test_rc_010_candidate_in_the_protocols_module_is_verified(tmp_path, monkeypa
 	# when
 	text = _run(loop, codenav_server.implementations(port_name="Sink", file_path="src/pkg/sinks.py"))
 	# then
-	assert "1 class(es) implement Sink (type-verified)" in text
+	assert "1 implementation(s) of Sink in 1 file(s) (type-verified)" in text
 	assert "FileSink  (src/pkg/sinks.py)" in text
 	assert "could not verify" not in text
 
@@ -112,7 +112,7 @@ def test_rc_015_locals_in_protocol_method_bodies_are_not_members(tmp_path, monke
 	# when
 	text = _run(loop, codenav_server.implementations(port_name="Store", file_path="src/pkg/store.py"))
 	# then
-	assert "1 class(es) implement Store (type-verified)" in text
+	assert "1 implementation(s) of Store in 1 file(s) (type-verified)" in text
 	assert "FileStore  (src/pkg/store.py)" in text
 	assert "tmp" not in text
 

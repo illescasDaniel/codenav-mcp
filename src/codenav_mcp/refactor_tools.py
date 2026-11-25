@@ -171,7 +171,8 @@ async def _plan_signature(
 	session: Session, name: str, file_path: str | None, change: Change, include_overrides: bool
 ) -> EditPlan:
 	path, text, definition = await _locate(session, name, file_path)
-	stubs = overload_stubs(text, definition)
+	rel_path = relative_name(path, session.workspace)
+	stubs = overload_stubs(text, definition, filename=rel_path)
 	if stubs:
 		where = ", ".join(f"{relative_name(path, session.workspace)}:{stub.def_line}" for stub in stubs)
 		raise ToolInputError(
@@ -196,7 +197,7 @@ async def _plan_signature(
 		ref_definition = next(
 			(
 				d
-				for d in definitions_in(text)
+				for d in definitions_in(text, filename=rel_path)
 				if isinstance(d.node, ast.ClassDef) and d.node.lineno == definition.parents[-1].lineno
 			),
 			None,
@@ -205,7 +206,10 @@ async def _plan_signature(
 			raise ToolInputError("could not resolve the constructor's class; retry with the class name")
 	ref_line, ref_col = definition_name_position(origin_ctx.smap.lines, ref_definition)
 	if isinstance(definition.node, ast.ClassDef):
-		init = next((d for d in definitions_in(text) if d.qualname == f"{definition.qualname}.__init__"), None)
+		init = next(
+			(d for d in definitions_in(text, filename=rel_path) if d.qualname == f"{definition.qualname}.__init__"),
+			None,
+		)
 		if init is None:
 			raise ToolInputError(
 				f"class {definition.qualname} defines no __init__ of its own (dataclass and inherited constructors "
@@ -218,7 +222,7 @@ async def _plan_signature(
 		Declaration(origin_ctx, target_def, ref_line, ref_col, is_constructor, frozenset({ref_definition.name}))
 	]
 	notes: list[str] = []
-	if include_overrides and target_def.kind == "method" and target_def.name not in ("__init__", "__new__"):
+	if target_def.kind == "method" and target_def.name not in ("__init__", "__new__"):
 		related = await find_linked(
 			session.client,
 			session.workspace,
@@ -228,12 +232,26 @@ async def _plan_signature(
 			new_name=target_def.name,
 			conforms=conforms_probe(session),
 		)
+	else:
+		related = None
+	if related is not None and not include_overrides and related.sites:
+		left = ", ".join(
+			f"{site.cls.name}.{target_def.name} ({relative_name(site.cls.path, session.workspace)}:{site.line})"
+			for site in related.sites
+		)
+		notes.append(
+			f"overrides left unchanged (include_overrides=false): {left}; "
+			"pass include_overrides=true to change them with the method"
+		)
+	if include_overrides and related is not None:
 		names = {target_def.parents[-1].name} if target_def.parents else set()
 		names |= {site.cls.name for site in related.sites}
 		declarations[0] = Declaration(origin_ctx, target_def, ref_line, ref_col, False, frozenset(names))
 		for site in related.sites:
 			site_ctx = load(site.cls.path)
-			other = find_definition(site_ctx.text, name_line=site.line)
+			other = find_definition(
+				site_ctx.text, name_line=site.line, filename=relative_name(site.cls.path, session.workspace)
+			)
 			if other is None:
 				continue
 			line, col = definition_name_position(site_ctx.smap.lines, other)

@@ -229,9 +229,9 @@ def _parent_line(definition: Definition) -> int | None:
 	return definition.parent.lineno if definition.parent is not None else None
 
 
-def overload_stubs(text: str, definition: Definition) -> list[Definition]:
+def overload_stubs(text: str, definition: Definition, *, filename: str = "<source>") -> list[Definition]:
 	"""The `@overload` stubs that share `definition`'s name and scope (empty when it is not overloaded)."""
-	tree = parse_python(text)
+	tree = parse_python(text, filename)
 	direct, modules = _overload_aliases(tree)
 	return [
 		other
@@ -244,11 +244,17 @@ def overload_stubs(text: str, definition: Definition) -> list[Definition]:
 
 
 def find_definition(
-	text: str, *, name_line: int | None = None, qualname: str | None = None, prefer_implementation: bool = False
+	text: str,
+	*,
+	name_line: int | None = None,
+	qualname: str | None = None,
+	prefer_implementation: bool = False,
+	filename: str = "<source>",
 ) -> Definition | None:
-	"""Find a definition; an explicit line stays exact unless implementation preference is requested."""
+	"""Find a definition; an explicit line stays exact unless implementation preference is requested.
+	`filename` names the file in a syntax refusal (the workspace-relative path, never `<source>`)."""
 	lines = source_lines(text)
-	tree = parse_python(text)
+	tree = parse_python(text, filename)
 	direct, modules = _overload_aliases(tree)
 	definitions = list(iter_definitions(tree, lines))
 	for definition in definitions:
@@ -266,8 +272,8 @@ def find_definition(
 	return None
 
 
-def definitions_in(text: str) -> list[Definition]:
-	return list(iter_definitions(parse_python(text), source_lines(text)))
+def definitions_in(text: str, *, filename: str = "<source>") -> list[Definition]:
+	return list(iter_definitions(parse_python(text, filename), source_lines(text)))
 
 
 def leading_comment_start(lines: list[str], first_line: int) -> int:

@@ -221,7 +221,7 @@ def test_rc_002_excluded_importers_are_reported_as_checked_or_updated(tmp_path):
 	roots = [tmp_path]
 	report = find_dependents_report(tmp_path, [tmp_path / "app" / "target.py"], roots)
 	lines = format_skipped([s for s in report.skipped if s.reason == "excluded dir"], verb="checked")
-	assert lines and lines[0].startswith("Importers not checked (excluded directories): build/ (1 file)")
+	assert lines and lines[0].startswith("Importers not checked (excluded directories): build/ (1 file: ")
 
 
 def test_rc_002_vcs_directories_are_not_listed_as_unparsable_or_unreadable(tmp_path):
@@ -283,7 +283,7 @@ def test_rc_002_verify_changes_reports_importers_in_excluded_directories(tmp_pat
 	core.write_text(core.read_text() + "\n\nEXTRA = 1\n", encoding="utf-8")
 	text = _run(loop, write_tools.verify_changes())
 	assert "Changed since HEAD: src/pkg/core.py" in text
-	assert "Importers not checked (excluded directories): build/ (1 file)" in text
+	assert "Importers not checked (excluded directories): build/ (1 file: " in text
 
 
 def test_rc_001_snippet_lines_of_a_file_ignore_form_feed(tmp_path):

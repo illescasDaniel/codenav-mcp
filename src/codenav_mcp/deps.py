@@ -44,6 +44,7 @@ class Skipped:
 	reason: SkipReason
 	detail: str
 	count: int = 1
+	files: tuple[str, ...] = ()  # the importer files of a group, workspace-relative (for the note)
 
 
 @dataclass
@@ -241,6 +242,7 @@ def _skipped_importers(
 			found.append(Skipped(rel_dir, "unreadable", f"{rel_dir}: not scanned because the scan limit was reached"))
 			continue
 		count = 0
+		importer_files: list[str] = []
 
 		for dirpath, dirs, filenames in os.walk(directory, onerror=onerror):
 			for name in sorted(d for d in dirs if Path(dirpath, d).is_symlink()):
@@ -283,11 +285,14 @@ def _skipped_importers(
 				if problem is None and not wanted & imported:
 					continue
 				count += 1
+				importer_files.append(_rel(path, workspace))
 			if limit_reached:
 				break
 		if count:
 			noun = "file imports" if count == 1 else "files import"
-			found.append(Skipped(_rel(directory, workspace) + "/", reason, f"{count} {noun} it", count))
+			found.append(
+				Skipped(_rel(directory, workspace) + "/", reason, f"{count} {noun} it", count, tuple(importer_files))
+			)
 	return found
 
 
@@ -352,6 +357,18 @@ def _plural(count: int, word: str = "file") -> str:
 	return f"{count} {word}" + ("" if count == 1 else "s")
 
 
+_MAX_LISTED_IMPORTERS = 10
+
+
+def _excluded_group(skipped: Skipped) -> str:
+	"""`dir/ (N files: a.py, b.py)`: the directory and its skipped importer files, the first few named."""
+	listed = list(skipped.files[:_MAX_LISTED_IMPORTERS])
+	if skipped.files and len(skipped.files) > _MAX_LISTED_IMPORTERS:
+		listed.append(f"and {len(skipped.files) - _MAX_LISTED_IMPORTERS} more")
+	files = f": {', '.join(listed)}" if listed else ""
+	return f"{skipped.path_or_dir} ({_plural(skipped.count)}{files})"
+
+
 def format_skipped(skipped: list[Skipped], *, verb: str = "updated") -> list[str]:
 	"""Message lines for what `find_dependents_report` did not examine, one line per group.
 
@@ -361,7 +378,7 @@ def format_skipped(skipped: list[Skipped], *, verb: str = "updated") -> list[str
 	lines: list[str] = []
 	excluded = [s for s in skipped if s.reason == "excluded dir"]
 	if excluded:
-		groups = ", ".join(f"{s.path_or_dir} ({_plural(s.count)})" for s in excluded)
+		groups = "; ".join(_excluded_group(s) for s in excluded)
 		names = ",".join(dict.fromkeys(s.path_or_dir.rstrip("/").rsplit("/", 1)[-1] for s in excluded))
 		lines.append(
 			f"Importers not {verb} (excluded directories): {groups}. Pass {ENV_PREFIX}_INCLUDE_DIRS={names} to include them."

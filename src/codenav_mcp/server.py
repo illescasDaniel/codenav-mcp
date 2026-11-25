@@ -506,7 +506,8 @@ def _bound_in_function(name: str, file_path: str | None) -> bool:
 		paths = [WORKSPACE_ROOT / file_path]
 	else:
 		paths = itertools.islice(
-			(p for p in WORKSPACE_ROOT.rglob("*.py") if not is_excluded(p, WORKSPACE_ROOT)), _LOCAL_SCAN_FILE_LIMIT
+			(p for p in WORKSPACE_ROOT.rglob("*.py") if not is_excluded(p, WORKSPACE_ROOT, prefix=ENV_PREFIX)),
+			_LOCAL_SCAN_FILE_LIMIT,
 		)
 	for path in paths:
 		try:
@@ -1336,8 +1337,12 @@ def _source_signature(files: list[Path]) -> tuple[tuple[str, int, int], ...]:
 def _candidate_files(root: Path) -> list[Path]:
 	"""Python sources under `root` that `implementations` may probe: every `.py`, plus each `.pyi` whose `.py`
 	twin does not exist (a stub-only class is a declaration of code elsewhere; its matches are marked `(stub)`)."""
-	files = [p for p in root.rglob("*.py") if not is_excluded(p, root)]
-	files += [p for p in root.rglob("*.pyi") if not is_excluded(p, root) and not p.with_suffix(".py").exists()]
+	files = [p for p in root.rglob("*.py") if not is_excluded(p, root, prefix=ENV_PREFIX)]
+	files += [
+		p
+		for p in root.rglob("*.pyi")
+		if not is_excluded(p, root, prefix=ENV_PREFIX) and not p.with_suffix(".py").exists()
+	]
 	return sorted(files)
 
 
@@ -1382,6 +1387,8 @@ async def implementations(
 		port_rel_path = uri_to_relative(port.uri, WORKSPACE_ROOT)
 		port_symbols = await client.document_symbol(port_rel_path)
 		port_source = (WORKSPACE_ROOT / port_rel_path).read_text(encoding="utf-8")
+	except SymbolNotFoundError as exc:
+		return FailedText(f"{exc} Check the name with symbol_info or hover first.")
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)
 	if port.name not in _protocol_class_names(port_source):
@@ -1543,7 +1550,10 @@ async def implementations(
 		finally:
 			_probe_lock.release()
 
-	lines = [f"{len(verified)} class(es) implement {port.name} (type-verified):{skipped_note}"]
+	verified_files = {line.rsplit("  (", 1)[-1] for line in verified}
+	lines = [
+		f"{len(verified)} implementation(s) of {port.name} in {len(verified_files)} file(s) (type-verified):{skipped_note}"
+	]
 	lines += verified or ["(none)"]
 	if EXTRA_SOURCE_ROOTS:
 		roots = ", ".join(
