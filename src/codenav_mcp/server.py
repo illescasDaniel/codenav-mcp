@@ -49,8 +49,6 @@ from mcp_nav_shared.format import (
 	format_callers,
 	format_diagnostics,
 	format_outline,
-	format_references,
-	format_references_grouped,
 	format_workspace_symbols,
 	outside_workspace_note,
 	parse_kind_filter,
@@ -78,8 +76,10 @@ from mcp_nav_shared.workspace import (
 
 import codenav_mcp
 from codenav_mcp import tool_base
+from codenav_mcp.ambiguity import ambiguity_listing
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.pysource import reject_nul
+from codenav_mcp.reference_format import format_references_listing, format_symbol_references
 from codenav_mcp.scan_cap import workspace_too_large
 from codenav_mcp.ty_command import resolve_ty_command, ty_config_note
 from codenav_mcp.writes import READ_ONLY_ENV
@@ -126,16 +126,18 @@ mcp = MCPServer(
 		"definitions/usages: it resolves through type inference (imports, "
 		"dependency-injected parameters, dataclass fields, etc.), not just text "
 		"matching. Python files only (.py/.pyi) — other extensions are rejected. "
-		"Start with symbol_info (what is X, where is it used) or outline (what's "
-		"in this file) rather than chaining search_symbol → hover → definition → "
-		"references by hand; drop to the position tools (hover/definition/"
-		"references) once you have a specific line to inspect. To change code, prefer "
-		"the write tools over hand edits where one fits: edit (text), edit_symbol (replace/"
-		"insert/delete a definition by name), rename_symbol, change_signature, move (a "
-		"symbol or a module), quick_fix. They type-check the edit before writing and write it "
-		"when it adds no errors (max_new_errors=0; apply=false only previews); verify_changes "
-		"shows what the working tree broke, undo_edit reverts. To read or change several files or "
-		"symbols, send them as one batch(calls=[{tool, args}, ...]) instead of many separate calls. " + _POSITION_NOTE
+		'Call shapes: symbol_info, callers, references take name="Class.method" (file_path optional, '
+		"narrows it; several matches: the reply lists exact retries); implementations takes name= of a "
+		"Protocol class; hover, definition (and references) take file_path+line+column; outline, "
+		"diagnostics take file_path; search_symbol takes query. Start with symbol_info (what is X, where is it used) or outline "
+		"(what's in this file) rather than chaining search_symbol → hover → definition → "
+		"references by hand. To change code, prefer the write tools over hand edits: edit (the "
+		"built-in Edit/str_replace for .py files plus a type check, one replacement per call), "
+		"edit_symbol (replace/insert/delete a definition by name), rename_symbol, change_signature, "
+		"move (a symbol or a module), quick_fix. They type-check the edit and write it only when it "
+		"adds no errors (max_new_errors=0; apply=false only previews); verify_changes shows what the "
+		"working tree broke, undo_edit reverts. Several calls or files: send one "
+		"batch(calls=[{tool, args}, ...]) instead of many separate calls. " + _POSITION_NOTE
 	),
 )
 
@@ -652,11 +654,9 @@ async def workspace(ctx: Context | None = None) -> str:
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def hover(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
-	"""Get type/documentation info for the symbol at a position.
+	"""Get type/documentation info for the symbol at a position. Example: `hover(file_path="src/a.py", line=12, column=9)`.
 
-	`line` and `column` are 1-indexed. `column` is a UTF-16 character offset
-	on the line (not a visual/display column): a leading tab counts as one
-	character. Put the position on the symbol's name: on a `def`/`class`
+	1-indexed; `column` is a UTF-16 offset (a tab counts as one). Put the position on the symbol's name: on a `def`/`class`
 	keyword there is no hover. Paths outside the workspace are refused
 	before the file is read.
 	"""
@@ -680,11 +680,9 @@ async def hover(file_path: str, line: int, column: int, ctx: Context | None = No
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def definition(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
-	"""Go to the definition of the symbol at a position.
+	"""Go to the definition of the symbol at a position. Example: `definition(file_path="src/a.py", line=12, column=9)`.
 
-	`line` and `column` are 1-indexed. `column` is a UTF-16 character offset
-	on the line (not a visual/display column): a leading tab counts as one
-	character.
+	1-indexed; `column` is a UTF-16 offset (a tab counts as one).
 
 	Resolves through ty's type inference, so this works even when the call
 	site only has a typed parameter/attribute (e.g. `services.some_method()`
@@ -748,6 +746,11 @@ def _with_outside_note(text: str, outside: int) -> str:
 	return f"{text}\n{note}" if note else text
 
 
+def _read_error(exc: Exception, tool: str, name: str | None) -> str:
+	"""A read tool's reply to an error: an ambiguous name gets a normal answer listing the exact retries."""
+	return ambiguity_listing(exc, tool, name) or format_tool_error(exc)
+
+
 def _owning_class_name(nodes: list[dict[str, Any]], name: str, line: int) -> str | None:
 	"""The class (from a `to_symbol_tree` tree) that directly holds the member `name` at 0-based `line`."""
 	for node in nodes:
@@ -760,11 +763,8 @@ def _owning_class_name(nodes: list[dict[str, Any]], name: str, line: int) -> str
 	return None
 
 
-async def _method_owner_has_subclasses(client: LspClient, rel_path: str, resolved: ResolvedSymbol) -> bool:
-	"""True when the method `resolved` belongs to a class that another class in the source roots inherits from."""
-	owner = _owning_class_name(to_symbol_tree(await client.document_symbol(rel_path)), resolved.name, resolved.line)
-	if owner is None:
-		return False
+def _subclassed(owner: str) -> bool:
+	"""True when another class in the source roots lists `owner` as a base."""
 	for root in (SOURCE_ROOT, *EXTRA_SOURCE_ROOTS):
 		for path in _candidate_files(root):
 			try:
@@ -774,6 +774,27 @@ async def _method_owner_has_subclasses(client: LspClient, rel_path: str, resolve
 			if any(owner in info.bases and info.name != owner for info in infos):
 				return True
 	return False
+
+
+async def _static_callers_note(client: LspClient, rel_path: str, resolved: ResolvedSymbol) -> str | None:
+	"""The caveat for `callers` of a method whose class has other implementations, or None.
+
+	Overrides in subclasses are found by name in the source roots; a `Protocol` member is satisfied
+	structurally (no subclass), so it is recognised from the class declaration itself.
+	"""
+	owner = _owning_class_name(to_symbol_tree(await client.document_symbol(rel_path)), resolved.name, resolved.line)
+	if owner is None:
+		return None
+	try:
+		is_protocol = any(i.name == owner and i.is_protocol for i in _cached_class_infos(WORKSPACE_ROOT / rel_path))
+	except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+		is_protocol = False
+	if is_protocol:
+		return (
+			f"Static callers only; implementations of this Protocol member are not included: "
+			f'implementations(name="{owner}") lists them, then callers on one implementation.'
+		)
+	return STATIC_CALLERS_NOTE if _subclassed(owner) else None
 
 
 def _outline_source(file_path: str) -> str | None:
@@ -799,33 +820,54 @@ async def _syntax_warning(client: LspClient, file_path: str) -> str:
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def references(
-	file_path: str,
-	line: int,
-	column: int,
+	file_path: str | None = None,
+	line: int | None = None,
+	column: int | None = None,
 	include_declaration: bool = True,
 	limit: int = 200,
+	name: str | None = None,
+	query: str | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Find all usages of the symbol at a position across the workspace.
+	"""Find all usages of a symbol across the workspace. Example: `references(name="Cart.total")` or `references(file_path="src/cart.py", line=12, column=9)`.
 
-	`line` and `column` are 1-indexed. `column` is a UTF-16 character offset
-	on the line (not a visual/display column): a leading tab counts as one
-	character.
+	Give `name` (dotted `Class.method` ok; `file_path` narrows it; `query` is an alias) or
+	`file_path` + `line` + `column` (1-indexed; `column` is a UTF-16 offset, a tab counts as one).
 
 	The first line is the exact total (`N reference(s) in M file(s):`). `limit`
 	(default 200) caps how many hits are listed; production code is listed before
 	tests. Hits in files outside the workspace are not shown.
 	"""
 	await _use_workspace(ctx)
+	by_name = name is not None or query is not None
 	try:
-		_check_python_file(file_path)
+		if by_name:
+			if line is not None or column is not None:
+				raise ToolInputError("give name (file_path narrows it) or file_path + line + column, not both")
+			name = resolve_name_query(preferred="name", example="Cart.total", name=name, query=query)
+		elif file_path is None or line is None or column is None:
+			raise ToolInputError(
+				"give name (dotted Class.method ok, file_path narrows it), or file_path + line + column. "
+				'Example: references(name="Cart.total")'
+			)
+		else:
+			_check_python_file(file_path)
 		_check_at_least_one(limit, "limit")
 		client = await get_client()
-		locations = await client.references(file_path, line, column, include_declaration=include_declaration)
+		if by_name:
+			resolved = await resolve_symbol(client, WORKSPACE_ROOT, str(name), file_path=file_path)
+			file_path, line, column = (
+				uri_to_relative(resolved.uri, WORKSPACE_ROOT),
+				resolved.line + 1,
+				resolved.column + 1,
+			)
+		locations = await client.references(
+			str(file_path), int(line or 0), int(column or 0), include_declaration=include_declaration
+		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return _read_error(exc, "references", name)
 	inside, outside = split_inside_workspace(locations, WORKSPACE_ROOT, _location_uri)
-	return _with_outside_note(format_references(inside, WORKSPACE_ROOT, limit=limit), outside)
+	return _with_outside_note(format_references_listing(inside, WORKSPACE_ROOT, limit=limit), outside)
 
 
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
@@ -838,7 +880,7 @@ async def search_symbol(
 	fuzzy: bool = False,
 	ctx: Context | None = None,
 ) -> str:
-	"""Search the whole workspace for a symbol by name (class, function, method, etc.).
+	"""Search the whole workspace for a symbol by name (class, function, method, etc.). Example: `search_symbol(query="create_user")`.
 
 	Use this to find a symbol's file/position first, then pass that position
 	to definition/references/hover for precise, type-resolved navigation.
@@ -1015,8 +1057,8 @@ async def symbol_info(
 	method when the plain name is ambiguous. A dotted module path
 	(`pkg.mod.func`) resolves to the function in that module. Pass `file_path`
 	(relative to the workspace root) to disambiguate when several symbols share
-	a name elsewhere in the workspace; if it's still ambiguous, the candidates
-	are listed back so you can retry with a narrower name or file_path. Local
+	a name elsewhere in the workspace; if it's still ambiguous, the reply lists the
+	exact retry call for each candidate. Local
 	variables and parameters are not indexed, so they are not found by name.
 	`query` is accepted as an alias for `name`; passing both with different
 	values is refused.
@@ -1043,12 +1085,13 @@ async def symbol_info(
 			await _definition_text(client, definition_locations) if definition_locations else "No definition found."
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return _read_error(exc, "symbol_info", name)
 	header = f"{resolved.name}  [{symbol_kind_label(resolved.kind)}]  ({_display_path(resolved.uri)}:{line}:{column})"
 	hover_text = _format_hover_contents(hover_result.get("contents")) or "No hover information."
 	parts = [header, "", hover_text, "", "Definition:", definition_text]
 	if include_references:
-		parts += ["", "References:", format_references_grouped(reference_locations, WORKSPACE_ROOT)]
+		retry = f'references(file_path="{rel_path}", line={line}, column={column}, limit={max(len(reference_locations), 1)})'
+		parts += ["", "References:", format_symbol_references(reference_locations, WORKSPACE_ROOT, retry)]
 	return "\n".join(parts)
 
 
@@ -1099,9 +1142,9 @@ async def callers(
 	pass file_path to disambiguate a common name). `query` is accepted as an
 	alias for `name`. The first line is the exact count of callers; `limit`
 	(default 200) caps how many are listed. A function that is only used as a
-	value (passed or stored, never called) gets a note saying so. For a method of
-	a class that has subclasses the reply says overriding methods are not included.
-	Callers in files outside the workspace are not shown.
+	value (passed or stored, never called) gets a note saying so. For a method of a
+	class with subclasses, or a Protocol member, the reply says overriding/implementing
+	methods are not included (see `implementations`). Callers in files outside the workspace are not shown.
 	"""
 	await _use_workspace(ctx)
 	try:
@@ -1119,15 +1162,15 @@ async def callers(
 		if not inside:
 			uses = await client.references(rel_path, resolved.line + 1, resolved.column + 1, include_declaration=False)
 			value_only = bool(split_inside_workspace(uses, WORKSPACE_ROOT, _location_uri)[0])
-		static_note = resolved.kind == 6 and await _method_owner_has_subclasses(client, rel_path, resolved)
+		static_note = await _static_callers_note(client, rel_path, resolved) if resolved.kind == 6 else None
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return _read_error(exc, "callers", name)
 	if value_only:
 		text = f"{resolved.name} is used as a value only (not called); see references for those uses."
 	else:
 		text = format_callers(inside, WORKSPACE_ROOT, limit=limit)
 	if static_note:
-		text = f"{text}\n{STATIC_CALLERS_NOTE}"
+		text = f"{text}\n{static_note}"
 	return _with_outside_note(text, outside)
 
 
@@ -1376,7 +1419,7 @@ async def implementations(
 	file_path: str | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Find concrete classes that structurally satisfy a `Protocol` port.
+	"""Find concrete classes that structurally satisfy a `Protocol` port. Example: `implementations(name="FileSystemPort")`.
 
 	Many hexagonal codebases define ports as `Protocol`s that adapters never
 	subclass explicitly, so ty's own `implementation`/`typeHierarchy` return
@@ -1411,7 +1454,7 @@ async def implementations(
 	except SymbolNotFoundError as exc:
 		return FailedText(f"{exc} Check the name with symbol_info or hover first.")
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return _read_error(exc, "implementations", port_name)
 	if port.name not in _protocol_class_names(port_source):
 		return FailedText(
 			f"{port.name!r} is not a Protocol; implementations only finds structural "
@@ -1508,7 +1551,7 @@ async def implementations(
 	if not name_matches:
 		return (
 			f"No classes under {_shown(SOURCE_ROOT)} cover {port.name}'s methods: "
-			f"{', '.join(sorted(port_required))}.{skipped_note}"
+			f"{', '.join(sorted(port_required))}.{skipped_note}{_unscanned_note()}"
 		)
 
 	global _probe_cache_signature
@@ -1591,7 +1634,29 @@ async def implementations(
 			lines.append(
 				f"{not_probed} more could not be probed: their module has no import path under the source root."
 			)
+	if note := _unscanned_note():
+		lines += ["", note.strip()]
 	return "\n".join(lines)
+
+
+def _unscanned_note() -> str:
+	"""One line saying which root `implementations` scanned and how to include tests/, when a tests directory was left out."""
+	if EXTRA_SOURCE_ROOTS:
+		return ""
+	left_out = [
+		d.name
+		for d in sorted(WORKSPACE_ROOT.iterdir() if WORKSPACE_ROOT.is_dir() else [])
+		if d.is_dir()
+		and d.name in ("tests", "test")
+		and not _is_under(d, SOURCE_ROOT)
+		and not is_excluded(d, WORKSPACE_ROOT, prefix=ENV_PREFIX)
+	]
+	if not left_out:
+		return ""
+	return (
+		f"\nScanned only {_shown(SOURCE_ROOT)}; {', '.join(left_out)}/ not scanned (test doubles live there): "
+		f"set CODENAV_MCP_EXTRA_SOURCE_ROOTS={','.join(left_out)} to include {'them' if len(left_out) > 1 else 'it'}."
+	)
 
 
 def _register_write_tools() -> None:
@@ -1657,7 +1722,7 @@ def _needs_literal_string_dispatch(fn: Any, arguments: dict[str, Any]) -> bool:
 
 
 def _checked_call_tool(original: Any) -> Any:
-	"""Wrap `MCPServer.call_tool`: refuse unknown or mistyped arguments by name, in the shared short words.
+	"""Wrap `MCPServer.call_tool`: rename guessed argument names, then refuse unknown or mistyped ones by name.
 
 	The SDK ignores unknown arguments and answers a wrong type with its own validation dump. This
 	wrapper runs `batch_tools.argument_problem` (the batch's own check) first; a ValidationError the
@@ -1674,10 +1739,12 @@ def _checked_call_tool(original: Any) -> Any:
 		fn = batch_tools.signature_of(name)
 		if fn is None:
 			return _refusal(batch_tools.unknown_tool_message(name))
-		problem = batch_tools.argument_problem(name, fn, arguments or {})
+		# Guessed argument names (`symbol`, `file`, ...) become the real ones before anything is checked or called.
+		arguments, problem = batch_tools.apply_aliases(name, fn, arguments or {})
+		problem = problem or batch_tools.argument_problem(name, fn, arguments)
 		if problem is not None:
 			return _refusal(problem)
-		if _needs_literal_string_dispatch(fn, arguments or {}):
+		if _needs_literal_string_dispatch(fn, arguments):
 			# The SDK pre-parses JSON-looking text for optional string parameters.
 			# Preserve the caller's text after the same strict validation above. The
 			# normal notice/cap/error wrapper still handles the tool result.
@@ -1702,7 +1769,7 @@ def _checked_call_tool(original: Any) -> Any:
 		except ToolError as exc:
 			if isinstance(exc, UnexpectedToolError) or not isinstance(exc.__cause__, ValidationError):
 				raise
-			problem = batch_tools.argument_problem(name, fn, arguments or {})
+			problem = batch_tools.argument_problem(name, fn, arguments)
 			raise ToolError(problem or f"{name}: one or more arguments have the wrong type.") from exc
 
 	return call_tool

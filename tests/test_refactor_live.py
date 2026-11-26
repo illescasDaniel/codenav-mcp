@@ -66,6 +66,7 @@ def test_given_new_param_with_default_when_change_signature_then_only_definition
 			add=[{"name": "retries", "annotation": "int", "default": "3"}],
 			apply=True,
 			max_new_errors=None,
+			allow_large=True,  # the fixture has a value use and a *args call the tool cannot update
 		),
 	)
 	# then
@@ -77,18 +78,144 @@ def test_given_new_param_with_default_when_change_signature_then_only_definition
 	_valid(project / "src/pkg/mailer.py")
 
 
-def test_given_star_args_call_when_change_signature_then_gate_blocks_and_names_the_call(project, loop):
-	# when — `send_mail(*args)` now feeds a str to the new int parameter; the type check must catch what the rewrite cannot
+def test_given_star_args_call_when_change_signature_then_plan_is_held_as_incomplete(project, loop):
+	# when — `send_mail(*args)` and the `callback = send_mail` use cannot be rewritten
 	text = _run(
 		loop,
 		refactor_tools.change_signature(
 			name="send_mail", add=[{"name": "retries", "annotation": "int", "default": "3"}], apply=True
 		),
 	)
-	# then
-	assert "NOT applied: 1 new error" in text
-	assert "src/pkg/app.py:21" in text and "uses *args/**kwargs unpacking" in text
+	# then — nothing written, and the top of the reply says why and how to write it anyway
+	assert "NOT applied: the plan is incomplete: 2 call site(s) were not updated" in text
+	assert "uses *args/**kwargs unpacking" in text and "used as a value, not called" in text
+	assert 'apply_edit(id="' in text and "writes it anyway" in text
 	assert "retries" not in (project / "src/pkg/mailer.py").read_text()
+	# when — the held plan is written on request
+	plan_id = text.split('apply_edit(id="', 1)[1].split('"', 1)[0]
+	written = _run(loop, write_tools.apply_edit(id=plan_id))
+	# then
+	assert "retries: int = 3" in (project / "src/pkg/mailer.py").read_text()
+	assert "NOT" not in written.splitlines()[0]
+
+
+def test_given_preview_of_incomplete_plan_when_change_signature_then_says_apply_would_be_refused(project, loop):
+	text = _run(loop, refactor_tools.change_signature(name="send_mail", remove=["body"], apply=False))
+	assert "apply=true would be refused: the plan is incomplete" in text
+
+
+def test_given_effectful_reorder_when_change_signature_then_keywords_in_original_order_are_written(
+	tmp_path, monkeypatch, loop
+):
+	# given — `args.query`/`args.path` are attribute reads: swapping their positions could change evaluation order
+	project = make_workspace(
+		tmp_path,
+		monkeypatch,
+		{
+			"src/pkg/__init__.py": "",
+			"src/pkg/fmt.py": "def message(path: str, query: str) -> str:\n\treturn f'{query} in {path}'\n",
+			"src/pkg/cli.py": (
+				"import argparse\n\nfrom pkg.fmt import message\n\n\n"
+				"def run(args: argparse.Namespace) -> str:\n"
+				"\treturn message(args.query, args.path) + message('a', 'b')\n"
+			),
+		},
+	)
+	# when
+	text = _run(loop, refactor_tools.change_signature(name="message", reorder=["query", "path"]))
+	# then — written (complete plan), keywords keep the old order and meaning, constants are simply swapped
+	assert "Applied as edit" in text
+	assert "def message(query: str, path: str)" in (project / "src/pkg/fmt.py").read_text()
+	cli = (project / "src/pkg/cli.py").read_text()
+	assert "message(path=args.query, query=args.path)" in cli
+	assert "message('b', 'a')" in cli
+	assert "needs manual attention" not in text
+	_valid(project / "src/pkg/cli.py")
+
+
+def test_given_new_positional_param_with_value_when_effectful_arguments_then_the_calls_are_written(
+	tmp_path, monkeypatch, loop
+):
+	# given — `root / "a"` is an expression: inserting a keyword argument next to it moves nothing it evaluates
+	project = make_workspace(
+		tmp_path,
+		monkeypatch,
+		{
+			"src/pkg/__init__.py": "",
+			"src/pkg/find.py": "def search(path: object, query: str, *, names: bool = True) -> bool:\n\treturn names\n",
+			"src/pkg/use.py": (
+				"from pathlib import Path\n\nfrom pkg.find import search\n\n\n"
+				"def go(root: Path) -> bool:\n\treturn search(root / 'a', 'q', names=False)\n"
+			),
+		},
+	)
+	# when
+	text = _run(
+		loop,
+		refactor_tools.change_signature(
+			name="search", add=[{"name": "exact", "annotation": "bool", "default": "False", "value": "False"}]
+		),
+	)
+	# then
+	assert "Applied as edit" in text and "needs manual attention" not in text
+	assert "search(root / 'a', 'q', exact=False, names=False)" in (project / "src/pkg/use.py").read_text()
+
+
+def test_given_positional_insert_held_by_positional_only_when_change_signature_then_hint_is_keyword_only(
+	tmp_path, monkeypatch, loop
+):
+	# given — `a` and `b` are positional-only: a new first parameter would shift them, so the calls cannot be rewritten
+	project = make_workspace(
+		tmp_path,
+		monkeypatch,
+		{
+			"src/pkg/__init__.py": "",
+			"src/pkg/calc.py": "def add(a: int, b: int, /) -> int:\n\treturn a + b\n",
+			"src/pkg/use.py": "from pkg.calc import add\n\n\ndef go() -> int:\n\treturn add(1, 2) + add(3, 4)\n",
+		},
+	)
+	spec = {"name": "scale", "annotation": "int", "default": "1", "value": "1", "position": 0}
+	# when
+	held = _run(loop, refactor_tools.change_signature(name="add", add=[spec], apply=True))
+	# then — held, and the reply names keyword_only=true as the way out
+	assert "NOT applied: the plan is incomplete: 2 call site(s) were not updated" in held
+	assert "keyword_only=true" in held
+	assert "scale" not in (project / "src/pkg/calc.py").read_text()
+	# when — the suggested variant
+	done = _run(loop, refactor_tools.change_signature(name="add", add=[{**spec, "keyword_only": True}], apply=True))
+	# then
+	assert "Applied as edit" in done and "needs manual attention" not in done
+	assert "scale: int = 1" in (project / "src/pkg/calc.py").read_text()
+	assert "add(1, 2, scale=1)" in (project / "src/pkg/use.py").read_text()
+
+
+def test_given_hold_keyword_only_cannot_fix_when_change_signature_then_no_keyword_only_hint(project, loop):
+	text = _run(loop, refactor_tools.change_signature(name="send_mail", remove=["body"], apply=False))
+	assert "the plan is incomplete" in text and "keyword_only" not in text
+
+
+def test_given_effectful_reorder_of_positional_only_when_change_signature_then_held_for_manual_work(
+	tmp_path, monkeypatch, loop
+):
+	# given
+	project = make_workspace(
+		tmp_path,
+		monkeypatch,
+		{
+			"src/pkg/__init__.py": "",
+			"src/pkg/fmt.py": "def message(path: str, query: str, /) -> str:\n\treturn f'{query} in {path}'\n",
+			"src/pkg/cli.py": (
+				"import argparse\n\nfrom pkg.fmt import message\n\n\n"
+				"def run(args: argparse.Namespace) -> str:\n\treturn message(args.query, args.path)\n"
+			),
+		},
+	)
+	# when
+	text = _run(loop, refactor_tools.change_signature(name="message", reorder=["query", "path"]))
+	# then — reorder keeps the group, but the call cannot take keywords: held, call untouched
+	assert "NOT applied: the plan is incomplete: 1 call site(s)" in text
+	assert "positional-only" in text
+	assert "def message(path: str, query: str, /)" in (project / "src/pkg/fmt.py").read_text()
 
 
 def test_given_value_for_new_param_when_change_signature_then_every_call_site_gets_the_keyword(project, loop):
@@ -100,6 +227,7 @@ def test_given_value_for_new_param_when_change_signature_then_every_call_site_ge
 			add=[{"name": "retries", "annotation": "int", "default": "3", "value": "5"}],
 			apply=True,
 			max_new_errors=None,
+			allow_large=True,
 		),
 	)
 	# then
@@ -114,7 +242,12 @@ def test_given_value_for_new_param_when_change_signature_then_every_call_site_ge
 
 def test_given_removed_param_when_change_signature_then_arguments_dropped_everywhere(project, loop):
 	# when
-	_run(loop, refactor_tools.change_signature(name="send_mail", remove=["body"], apply=True, max_new_errors=None))
+	_run(
+		loop,
+		refactor_tools.change_signature(
+			name="send_mail", remove=["body"], apply=True, max_new_errors=None, allow_large=True
+		),
+	)
 	# then
 	assert "def send_mail(to: str, subject: str) -> bool:" in (project / "src/pkg/mailer.py").read_text()
 	app = (project / "src/pkg/app.py").read_text()
@@ -170,7 +303,7 @@ def test_given_reorder_when_change_signature_then_definition_and_positional_call
 	_run(
 		loop,
 		refactor_tools.change_signature(
-			name="send_mail", reorder=["subject", "to", "body"], apply=True, max_new_errors=None
+			name="send_mail", reorder=["subject", "to", "body"], apply=True, max_new_errors=None, allow_large=True
 		),
 	)
 	# then

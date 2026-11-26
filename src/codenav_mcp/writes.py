@@ -85,6 +85,16 @@ class Outcome:
 	delta: DiagnosticsDelta | None = None
 
 
+NOT_CHECKED = "tests and docs not checked"
+
+
+def type_check_report(delta: DiagnosticsDelta) -> str:
+	"""`format_delta`'s report, said to be a type check (a green one says nothing about tests, docs or generated files)."""
+	head, _, rest = format_delta(delta).partition("\n")
+	head = f"{head.replace('Diagnostics:', 'Type check:', 1)} - {NOT_CHECKED}"
+	return f"{head}\n{rest}" if rest else head
+
+
 def _count_label(count: int, noun: str) -> str:
 	return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
@@ -135,7 +145,7 @@ async def errors_after_write(client: LspClient, root: Path, plan: EditPlan, *, l
 			)
 		return status
 	if total == 0:
-		return "After writing: no errors in the edited files."
+		return f"After writing: no errors in the edited files (type check only; {NOT_CHECKED})."
 	more = f"\n  ... {total - limit} more" if total > limit else ""
 	return (
 		f"After writing: {_count_label(total, 'error')} in the edited files (includes any that existed before):\n"
@@ -259,7 +269,7 @@ async def finish_plan(
 	lines += ["", "Files:", plan.summary(workspace)]
 	if plan.notes:
 		lines += ["", "Notes:", *(f"  - {note}" for note in plan.notes)]
-	lines += ["", format_delta(delta)]
+	lines += ["", type_check_report(delta)]
 	if applied_id is None and diff_lines > 0:
 		lines += ["", plan.diff(workspace, max_lines=diff_lines).rstrip()]
 	text = "\n".join(lines)

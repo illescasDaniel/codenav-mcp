@@ -423,9 +423,11 @@ def loaded_names(node: ast.AST) -> set[str]:
 	return loads - stores
 
 
-def names_used_outside(tree: ast.Module, first_line: int, last_line: int) -> set[str]:
-	"""Names read anywhere in the module except on lines `first_line`..`last_line` and in import
-	statements; names inside string annotations and `__all__`-style string lists count too."""
+def names_used_outside(
+	tree: ast.Module, first_line: int, last_line: int, *, ignore_lines: frozenset[int] = frozenset()
+) -> set[str]:
+	"""Names read anywhere in the module except on lines `first_line`..`last_line`, on `ignore_lines` and in
+	import statements; names inside string annotations and `__all__`-style string lists count too."""
 	import_lines: set[int] = set()
 	for node in ast.walk(tree):
 		if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -433,7 +435,7 @@ def names_used_outside(tree: ast.Module, first_line: int, last_line: int) -> set
 	used: set[str] = set()
 	for node in ast.walk(tree):
 		line = getattr(node, "lineno", None)
-		if line is None or first_line <= line <= last_line or line in import_lines:
+		if line is None or first_line <= line <= last_line or line in import_lines or line in ignore_lines:
 			continue
 		if isinstance(node, ast.Name):
 			used.add(node.id)

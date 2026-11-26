@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,7 @@ from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
 from mcp_nav_shared.format import uri_to_path
 
 from codenav_mcp import tool_base
+from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import import_from_targets, iter_python_files, module_names_for
 from codenav_mcp.linked import find_linked
 from codenav_mcp.moves import plan_move_module, plan_move_symbol
@@ -30,9 +32,11 @@ from codenav_mcp.pysource import (
 	parse_python,
 )
 from codenav_mcp.signature import (
+	CallArg,
 	Change,
 	CommentedCallError,
 	ManualCallError,
+	Param,
 	SourceMap,
 	apply_offset_edits,
 	call_edit,
@@ -141,17 +145,19 @@ async def change_signature(
 	dependencies and typed attributes are found, not just textual matches. Overriding
 	methods get the same change (`include_overrides`). Calls using `*args`/`**kwargs`
 	and places where the function is passed around as a value are listed as manual
-	work rather than guessed at. Unresolved alias calls, calls with comments, and
-	effectful argument reorderings are also listed for manual review. Decorators
-	and docstrings mentioning removed parameters produce notes. Writes when new errors stay within `max_new_errors`
-	(default 0), else previews with an id for `apply_edit`; `apply=false` always previews.
+	work rather than guessed at. Unresolved alias calls and calls with comments are also
+	listed for manual review; a reorder of effectful arguments is written with keywords
+	in the original order. Decorators and docstrings mentioning removed parameters produce
+	notes. Writes when new errors stay within `max_new_errors` (default 0) and no call
+	site was left for manual attention; otherwise previews with an id for `apply_edit`,
+	which writes it anyway. `apply=false` always previews.
 	"""
 	try:
 		change = Change(add=list(add or []), remove=list(remove or []), reorder=list(reorder or []))
 		if not (change.add or change.remove or change.reorder):
 			raise ToolInputError("nothing to change: pass add, remove or reorder")
 		session = await open_session(ctx)
-		plan = await _plan_signature(session, name, file_path, change, include_overrides)
+		plan, manual, keyword_fixes = await _plan_signature(session, name, file_path, change, include_overrides)
 		outcome = await finish_plan(
 			session.client,
 			workspace=session.workspace,
@@ -161,15 +167,65 @@ async def change_signature(
 			apply=apply,
 			max_new_errors=max_new_errors,
 			allow_large=allow_large,
+			hold_back=_incomplete_reason(manual, keyword_fixes),
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return write_refusal(exc, "change_signature", name)
 	return outcome.text
+
+
+def _keyword_only_variant(signature: Any, change: Change, qualname: str) -> tuple[list[Param], dict[str, str]] | None:
+	"""The callable parameters and call-site values the change would give with every added parameter keyword-only
+	(None when nothing is added positionally, or when that variant is not valid)."""
+	if not any(not spec.get("keyword_only") for spec in change.add):
+		return None
+	variant = Change(
+		add=[{**spec, "keyword_only": True, "position": None} for spec in change.add],
+		remove=change.remove,
+		reorder=change.reorder,
+	)
+	try:
+		params, values, _ = new_params(signature, variant, qualname)
+	except ToolInputError:
+		return None
+	return (params[1:] if signature.has_self else params), values
+
+
+def _rewritable(
+	args: list[CallArg],
+	old: list[Param],
+	variant: tuple[list[Param], dict[str, str]],
+	removed: set[str],
+	skip: int,
+) -> bool:
+	try:
+		rebind_call(args, old, variant[0], variant[1], removed, skip_leading=skip)
+	except ManualCallError:
+		return False
+	return True
+
+
+def _incomplete_reason(manual: list[str], keyword_fixes: bool = False) -> str:
+	"""Why a plan that knowingly left call sites untouched is not written by `apply=true` ('' when it is complete)."""
+	if not manual:
+		return ""
+	shown = "; ".join(manual[:3]) + (f"; ... {len(manual) - 3} more" if len(manual) > 3 else "")
+	return (
+		f"the plan is incomplete: {len(manual)} call site(s) were not updated and would be left with the old "
+		f"signature ({shown}). "
+		+ (
+			"Pass keyword_only=true on the added parameter(s) to have every one of them updated, or update them by "
+			"hand after writing, or rerun with allow_large=true to write anyway; "
+			if keyword_fixes
+			else "Update them by hand after writing, or rerun with allow_large=true to write anyway; "
+		)
+		+ "the full list is under Notes."
+	)
 
 
 async def _plan_signature(
 	session: Session, name: str, file_path: str | None, change: Change, include_overrides: bool
-) -> EditPlan:
+) -> tuple[EditPlan, list[str], bool]:
 	path, text, definition = await _locate(session, name, file_path)
 	rel_path = relative_name(path, session.workspace)
 	stubs = overload_stubs(text, definition, filename=rel_path)
@@ -262,6 +318,7 @@ async def _plan_signature(
 
 	updated_calls = 0
 	manual: list[str] = []
+	fixable_by_keyword = 0  # held call sites that `keyword_only=true` on the added parameters would let us rewrite
 	commented: list[str] = []
 	summary_bits: list[str] = []
 	for declaration in declarations:
@@ -291,6 +348,7 @@ async def _plan_signature(
 			]
 		old_callable = signature.callable_params
 		new_callable = params[1:] if signature.has_self else params
+		keyword_variant = _keyword_only_variant(signature, change, declaration.definition.qualname)
 		decorators = _decorators(declaration.definition)
 		for decorator in sorted(decorators):
 			notes.append(
@@ -374,6 +432,8 @@ async def _plan_signature(
 				continue
 			except ManualCallError as exc:
 				manual.append(f"{rel}: call left as is, {exc}")
+				if keyword_variant is not None and _rewritable(old_args, old_callable, keyword_variant, removed, skip):
+					fixable_by_keyword += 1
 				continue
 			if edit is not None:
 				target_ctx.edits.append(edit)
@@ -406,7 +466,7 @@ async def _plan_signature(
 			+ (f"\n    ... {len(manual) - 10} more" if len(manual) > 10 else "")
 		)
 	title = f"Change signature of {declarations[0].definition.qualname}: {' '.join(summary_bits)}"
-	return EditPlan(title, changes, notes)
+	return EditPlan(title, changes, notes), manual, bool(manual) and fixable_by_keyword == len(manual)
 
 
 async def _move_symbol(
@@ -458,7 +518,7 @@ async def _move_symbol(
 			allow_large=allow_large,
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return write_refusal(exc, "move", name, fixed=f"to_file={json.dumps(to_file)}, ")
 	return outcome.text
 
 

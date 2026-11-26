@@ -350,63 +350,103 @@ def rebind_call(
 			for a in args[skip_leading:]
 			if a.keyword is None
 		):
-			raise ManualCallError("reordering effectful arguments could change evaluation order")
+			# Swapping positions would change the order the arguments are evaluated in: keep their order and
+			# name each one instead.
+			return _keyword_call(args, old, new_values, removed, skip_leading)
 	lead = [a.text for a in args[:skip_leading]]
 	rest_args = args[skip_leading:]
 	old_positional = [p for p in old if p.kind in (POSONLY, NORMAL)]
 	positional_args = [a for a in rest_args if a.keyword is None]
 	keyword_args = [a for a in rest_args if a.keyword is not None]
-	provided: dict[str, tuple[str, bool]] = {}
-	extras: list[str] = []
+	provided: dict[str, tuple[str, bool, CallArg | None]] = {}
+	extras: list[CallArg] = []
 	for index, arg in enumerate(positional_args):
 		if index < len(old_positional):
-			provided[old_positional[index].name] = (arg.value, True)
+			provided[old_positional[index].name] = (arg.value, True, arg)
 		else:
-			extras.append(arg.value)
+			extras.append(arg)
 	for arg in keyword_args:
-		provided[arg.keyword] = (arg.value, False)  # type: ignore[index]
+		provided[arg.keyword] = (arg.value, False, arg)  # type: ignore[index]
 	kept_keywords = [a for a in keyword_args if a.keyword not in removed]
 	for name in removed:
 		provided.pop(name, None)
 	for name, value in new_values.items():
-		provided[name] = (value, False)
+		provided[name] = (value, False, None)
 	new_positional = [p for p in new if p.kind in (POSONLY, NORMAL)]
-	positional_out: list[str] = []
-	keyword_out: list[str] = []
+	# (text, the call's own argument it came from; None for a value the change adds), in output order
+	positional_out: list[tuple[str, CallArg | None]] = []
+	keyword_out: list[tuple[str, CallArg | None]] = []
 	emitted: set[str] = set()
 	broken = False
 	for param in new_positional:
 		if param.name not in provided:
 			broken = True
 			continue
-		text, was_positional = provided[param.name]
+		text, was_positional, source = provided[param.name]
 		if was_positional and not broken and param.name not in new_values:
-			positional_out.append(text)
+			positional_out.append((text, source))
 			continue
 		if param.kind == POSONLY:
 			raise ManualCallError(f"positional-only parameter {param.name!r} would have to be passed by keyword")
 		broken = True
-		keyword_out.append(f"{param.name}={text}")
+		keyword_out.append((f"{param.name}={text}", source))
 		emitted.add(param.name)
 	if extras:
 		if broken:
 			raise ManualCallError("passes extra positional arguments that would shift")
-		positional_out += extras
+		positional_out += [(a.value, a) for a in extras]
 	for arg in kept_keywords:
 		if arg.keyword not in emitted:
-			keyword_out.append(arg.text)
+			keyword_out.append((arg.text, arg))
 			emitted.add(arg.keyword)  # type: ignore[arg-type]
 	for name, value in new_values.items():
 		if name not in emitted:
-			keyword_out.append(f"{name}={value}")
-	result = [*lead, *positional_out, *keyword_out]
-	# Re-rendering can reorder keyword expressions or remove an expression entirely.
-	# Avoid changing evaluation order or discarding side effects.
-	if result[: len(args)] != [arg.text for arg in args] and any(
-		not isinstance(ast.parse(f"({arg.value})", mode="eval").body, (ast.Constant, ast.Name)) for arg in args
-	):
+			keyword_out.append((f"{name}={value}", None))
+	result = [*lead, *(text for text, _ in positional_out), *(text for text, _ in keyword_out)]
+	# Re-rendering must not reorder the call's own expressions or drop one: an effectful one (a call, an attribute
+	# read, ...) would then run in another order, or not at all. Constants and names cannot tell the difference,
+	# and an argument the change adds sits wherever it likes.
+	effectful = [
+		a for a in rest_args if not isinstance(ast.parse(f"({a.value})", mode="eval").body, (ast.Constant, ast.Name))
+	]
+	written = [a for _, a in (*positional_out, *keyword_out) if a is not None and any(a is e for e in effectful)]
+	if len(written) != len(effectful) or any(a is not b for a, b in zip(written, effectful, strict=True)):
 		raise ManualCallError("changing effectful arguments could change evaluation order or discard side effects")
 	return result
+
+
+def _keyword_call(
+	args: list[CallArg], old: list[Param], new_values: dict[str, str], removed: set[str], skip_leading: int
+) -> list[str]:
+	"""The call with every positional argument named, in the order it was written (so evaluation order is kept).
+
+	Refused when a parameter cannot be passed by keyword (positional-only, or an argument that lands in `*args`),
+	or when a removed argument has side effects that would be discarded."""
+	old_positional = [p for p in old if p.kind in (POSONLY, NORMAL)]
+	out = [a.text for a in args[:skip_leading]]
+	index = 0
+	for arg in args[skip_leading:]:
+		if arg.keyword is not None:
+			name = arg.keyword
+			text = arg.text
+		else:
+			if index >= len(old_positional):
+				raise ManualCallError("reordering would need a positional argument captured by *args to move")
+			param = old_positional[index]
+			index += 1
+			if param.kind == POSONLY:
+				raise ManualCallError(
+					f"positional-only parameter {param.name!r} cannot be passed by keyword, so reordering effectful "
+					"arguments could change evaluation order"
+				)
+			name, text = param.name, f"{param.name}={arg.value}"
+		if name in removed:
+			if not isinstance(ast.parse(f"({arg.value})", mode="eval").body, (ast.Constant, ast.Name)):
+				raise ManualCallError("removing an effectful argument would discard its side effects")
+			continue
+		out.append(text)
+	out += [f"{name}={value}" for name, value in new_values.items() if not any(t.startswith(f"{name}=") for t in out)]
+	return out
 
 
 def call_edit(

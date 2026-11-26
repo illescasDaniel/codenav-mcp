@@ -29,20 +29,19 @@ async def edit(
 	include_dependents: bool = True,
 	ctx: Context | None = None,
 ) -> str:
-	"""Edit text in a Python file, type-checked: `edit(file_path="src/app.py", old_string="x = 1", new_string="x = 2")`.
+	"""Like the built-in Edit (str_replace) for .py files, plus a type check. Example: `edit(file_path="src/app.py", old_string="x = 1", new_string="x = 2")`.
 
-	Use this for changes that are not a whole definition (a few lines, an import, a
-	module-level statement) or for rewriting a whole file (`new_text`). To replace,
-	add or delete a function/method/class by name use `edit_symbol`.
+	One replacement per call; several edits or files go in one `batch`. Use it for a few lines, an
+	import or a module-level statement, or to rewrite a whole file (`new_text`); to replace, add
+	or delete a function/method/class by name use `edit_symbol`.
 
 	Give either `old_string` -> `new_string` (`old_string` must match exactly once unless
 	`replace_all=true`; the reply gives the matching lines and the replacement count) or the
 	complete `new_text` (also creates a new file), never both. Each text is at most 1,000,000
 	characters. The text must be valid Python; new lines take the file's line endings (CRLF
 	stays CRLF). Writes when the new errors in the file and in the files that import it
-	stay within `max_new_errors` (default 0, null = no limit); otherwise nothing is written
-	and the result lists the errors plus an id for `apply_edit`. `apply=false` always
-	previews. `undo_edit` reverts.
+	stay within `max_new_errors` (default 0, null = no limit); otherwise it refuses to write and
+	lists the errors plus an id for `apply_edit`. `apply=false` previews. `undo_edit` reverts.
 	"""
 	return await write_tools._edit_text(
 		file_path,
@@ -74,7 +73,7 @@ async def edit_symbol(
 	max_new_errors: int | None = 0,
 	ctx: Context | None = None,
 ) -> str:
-	"""Replace, add or delete a function, method or class by name. Examples:
+	"""Replace, add or delete a whole function, method or class by name (not for a few lines: use `edit`). Examples:
 	`edit_symbol(action="replace", name="Cart.total", source="def total(self): ...")`,
 	`edit_symbol(action="insert", file_path="src/utils.py", name="parse", source="def helper(): ...")`,
 	`edit_symbol(action="delete", name="legacy_parse")`.

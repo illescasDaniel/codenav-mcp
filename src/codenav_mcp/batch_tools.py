@@ -36,6 +36,23 @@ _RESULT_REFERENCE = re.compile(r"\$\d+(?:\.\w+)*")
 
 ToolFn = Callable[..., Awaitable[str]]
 
+# Names an agent guesses when it has not seen a tool's schema. Each maps to the real parameter it most likely means;
+# an alias applies only to a tool that lacks the alias as a parameter of its own (`search_symbol` keeps its `path`).
+_ARGUMENT_ALIASES: dict[str, tuple[str, ...]] = {
+	"symbol": ("name", "query"),
+	"symbol_name": ("name", "query"),
+	"qualified_name": ("name", "query"),
+	"file": ("file_path",),
+	"filepath": ("file_path",),
+	"path": ("file_path",),
+	"col": ("column",),
+	"line_number": ("line",),
+	"lineno": ("line",),
+	"old_str": ("old_string",),
+	"new_str": ("new_string",),
+}
+_EXAMPLE = re.compile(r"Examples?:\s*`([^`]+)`")
+
 
 @dataclass
 class _Entry:
@@ -155,6 +172,43 @@ def _names_text(names: list[Any]) -> str:
 	return shown + more
 
 
+def example_call(fn: ToolFn) -> str | None:
+	"""The call shown after `Example:` in the tool's docstring, on one line, or None."""
+	found = _EXAMPLE.search(inspect.getdoc(_bare(fn)) or "")
+	return " ".join(found.group(1).split()) if found else None
+
+
+def _example_suffix(fn: ToolFn) -> str:
+	example = example_call(fn)
+	return f" Example: {example}" if example else ""
+
+
+def apply_aliases(name: str, fn: ToolFn, args: Mapping[str, Any]) -> tuple[dict[str, Any], str | None]:
+	"""`args` with guessed argument names (`symbol`, `file`, `col`, ...) renamed to the tool's real ones.
+
+	Returns the rewritten arguments and a refusal (or None). An alias is only used when the tool has no parameter
+	of that name and does have the target; giving the alias and its target with different values is refused,
+	with the same value it is accepted. Runs before `argument_problem` on both the direct and the batch path.
+	"""
+	params = set(inspect.signature(_bare(fn)).parameters) - {"ctx"}
+	result: dict[str, Any] = {}
+	given_as: dict[Any, Any] = {}  # real parameter -> the key the caller used for it first
+	for key, value in args.items():
+		target = key
+		if isinstance(key, str) and key not in params:
+			target = next((t for t in _ARGUMENT_ALIASES.get(key, ()) if t in params), key)
+		if target in result and result[target] is not None and value is not None:
+			if result[target] != value:
+				message = f"give either {given_as[target]!r} or {key!r}, not both (one parameter: {target})"
+				return dict(args), f"{name}: {message}"
+			continue
+		if target in result and value is None:
+			continue  # an explicit null adds nothing to the value already given
+		result[target] = value
+		given_as[target] = key
+	return result, None
+
+
 def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | None:
 	"""The refusal for arguments `fn` cannot take (unknown name, wrong type, missing), or None.
 
@@ -178,7 +232,9 @@ def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | No
 		else:
 			plural = [f"{c!r} for {_short_repr(key)}" for key in unknown[:_MAX_NAMES] if (c := _closest(key))]
 			did_you_mean = f"; did you mean {', '.join(plural)}?" if plural else ""
-		return f"unknown {noun} {_names_text(unknown)} for {name}{did_you_mean}; allowed: {allowed}"
+		return (
+			f"unknown {noun} {_names_text(unknown)} for {name}{did_you_mean}; allowed: {allowed}.{_example_suffix(fn)}"
+		)
 	for key, value in args.items():
 		try:
 			# Strict: a string "3" or a bool is not a line number, as in every other parameter (NAVP-012).
@@ -191,7 +247,9 @@ def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | No
 		# Enum-like parameters name their allowed values, so the agent does not have to guess (RC-031).
 		choices = [f"allowed {key}: {allowed}" for key in missing if (allowed := _allowed_values(hints.get(key)))]
 		extra = f" ({'; '.join(choices)})" if choices else ""
-		return f"{name}: missing required {', '.join(map(repr, missing))}{extra}. Parameters: {hint}."
+		return (
+			f"{name}: missing required {', '.join(map(repr, missing))}{extra}. Parameters: {hint}.{_example_suffix(fn)}"
+		)
 	return None
 
 
@@ -228,7 +286,8 @@ def _prepare(index: int, raw: Any) -> tuple[str, _Entry, dict[str, Any]] | str:
 		return f'Put {_names_text(sorted(raw))} inside "args" (call shape: {{"tool": ..., "args": {{...}}}}).'
 	if not isinstance(args, dict):
 		return f'"args" must be an object of {name} parameters: {_signature_hint(name, entry.params)}.'
-	problem = argument_problem(name, entry.fn, args)
+	args, problem = apply_aliases(name, entry.fn, args)
+	problem = problem or argument_problem(name, entry.fn, args)
 	if problem is not None:
 		return problem
 	reference = _result_reference(args)

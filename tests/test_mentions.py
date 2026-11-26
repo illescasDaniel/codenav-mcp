@@ -20,6 +20,20 @@ def test_given_nested_worktree_docs_when_finding_mentions_then_they_are_skipped(
 	assert [m.path for m in mentions] == ["docs/guide.md"]
 
 
+def test_given_dot_directories_when_finding_mentions_then_python_and_text_files_in_them_are_skipped(
+	tmp_path: Path,
+) -> None:
+	(tmp_path / "app.py").write_text("x.greet()\n", encoding="utf-8")
+	for hidden in (".agents/skills", ".cursor/skills", ".github"):
+		(tmp_path / hidden).mkdir(parents=True)
+		(tmp_path / hidden / "tool.py").write_text("thing.greet()\n", encoding="utf-8")
+		(tmp_path / hidden / "README.md").write_text("call greet\n", encoding="utf-8")
+
+	mentions = find_mentions(tmp_path, "greet", {})
+
+	assert [m.path for m in mentions] == ["app.py"]
+
+
 def _reveal_project(tmp_path: Path) -> None:
 	(tmp_path / "port.py").write_text(
 		"class DesktopPort:\n\tdef reveal_path(self, p): ...\n\n\ndef reveal_path(p): ...\n", encoding="utf-8"

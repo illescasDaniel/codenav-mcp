@@ -70,6 +70,8 @@ def test_given_function_when_move_symbol_then_code_imports_and_importers_follow(
 	assert "def parse_date" not in dates
 	assert "# Parse a date." not in dates
 	assert "from pkg.parsing import parse_date" in dates  # render() still uses it
+	# parsing needs SEPARATOR back from dates: the import stays where the function was, after SEPARATOR is defined
+	assert dates.index("SEPARATOR = '-'") < dates.index("from pkg.parsing import parse_date")
 	assert "import re" not in dates and "FORMAT" not in dates  # only the moved code used them
 	assert "import os" in dates and "from datetime import date" in dates
 	assert "from pkg.parsing import parse_date" in (project / "src/pkg/uses.py").read_text()
@@ -259,3 +261,105 @@ def test_given_move_module_preview_when_undo_after_apply_then_tree_restored(proj
 	_run(loop, write_tools.undo_edit())
 	# then
 	assert {p: p.read_text() for p in project.rglob("*.py")} == originals
+
+
+_REEXPORT_FILES = {
+	"src/pkg/__init__.py": "",
+	"src/pkg/fmt.py": (
+		"from __future__ import annotations\n\n"
+		"import os\n\n\n"
+		'__all__ = [\n\t"format_count",\n\t"format_score_percent",\n\t"label",\n]\n\n\n'
+		"def format_count(n: int) -> str:\n\treturn f'{n} {os.sep}'\n\n\n"
+		"def format_score_percent(score: float) -> str:\n\treturn f'{score:.0f}%'\n\n\n"
+		"def label() -> str:\n\treturn 'x'\n"
+	),
+	"src/pkg/star.py": "from pkg.fmt import *\n\n\ndef show() -> str:\n\treturn format_score_percent(0.5) + format_count(2)\n",
+	"src/pkg/uses.py": "from pkg.fmt import format_score_percent\n\n\ndef go() -> str:\n\treturn format_score_percent(1.0)\n",
+	".pytest_cache/stale.py": "from pkg.fmt import format_score_percent\n",
+	".venv/lib/mod.py": "from pkg.fmt import format_score_percent\n",
+}
+
+
+def test_given_keep_reexport_when_move_symbol_then_all_entry_and_import_block_stay_valid(tmp_path, monkeypatch, loop):
+	# given
+	project = make_workspace(tmp_path, monkeypatch, _REEXPORT_FILES)
+	# when
+	text = _run(
+		loop,
+		refactor_tools._move_symbol(
+			name="format_score_percent", to_file="src/pkg/scoring.py", keep_reexport=True, apply=False
+		),
+	)
+	# then — a preview of a new file is refused, so write it with apply=true and check the files
+	assert "format_score_percent" in text
+	text = _run(
+		loop,
+		refactor_tools._move_symbol(
+			name="format_score_percent", to_file="src/pkg/scoring.py", keep_reexport=True, apply=True
+		),
+	)
+	fmt = (project / "src/pkg/fmt.py").read_text()
+	assert '\t"format_score_percent",\n' in fmt  # still exported by `from pkg.fmt import *`
+	assert fmt.index("from pkg.scoring import format_score_percent") < fmt.index(
+		"__all__"
+	)  # import block, not mid-file
+	assert "def format_score_percent" not in fmt
+	assert not any(line and not line.strip() for line in fmt.splitlines())  # no whitespace-only line anywhere
+	scoring = (project / "src/pkg/scoring.py").read_text()
+	assert scoring.startswith("from __future__ import annotations\n\n\ndef format_score_percent")
+	_valid(project)
+	# the excluded directories are skipped without a word
+	assert ".pytest_cache" not in text and ".venv" not in text and "could not be parsed or read" not in text
+	assert "0 new error(s)" in text
+
+
+def test_given_no_reexport_when_move_symbol_then_all_entry_line_removed_cleanly(tmp_path, monkeypatch, loop):
+	# given
+	project = make_workspace(tmp_path, monkeypatch, {**_REEXPORT_FILES, "src/pkg/star.py": "X = 1\n"})
+	# when
+	_run(
+		loop,
+		refactor_tools._move_symbol(
+			name="format_score_percent", to_file="src/pkg/scoring.py", apply=True, max_new_errors=None
+		),
+	)
+	# then
+	fmt = (project / "src/pkg/fmt.py").read_text()
+	assert '__all__ = [\n\t"format_count",\n\t"label",\n]' in fmt
+	assert not any(line and not line.strip() for line in fmt.splitlines())
+	assert "format_score_percent" not in fmt.split("__all__")[0]
+	assert "format_score_percent" in (project / "src/pkg/scoring.py").read_text()
+
+
+def test_given_destination_already_importing_from_the_old_module_when_move_with_reexport_then_import_keeps_its_place(
+	tmp_path, monkeypatch, loop
+):
+	# given — scoring imports `label` from fmt, so fmt cannot import scoring before `label` exists (a circular import)
+	project = make_workspace(
+		tmp_path,
+		monkeypatch,
+		{
+			**_REEXPORT_FILES,
+			"src/pkg/scoring.py": "from pkg.fmt import label\n\n\ndef other() -> str:\n\treturn label()\n",
+		},
+	)
+	# when
+	_run(
+		loop,
+		refactor_tools._move_symbol(
+			name="format_score_percent",
+			to_file="src/pkg/scoring.py",
+			keep_reexport=True,
+			apply=True,
+			max_new_errors=None,
+			allow_import_cycle=True,
+		),
+	)
+	# then
+	fmt = (project / "src/pkg/fmt.py").read_text()
+	assert (
+		fmt.index("def format_count")
+		< fmt.index("from pkg.scoring import format_score_percent")
+		< fmt.index("def label")
+	)
+	_valid(project)

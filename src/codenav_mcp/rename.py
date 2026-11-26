@@ -360,6 +360,63 @@ def _declaration_at(text: str, target: Target) -> Definition | None:
 	return definition if definition is not None and target.parameter is None else None
 
 
+# Ends the note about unlinked attribute accesses (stored in the plan, so it reads right for a preview as it is);
+# `rename_symbol` swaps it for the undo-then-rerun wording when the rename was written.
+ATTR_HINT = "to rename these too, rerun with include_unlinked_attrs=true"
+
+
+def _is_unlinked_attr(mention: Mention) -> bool:
+	"""An attribute access after a dot (`mock.old`) on a code line; never an import (`from .old import x`)."""
+	return (
+		mention.kind == "attr" and mention.column is not None and not mention.snippet.startswith(("from ", "import "))
+	)
+
+
+# Most attribute accesses one opt-in rename asks the type checker about (sequential requests; the rest stay as they are).
+_MAX_ATTR_LOOKUPS = 300
+# Where ty resolves an attribute on a mock: that is still an "unlinked" use of the renamed member, not another symbol.
+_MOCK_STUBS = ("unittest/mock.pyi", "unittest/mock.py")
+
+
+async def _split_unlinked_attrs(
+	client: LspClient,
+	workspace: Path,
+	candidates: list[Mention],
+	renamed_at: dict[Path, set[tuple[int, int]]],
+) -> tuple[list[Mention], list[Mention], int]:
+	"""(accesses to rename, accesses that resolve to another symbol, accesses not checked).
+
+	An access is renamed only when the type checker has no definition for it (an untyped object, a mock) or the
+	definition is the renamed symbol itself: `connection.execute` on a typed `sqlite3.Connection` is a different
+	method and must stay. A lookup that fails or runs past the cap leaves the access alone (counted, not renamed)."""
+	rename, other, unchecked = [], [], 0
+	for index, mention in enumerate(candidates):
+		if index >= _MAX_ATTR_LOOKUPS:
+			unchecked += len(candidates) - index
+			break
+		try:
+			locations = await client.definition(str(workspace / mention.path), mention.line, (mention.column or 0) + 1)
+		except TOOL_ERRORS:
+			unchecked += 1
+			continue
+		if all(_is_renamed_or_mock(item, renamed_at) for item in locations):
+			rename.append(mention)
+		else:
+			other.append(mention)
+	return rename, other, unchecked
+
+
+def _is_renamed_or_mock(item: dict[str, Any], renamed_at: dict[Path, set[tuple[int, int]]]) -> bool:
+	uri = str(item.get("uri") or item.get("targetUri") or "")
+	if not uri.startswith("file:"):
+		return False
+	path = uri_to_path(uri)
+	if path.as_posix().endswith(_MOCK_STUBS):
+		return True
+	start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
+	return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(path.resolve(), set())
+
+
 @dataclass
 class RenamePlan(EditPlan):
 	"""A rename plan that also knows which importers it did not rewrite (excluded directories, nested repositories)."""
@@ -377,6 +434,7 @@ async def plan_rename(
 	linked: bool,
 	conforms: Conforms | None,
 	roots: Sequence[Path] = (),
+	include_unlinked_attrs: bool = False,
 ) -> RenamePlan:
 	text = read_source(target.path)[0]
 	prep = await client.prepare_rename(str(target.path), target.line, target.column)
@@ -423,6 +481,17 @@ async def plan_rename(
 			else:
 				conventions[resolved] = convention
 		_merge(edits, parsed)
+
+	def merge_bom_free(path: Path, more: list[TextEdit]) -> None:
+		"""Add edits measured in the BOM-less text (as `read_source` gives it), like the super-class edits are:
+		a first-line one in a BOM file is applied as it is, unless server edits on that line prove another convention."""
+		resolved = path.resolve()
+		server_first_line = any(e.start_line == 0 or e.end_line == 0 for e in edits.get(resolved, []))
+		if server_first_line and conventions.get(resolved) is not False:
+			conventions[resolved] = None
+		else:
+			conventions[resolved] = False
+		_merge(edits, {path: more})
 
 	main_edit = await client.rename(str(target.path), target.line, target.column, new_name)
 	merge_server_edits(main_edit)
@@ -476,29 +545,60 @@ async def plan_rename(
 		for export_file in sorted({target.path.resolve(), *(p for p in edits if p.name == "__init__.py")}):
 			more_all = dunder_all_edits(read_source(export_file)[0], old_name, new_name)
 			if more_all:
-				# These edits are measured in the BOM-less text (read_source), as the super-class edits are, so
-				# they are BOM-free positions. A first-line one in a BOM file is then applied as it is; only server
-				# edits on the first line of the same file that prove another convention make it ambiguous.
-				resolved = export_file.resolve()
-				server_first_line = any(e.start_line == 0 or e.end_line == 0 for e in edits.get(resolved, []))
-				if server_first_line and conventions.get(resolved) is not False:
-					conventions[resolved] = None
-				else:
-					conventions[resolved] = False
-				_merge(edits, {export_file: more_all})
+				merge_bom_free(export_file, more_all)
 				synced_exports.update((relative_name(export_file, workspace), e.start_line + 1) for e in more_all)
+	is_member = None if target.parameter else locate_member_class(text, target.line, old_name) is not None
+	# The `__all__` lines renamed above are not mentions the caller still has to review.
+	kept = [
+		m for m in find_mentions(workspace, old_name, covered_positions(edits)) if not _synced_export(m, synced_exports)
+	]
+	attr_hint = None
+	if include_unlinked_attrs and not is_member:
+		notes.append(
+			"include_unlinked_attrs was ignored: it only applies to renaming a method or a field of a class "
+			"(a bare name, string or comment is never renamed this way)."
+		)
+	elif include_unlinked_attrs:
+		by_file: dict[Path, list[TextEdit]] = {}
+		renamed_attrs, other_attrs, unchecked = await _split_unlinked_attrs(
+			client, workspace, [m for m in kept if _is_unlinked_attr(m)], covered_positions(edits)
+		)
+		width = len(old_name.encode("utf-16-le")) // 2
+		for mention in renamed_attrs:
+			column = mention.column or 0
+			edit = TextEdit(mention.line - 1, column, mention.line - 1, column + width, new_name)
+			by_file.setdefault((workspace / mention.path).resolve(), []).append(edit)
+		for path, more_attrs in by_file.items():
+			guard.check_path(path)
+			merge_bom_free(path, more_attrs)
+		# What resolves to another symbol is neither renamed nor listed as "probably the renamed member".
+		gone = {id(m) for m in (*renamed_attrs, *other_attrs)}
+		kept = [m for m in kept if id(m) not in gone]
+		if other_attrs:
+			notes.append(
+				f"include_unlinked_attrs: left {len(other_attrs)} attribute access(es) alone: the type checker "
+				f"resolves them to another symbol (e.g. {other_attrs[0].path}:{other_attrs[0].line})."
+			)
+		if unchecked:
+			notes.append(
+				f"include_unlinked_attrs: {unchecked} attribute access(es) could not be checked and were not renamed."
+			)
+		if renamed_attrs:
+			files = sorted({m.path for m in renamed_attrs})
+			shown = ", ".join(files[:5]) + (f" and {len(files) - 5} more" if len(files) > 5 else "")
+			notes.append(
+				f"include_unlinked_attrs: also renamed {len(renamed_attrs)} attribute access(es) the type checker "
+				f"could not link (mocks, untyped objects) in {shown}; review them in the diff."
+			)
+	elif is_member and any(m.kind == "attr" for m in kept):
+		attr_hint = ATTR_HINT
 	for path in edits:
 		guard.check_path(path)
 	changes = changes_from_edits(
 		{path: sorted(set(es), key=lambda e: (e.start_line, e.start_character)) for path, es in edits.items()},
 		bom_in_positions=conventions,
 	)
-	# The `__all__` lines renamed above are not mentions the caller still has to review.
-	kept = [
-		m for m in find_mentions(workspace, old_name, covered_positions(edits)) if not _synced_export(m, synced_exports)
-	]
-	is_member = None if target.parameter else locate_member_class(text, target.line, old_name) is not None
-	notes += format_mentions(kept, old_name, member=is_member)
+	notes += format_mentions(kept, old_name, member=is_member, attr_hint=attr_hint)
 	left: list[str] = []
 	if left_out:
 		counts: dict[tuple[str, SkipReason], int] = {}

@@ -24,7 +24,7 @@ from mcp_nav_shared.exclude import excluded_names
 ENV_PREFIX = "CODENAV_MCP"
 MAX_DEPENDENTS = 2000
 _MAX_SKIPPED_SCAN_FILES = 5000
-# Never worth looking into when looking for importers that were left out: caches, VCS data, installed packages.
+# Never looked into (and never reported) when looking for importers that were left out: caches, VCS data, installed packages.
 _NEVER_SCAN = frozenset(
 	{
 		"node_modules", ".git", "__pycache__", ".venv", "venv", ".venv-bare", "site-packages", ".tox",
@@ -236,8 +236,7 @@ def _skipped_importers(
 		if directory.name in _VCS_DIRS:
 			continue  # version-control data never holds importers; listing it would be noise
 		if directory.name in _NEVER_SCAN:
-			found.append(Skipped(rel_dir, "unreadable", f"{rel_dir}: excluded directory was not scanned"))
-			continue
+			continue  # caches and installed packages never hold project importers: skipped silently, as everywhere else
 		if limit_reached:
 			found.append(Skipped(rel_dir, "unreadable", f"{rel_dir}: not scanned because the scan limit was reached"))
 			continue
@@ -249,9 +248,6 @@ def _skipped_importers(
 				child = _rel(Path(dirpath, name), workspace) + "/"
 				found.append(Skipped(child, "unreadable", f"{child}: symlinked directory was not scanned"))
 			dirs[:] = [d for d in dirs if not Path(dirpath, d).is_symlink()]
-			for name in sorted(d for d in dirs if d in _NEVER_SCAN and d not in _VCS_DIRS):
-				child = _rel(Path(dirpath, name), workspace) + "/"
-				found.append(Skipped(child, "unreadable", f"{child}: excluded directory was not scanned"))
 			dirs[:] = sorted(d for d in dirs if d not in _NEVER_SCAN)
 			for filename in sorted(filenames):
 				if not filename.endswith((".py", ".pyi")):

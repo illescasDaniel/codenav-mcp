@@ -33,6 +33,7 @@ from mcp_nav_shared.format import uri_to_path
 from mcp_nav_shared.resolve import resolve_symbol
 
 from codenav_mcp import tool_base
+from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import (
 	Skipped,
 	find_dependents_report,
@@ -41,7 +42,7 @@ from codenav_mcp.deps import (
 	module_names_for,
 )
 from codenav_mcp.imports import add_from_import, add_import, module_imports, remove_names
-from codenav_mcp.mentions import find_mentions, format_mentions
+from codenav_mcp.mentions import Mention, find_mentions, format_mentions
 from codenav_mcp.pysource import (
 	Definition,
 	check_syntax,
@@ -184,7 +185,7 @@ async def _replace_symbol(
 			max_new_errors=max_new_errors,
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return write_refusal(exc, "edit_symbol", name, fixed='action="replace", ')
 	return outcome.text
 
 
@@ -510,7 +511,12 @@ async def _safe_delete(
 				and len(re.findall(rf"(?<!\w){re.escape(definition.name)}(?!\w)", m.snippet)) == 1
 			)
 		]
+		unseen, elsewhere = await _drop_other_symbols(session, unseen, (path, line))
 		notes += format_mentions(unseen, definition.name)
+		if elsewhere:
+			notes.append(
+				f"{elsewhere} other use(s) of the name `{definition.name}` resolve to a different symbol and were ignored."
+			)
 		# Importers in excluded directories are never examined: say so instead of reporting the delete as safe.
 		notes += format_skipped([s for s in skipped if s.reason == "excluded dir"], verb="checked")
 		plan = EditPlan(f"Delete {definition.qualname} from {rel}", changes, notes)
@@ -530,13 +536,54 @@ async def _safe_delete(
 			max_new_errors=None if force else max_new_errors,
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+		return write_refusal(exc, "edit_symbol", name, fixed='action="delete", ')
 	if hold_back and outcome.preview_id:
 		return outcome.text.replace(
 			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with apply=true.',
 			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with force=true.',
 		)
 	return outcome.text
+
+
+# Most same-named usages one delete asks the type checker about (sequential requests; the rest stay as blockers).
+_MAX_NAME_LOOKUPS = 200
+
+
+async def _drop_other_symbols(
+	session: Session, mentions: list[Mention], declared: tuple[Path, int]
+) -> tuple[list[Mention], int]:
+	"""(mentions still to review, how many were dropped): a bare-name or attribute use whose definition the type
+	checker finds somewhere other than `declared` (path, name line) is another symbol with the same name, not a use
+	of the deleted one. A use with no definition, a failed lookup, a string, or one past the cap stays."""
+	keep: list[Mention] = []
+	dropped = lookups = 0
+	for mention in mentions:
+		if mention.kind not in ("code", "attr") or mention.column is None or lookups >= _MAX_NAME_LOOKUPS:
+			keep.append(mention)
+			continue
+		lookups += 1
+		try:
+			locations = await session.client.definition(
+				str(session.workspace / mention.path), mention.line, mention.column + 1
+			)
+		except TOOL_ERRORS:
+			keep.append(mention)
+			continue
+		found = [
+			(uri_to_path(str(item.get("uri") or item.get("targetUri"))).resolve(), _start_line(item))
+			for item in locations
+			if str(item.get("uri") or item.get("targetUri") or "").startswith("file:")
+		]
+		if found and len(found) == len(locations) and declared not in found:
+			dropped += 1
+		else:
+			keep.append(mention)
+	return keep, dropped
+
+
+def _start_line(item: dict[str, Any]) -> int:
+	rng = item.get("range") or item.get("targetSelectionRange") or {}
+	return int(rng.get("start", {}).get("line", -1)) + 1
 
 
 def _importing_statements(session: Session, target: Path, name: str, skipped: list[Skipped]) -> dict[Path, list[int]]:

@@ -9,6 +9,7 @@ edit if its files are untouched since.
 from __future__ import annotations
 
 import difflib
+import json
 import os
 import re
 import subprocess  # noqa: S404
@@ -16,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import Context
-from mcp_nav_shared.diagnostics_delta import format_delta
 from mcp_nav_shared.edits import (
 	EditPlan,
 	FileChange,
@@ -27,17 +27,24 @@ from mcp_nav_shared.edits import (
 	relative_name,
 	split_lines,
 )
-from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
+from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.transaction import refuse_home_path
 
 from codenav_mcp import tool_base
+from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import Skipped, format_skipped, primary_module_name
 from codenav_mcp.linked import ClassRef
 from codenav_mcp.pysource import check_syntax
-from codenav_mcp.rename import plan_rename, resolve_target
+from codenav_mcp.rename import ATTR_HINT, plan_rename, resolve_target
 from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
-from codenav_mcp.writes import PYTHON_SUFFIXES, errors_after_write, finish_plan, require_workspace_file
+from codenav_mcp.writes import (
+	PYTHON_SUFFIXES,
+	errors_after_write,
+	finish_plan,
+	require_workspace_file,
+	type_check_report,
+)
 
 
 _PROBE_PATH = Path(".codenav_probe_rename.py")
@@ -83,6 +90,7 @@ async def rename_symbol(
 	linked: bool = True,
 	max_new_errors: int | None = 0,
 	allow_large: bool = False,
+	include_unlinked_attrs: bool = False,
 	ctx: Context | None = None,
 ) -> str:
 	"""Rename a symbol everywhere it is used, type-checking the result before writing it.
@@ -100,6 +108,9 @@ async def rename_symbol(
 	break the override or the conformance. The result lists every extra member
 	it included, and the places still using the old name that the type checker
 	could not link (untyped attribute accesses, strings, comments, docs).
+	`include_unlinked_attrs=true` also renames those attribute accesses (`mock.old_name`,
+	untyped objects) in the same plan, for a method or field only, never strings or comments;
+	a `.name` that the type checker resolves to another symbol (`sqlite3.Connection.execute`) is left alone.
 
 	Writing: `apply=true` (default) writes when the new errors are within
 	`max_new_errors` (default 0); otherwise nothing is written and you get a
@@ -125,6 +136,7 @@ async def rename_symbol(
 			linked=linked,
 			conforms=conforms_probe(session) if linked else None,
 			roots=session.roots,
+			include_unlinked_attrs=include_unlinked_attrs,
 		)
 		outcome = await finish_plan(
 			session.client,
@@ -143,8 +155,20 @@ async def rename_symbol(
 			else "",
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	return outcome.text
+		return write_refusal(exc, "rename_symbol", name, fixed=f"new_name={json.dumps(new_name)}, ")
+	return _with_attr_hint(outcome)
+
+
+def _with_attr_hint(outcome: Any) -> str:
+	"""A written rename cannot just be rerun: its attribute note says to undo it first."""
+	if not outcome.applied_id:
+		return outcome.text
+	hint = (
+		f'to rename these too: undo_edit(id="{outcome.applied_id}"), then rerun with include_unlinked_attrs=true '
+		"(apply=false previews them first)"
+	)
+	text = outcome.text.replace(ATTR_HINT, hint)
+	return FailedText(text) if isinstance(outcome.text, FailedText) else text
 
 
 def _edit_target(workspace: Path, file_path: str) -> Path:
@@ -492,7 +516,7 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 			"Nothing is compared with the old configuration: every current diagnostic in the checked files is listed."
 		)
 	body = "\n".join(header)
-	return f"{body}\n\n{format_delta(delta)}"
+	return f"{body}\n\n{type_check_report(delta)}"
 
 
 def _project_python_files(workspace: Path) -> list[Path]:
@@ -503,7 +527,7 @@ def _project_python_files(workspace: Path) -> list[Path]:
 
 
 async def apply_edit(id: str, allow_large: bool = False, ctx: Context | None = None) -> str:  # noqa: A002
-	"""Write a previewed edit (the id comes from a write tool's preview). The applied edit keeps that id, so
+	"""Write a previewed edit (id from a write tool's preview). Example: `apply_edit(id="ab12")`. The applied edit keeps that id, so
 	undo_edit(id) reverts it. Fails if any file changed since the preview."""
 	try:
 		session = await open_session(ctx)

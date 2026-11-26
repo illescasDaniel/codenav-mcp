@@ -145,7 +145,7 @@ def test_unscanned_excluded_and_truncated_directories_are_reported(tmp_path, mon
 	)
 	monkeypatch.setattr(deps, "_MAX_SKIPPED_SCAN_FILES", 1)
 	report = find_dependents_report(tmp_path, [tmp_path / "a.py"], [tmp_path])
-	assert any(s.path_or_dir == ".venv/" and "not scanned" in s.detail for s in report.skipped)
+	assert not any(".venv" in s.path_or_dir for s in report.skipped)  # caches and environments are skipped silently
 	assert any(s.path_or_dir == "build/" and "limit reached" in s.detail for s in report.skipped)
 	assert any(s.path_or_dir == "dist/" and "not scanned" in s.detail for s in report.skipped)
 

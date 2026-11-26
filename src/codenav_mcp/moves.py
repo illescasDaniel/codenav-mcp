@@ -190,7 +190,13 @@ def _with_future_annotations(text: str) -> str:
 	if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
 		at = first.end_lineno or 0  # after the module docstring
 	lines = source_lines(text)
-	return "".join(lines[:at]) + "from __future__ import annotations\n" + "".join(lines[at:])
+	head, tail = "".join(lines[:at]), "".join(lines[at:])
+	following = tree.body[1 if at else 0] if len(tree.body) > (1 if at else 0) else None
+	if following is None or isinstance(following, (ast.Import, ast.ImportFrom)):
+		return head + "from __future__ import annotations\n" + tail
+	# nothing but code follows: keep PEP 8 spacing (a blank line after a docstring, two before a def/class)
+	gap = "\n" * (2 if isinstance(following, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else 1)
+	return head + ("\n" if head else "") + "from __future__ import annotations\n" + gap + tail.lstrip("\r\n")
 
 
 def _all_literal(tree: ast.Module) -> ast.List | ast.Tuple | None:
@@ -230,7 +236,16 @@ def _drop_all_entry(text: str, name: str) -> str:
 			stop = after + 1
 			while stop < len(text) and text[stop] == " ":
 				stop += 1
-			edits.append((start, stop, ""))
+			line_start = text.rfind("\n", 0, start) + 1
+			line_end = text.find("\n", stop)
+			line_end = len(text) if line_end == -1 else line_end
+			rest = text[stop:line_end].strip()
+			if not text[line_start:start].strip() and (not rest or rest.startswith("#")):
+				# the entry is alone on its line (a trailing comment belongs to it): drop the whole line, so no
+				# whitespace-only line is left behind
+				edits.append((line_start, min(line_end + 1, len(text)), ""))
+			else:
+				edits.append((start, stop, ""))
 			continue
 		before = start - 1
 		while before >= 0 and text[before] in " \t\r\n":
@@ -331,10 +346,24 @@ async def plan_move_symbol(
 
 	# source: the code removed, imports it alone needed dropped, a way back if it still uses the symbol
 	used_outside = names_used_outside(src_tree, first, definition.last_line)
-	reexport = definition.name in used_outside or keep_reexport
-	# the re-export takes the moved definition's place (a module-level import later in the file would miss names
-	# defined before the symbol, e.g. a constant the moved code needs back from this module)
-	reexport_line = f"from {dest_module} import {definition.name}" if reexport else ""
+	# an `__all__` entry alone is not a use: with keep_reexport=false it leaves with the code (below)
+	all_literal = _all_literal(src_tree)
+	all_lines = frozenset(
+		line
+		for element in (all_literal.elts if all_literal else [])
+		if isinstance(element, ast.Constant) and element.value == definition.name
+		for line in range(element.lineno, (element.end_lineno or element.lineno) + 1)
+	)
+	used_in_code = names_used_outside(src_tree, first, definition.last_line, ignore_lines=all_lines)
+	reexport = definition.name in used_in_code or keep_reexport
+	# The re-export joins the import block. Only when the destination imports names back from this module does it
+	# take the moved definition's place instead: a module-level import earlier in the file would run before the
+	# names the destination needs back (a constant, say) are defined.
+	dest_imports_src = bool(from_source) or _imports_other_names_from(
+		dest_tree, module_names_for(dest, session.roots), src_names, definition.name, dest.name == "__init__.py"
+	)
+	in_place = reexport and dest_imports_src
+	reexport_line = f"from {dest_module} import {definition.name}" if in_place else ""
 	new_src = _delete_span(src_text, definition, comments=True, replacement=reexport_line)
 	module_stmts = module_imports(src_tree)
 	candidates = {n for n in needed if n not in used_outside} & {b for s in module_stmts for b in s.bound_names}
@@ -352,10 +381,14 @@ async def plan_move_symbol(
 			"execution order unchanged"
 		)
 	if reexport:
-		reason = "still uses it" if definition.name in used_outside else "keep_reexport"
+		reason = "still uses it" if definition.name in used_in_code else "keep_reexport"
 		notes.append(f"{relative_name(src, workspace)} imports {definition.name} from {dest_module} ({reason})")
+	if reexport and not in_place:
+		new_src = add_from_import(new_src, dest_module, [definition.name])
+	# the old module still binds the name when it re-exports it, so its `__all__` keeps the entry (a star import of
+	# the old module keeps working); otherwise the entry leaves with the code
 	moves_all_entry = definition.name in _all_names(src_tree)
-	if moves_all_entry:
+	if moves_all_entry and not reexport:
 		new_src = _drop_all_entry(new_src, definition.name)
 
 	# importers elsewhere (the destination itself is one of them when it imported the symbol from the source)
@@ -489,6 +522,21 @@ async def plan_move_symbol(
 		)
 	title = f"Move {definition.qualname} from {relative_name(src, workspace)} to {relative_dest}"
 	return EditPlan(title, sorted_changes, notes)
+
+
+def _imports_other_names_from(
+	tree: ast.Module, own_names: set[str], source_names: set[str], moved: str, is_init: bool
+) -> bool:
+	"""Whether the module imports (at module level, unconditionally) something other than `moved` from the source module."""
+	for stmt in module_imports(tree):
+		node = stmt.node
+		if stmt.conditional or not isinstance(node, ast.ImportFrom):
+			continue
+		if import_from_targets(node, own_names, is_package_init=is_init) & source_names and any(
+			alias.name != moved for alias in node.names
+		):
+			return True
+	return False
 
 
 def _is_side_effect_import(stmt: ImportStmt, lines: list[str]) -> bool:

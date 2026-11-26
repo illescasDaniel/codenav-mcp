@@ -9,6 +9,7 @@ from codenav_mcp import refactor_tools
 from codenav_mcp.refactor_tools import _validate_params
 from codenav_mcp.signature import (
 	NORMAL,
+	POSONLY,
 	CallArg,
 	Change,
 	ManualCallError,
@@ -24,10 +25,45 @@ from codenav_mcp.signature import (
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
 
-def test_rc_021_effectful_reorder_is_manual():
+def test_rc_021_effectful_reorder_becomes_keywords_in_the_original_order():
 	args = [CallArg("next(it)", None, "next(it)", 0, 8), CallArg("next(it)", None, "next(it)", 10, 18)]
-	with pytest.raises(ManualCallError, match="evaluation order"):
+	result = rebind_call(
+		args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("b", NORMAL), Param("a", NORMAL)], {}, set()
+	)
+	assert result == ["a=next(it)", "b=next(it)"]  # same evaluation order, no positional shuffle
+
+
+def test_effectful_reorder_of_positional_only_parameter_is_manual():
+	args = [CallArg("g()", None, "g()", 0, 3), CallArg("h()", None, "h()", 5, 8)]
+	old = [Param("a", POSONLY), Param("b", POSONLY)]
+	with pytest.raises(ManualCallError, match="positional-only"):
+		rebind_call(args, old, [old[1], old[0]], {}, set())
+
+
+def test_effectful_reorder_with_extra_positional_is_manual():
+	args = [CallArg("g()", None, "g()", 0, 3), CallArg("h()", None, "h()", 5, 8), CallArg("k()", None, "k()", 10, 13)]
+	with pytest.raises(ManualCallError, match="captured by"):
 		rebind_call(args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("b", NORMAL), Param("a", NORMAL)], {}, set())
+
+
+def test_given_added_keyword_value_when_arguments_are_effectful_then_the_call_is_rewritten_in_order():
+	# `f(root / "a", "q", flag=False)` + a new keyword argument: nothing the call evaluates moves or disappears
+	args = [
+		CallArg('root / "a"', None, 'root / "a"', 0, 10),
+		CallArg('"q"', None, '"q"', 12, 15),
+		CallArg("flag=False", "flag", "False", 17, 27),
+	]
+	old = [Param("path", NORMAL), Param("query", NORMAL)]
+	new = [*old, Param("case_sensitive", NORMAL, "bool", "False")]
+	result = rebind_call(args, old, new, {"case_sensitive": "False"}, set())
+	assert result == ['root / "a"', '"q"', "case_sensitive=False", "flag=False"]
+
+
+def test_given_effectful_argument_dropped_or_moved_when_rebinding_then_still_manual():
+	call = CallArg("g()", None, "g()", 0, 3)
+	old = [Param("a", NORMAL), Param("b", NORMAL)]
+	with pytest.raises(ManualCallError, match="effectful"):
+		rebind_call([call], old, [old[1]], {}, {"a"})
 
 
 def test_rc_062_comments_are_manual():

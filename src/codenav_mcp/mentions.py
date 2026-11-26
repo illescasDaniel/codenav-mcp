@@ -33,6 +33,7 @@ class Mention:
 	line: int
 	kind: str  # "attr" | "code" | "string" | "comment" | "text"
 	snippet: str
+	column: int | None = None  # 0-based UTF-16 column of an "attr" / "code" name; None for the other kinds
 
 
 def _lines(text: str) -> list[str]:
@@ -56,9 +57,9 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 	found: list[Mention] = []
 
-	def add(row: int, kind: str) -> None:
+	def add(row: int, kind: str, column: int | None = None) -> None:
 		snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
-		found.append(Mention(rel, row, kind, snippet[:140]))
+		found.append(Mention(rel, row, kind, snippet[:140], column))
 
 	try:
 		previous: tokenize.TokenInfo | None = None
@@ -68,7 +69,7 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 				line = lines[row - 1] if row <= len(lines) else ""
 				if (row - 1, utf16_column(line, col)) not in covered:
 					after_dot = previous is not None and previous.type == tokenize.OP and previous.string == "."
-					add(row, "attr" if after_dot else "code")
+					add(row, "attr" if after_dot else "code", utf16_column(line, col))
 			elif token.type == tokenize.COMMENT and word.search(token.string):
 				add(row, "comment")
 			elif (token.type == tokenize.STRING or token.type == _FSTRING_MIDDLE) and word.search(token.string):
@@ -96,10 +97,17 @@ def _text_files(workspace: Path) -> list[Path]:
 	return files
 
 
+def _in_hidden_dir(rel: str) -> bool:
+	"""True for a path below a dot-directory (`.agents`, `.cursor`, `.github`): tooling, not the project's code."""
+	return any(part.startswith(".") for part in rel.split("/")[:-1])
+
+
 def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int, int]]]) -> list[Mention]:
-	"""Occurrences of `name` the rename did not touch, Python code first."""
+	"""Occurrences of `name` the rename did not touch, Python code first. Dot-directories are not scanned."""
 	found: list[Mention] = []
 	for path in iter_python_files(workspace):
+		if _in_hidden_dir(relative_name(path, workspace)):
+			continue
 		found += _python_mentions(path, relative_name(path, workspace), name, covered.get(path.resolve(), set()))
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 	for path in _text_files(workspace):
@@ -110,6 +118,8 @@ def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int,
 		except (OSError, UnicodeDecodeError):
 			continue
 		rel = relative_name(path, workspace)
+		if _in_hidden_dir(rel):
+			continue
 		found += [
 			Mention(rel, number, "text", line.strip()[:140])
 			for number, line in enumerate(lines, 1)
@@ -120,14 +130,21 @@ def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int,
 
 
 def format_mentions(
-	mentions: list[Mention], old_name: str, *, per_kind: int = 6, attr_cap: int = 50, member: bool | None = None
+	mentions: list[Mention],
+	old_name: str,
+	*,
+	per_kind: int = 6,
+	attr_cap: int = 50,
+	member: bool | None = None,
+	attr_hint: str | None = None,
 ) -> list[str]:
 	"""One note per kind (a heading plus a few example lines), for a plan's notes.
 
 	An unlinked attribute access (`mock.old`) is the likeliest real use of a renamed member, so it comes first and
 	is listed almost in full; a bare name is usually another symbol with the same name, so it keeps the short cap.
 	`member` is True when the renamed symbol is a method or field, False for a module-level function or class
-	(where `module.old` is common and less telling), None when unknown.
+	(where `module.old` is common and less telling), None when unknown. `attr_hint` ends the attribute note
+	(how to have them renamed too).
 	"""
 	if member:
 		attr = f"`{old_name}` still accessed as an attribute the type checker could not link (mocks, untyped objects). Probably the renamed member; check each"
@@ -152,5 +169,7 @@ def format_mentions(
 		lines += [f"    {m.path}:{m.line}: {m.snippet}" for m in group[:cap]]
 		if len(group) > cap:
 			lines.append(f"    ... {len(group) - cap} more")
+		if kind == "attr" and attr_hint:
+			lines.append(f"    {attr_hint}")
 		notes.append("\n".join(lines))
 	return notes

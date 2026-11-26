@@ -127,14 +127,14 @@ def test_given_typo_in_tool_name_then_suggests_closest():
 
 
 def test_given_unknown_parameter_then_lists_valid_parameters():
-	assert "unknown argument 'path' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
-		[{"tool": "read_file", "args": {"path": "a.py"}}]
+	assert "unknown argument 'file_pth' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
+		[{"tool": "read_file", "args": {"file_pth": "a.py"}}]
 	)
 
 
 def test_given_close_unknown_parameter_then_suggests_the_real_name():
-	assert "unknown argument 'file' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
-		[{"tool": "read_file", "args": {"file": "a.py"}}]
+	assert "unknown argument 'file_paths' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
+		[{"tool": "read_file", "args": {"file_paths": "a.py"}}]
 	)
 
 
@@ -145,8 +145,8 @@ def test_given_unrelated_unknown_parameter_then_no_suggestion():
 
 
 def test_given_several_unknown_parameters_then_suggests_for_each_close_one():
-	text = run([{"tool": "read_file", "args": {"file": "a.py", "zzzz": 1, "lines": 2}}])
-	assert "did you mean 'file_path' for 'file', 'line' for 'lines'?" in text
+	text = run([{"tool": "read_file", "args": {"file_paths": "a.py", "zzzz": 1, "lines": 2}}])
+	assert "did you mean 'file_path' for 'file_paths', 'line' for 'lines'?" in text
 	assert "allowed: file_path, line" in text
 
 
@@ -188,3 +188,61 @@ def test_success_containing_failure_words_is_not_a_failure():
 	result = run([{"tool": "success_with_diff"}])
 	assert not isinstance(result, FailedText)
 	assert "1/1 ok" in result
+
+
+# Argument aliases: a guessed name is renamed to the real one before validation (an agent that has not seen the schema).
+
+
+@pytest.mark.parametrize("alias", ["file", "filepath", "path"])
+def test_given_file_alias_then_the_call_runs_with_file_path(fake_tools, alias):
+	text = run([{"tool": "read_file", "args": {alias: "a.py"}}])
+	assert "[1/1] read_file(file_path='a.py')\ncontent of a.py:1" in text
+	assert fake_tools == ["read a.py"]
+
+
+def test_given_alias_and_target_with_the_same_value_then_accepted(fake_tools):
+	text = run([{"tool": "read_file", "args": {"file": "a.py", "file_path": "a.py"}}])
+	assert text.endswith("batch: 1/1 ok")
+
+
+def test_given_alias_and_target_with_different_values_then_refused_like_name_and_query(fake_tools):
+	text = run([{"tool": "read_file", "args": {"file": "a.py", "file_path": "b.py"}}])
+	assert "read_file: give either 'file' or 'file_path', not both" in text
+	assert fake_tools == []
+
+
+def test_given_line_aliases_then_renamed_to_line(fake_tools):
+	assert "content of a.py:7" in run([{"tool": "read_file", "args": {"file_path": "a.py", "lineno": 7}}])
+	assert "content of a.py:8" in run([{"tool": "read_file", "args": {"file_path": "a.py", "line_number": 8}}])
+
+
+def test_given_a_tool_with_its_own_path_parameter_then_path_is_not_an_alias(monkeypatch):
+	async def search(query: str, path: str | None = None, ctx: Any = None) -> str:
+		return f"search {query} in {path}"
+
+	batch_tools.register("search", search, writes=False)
+	text = run([{"tool": "search", "args": {"query": "q", "path": "src/"}}])
+	assert "search q in src/" in text
+
+
+def test_given_an_alias_whose_target_the_tool_lacks_then_it_stays_unknown(fake_tools):
+	text = run([{"tool": "read_file", "args": {"file_path": "a.py", "symbol": "x"}}])
+	assert "unknown argument 'symbol' for read_file" in text
+
+
+def test_given_a_tool_with_query_but_no_name_then_symbol_means_query(monkeypatch):
+	async def find(query: str, ctx: Any = None) -> str:
+		return f"found {query}"
+
+	batch_tools.register("find", find, writes=False)
+	assert "found Cart" in run([{"tool": "find", "args": {"symbol": "Cart"}}])
+
+
+def test_given_an_unknown_argument_then_the_refusal_ends_with_the_docstring_example(monkeypatch):
+	async def find(query: str, ctx: Any = None) -> str:
+		"""Find a thing. Example: `find(query="Cart")`."""
+		return query
+
+	batch_tools.register("find", find, writes=False)
+	assert run([{"tool": "find", "args": {"queyr": "x"}}]).count('Example: find(query="Cart")') == 1
+	assert 'Parameters: find(query). Example: find(query="Cart")' in run([{"tool": "find", "args": {}}])

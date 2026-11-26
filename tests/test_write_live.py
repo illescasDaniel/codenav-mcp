@@ -52,6 +52,7 @@ def test_given_function_when_rename_preview_then_nothing_written_and_diff_shown(
 	# then
 	assert "Preview only, nothing written" in text
 	assert "0 new error(s)" in text
+	assert "Type check: 0 new error(s)" in text and "tests and docs not checked" in text
 	assert "+def calculate(" in text
 	assert (project / "src/pkg/core.py").read_text().startswith("def compute(")
 	assert "appears in non-Python files" in text  # README mention
@@ -70,6 +71,7 @@ def test_given_preview_when_apply_edit_then_all_files_written_and_undo_restores(
 	applied = _run(loop, write_tools.apply_edit(edit_id))
 	# then
 	assert "Applied edit" in applied and "no errors in the edited files" in applied
+	assert "type check only; tests and docs not checked" in applied
 	assert "calculate(1, scale=3)" in (project / "src/pkg/user.py").read_text()
 	assert "from pkg.core import calculate" in (project / "tests/test_core.py").read_text()
 	# when
