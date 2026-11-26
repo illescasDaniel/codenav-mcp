@@ -12,6 +12,9 @@ An MCP client sends a request to codenav-mcp. Navigation uses ty to resolve code
 
 Real tool calls on a small sample project (`app/user_service.py` defines `UserService` with `create` and `save`; `app/main.py` and `tests/test_user_service.py` use it):
 
+<details>
+<summary>symbol_info(name: "UserService.create")</summary>
+
 > symbol_info(name: "UserService.create")
 
 ```text
@@ -39,6 +42,11 @@ app/user_service.py: L14
 tests/test_user_service.py: L5
 ```
 
+</details>
+
+<details>
+<summary>references(file_path: "app/user_service.py", line: 14, column: 6)</summary>
+
 > references(file_path: "app/user_service.py", line: 14, column: 6)
 
 ```text
@@ -62,6 +70,11 @@ tests/test_user_service.py:5:23
     5 | 	user = UserService().create("Grace")
     6 | 	assert user.name == "Grace"
 ```
+
+</details>
+
+<details>
+<summary>edit(file_path: "app/user_service.py", old_string: "...", new_string: "...", apply: false)</summary>
 
 > edit(file_path: "app/user_service.py", old_string: "...", new_string: "...", apply: false) — an edit that would introduce a bug is caught before anything is written:
 
@@ -89,6 +102,11 @@ New:
  		self._next_id += 1
  		self.save(user)
 ```
+
+</details>
+
+<details>
+<summary>rename_symbol(name: "UserService.save", new_name: "persist", apply: false)</summary>
 
 > rename_symbol(name: "UserService.save", new_name: "persist", apply: false) — a type-checked rename, with call sites found through the language server:
 
@@ -121,6 +139,8 @@ Diagnostics: 0 new error(s), 0 fixed (3 file(s) checked, 0 unchanged)
  		self._users = getattr(self, "_users", {})
  		self._users[user.id] = user
 ```
+
+</details>
 
 All tools answer plain text like this; the full catalogue with parameters and safety rules is in the [tool reference](docs/tools.md).
 
