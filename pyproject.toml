@@ -90,10 +90,14 @@ test-package = { cmd = "bash scripts/test_package.sh", help = "install the publi
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--tb=short -rs"
+addopts = "--tb=short -rs -m \"not fuzz and not differential and not crosshair and not mutation\""
 pythonpath = ["src"]
 timeout = 60
 timeout_method = "thread"
 markers = [
 	"integration: live language-server smoke test",
+	"fuzz: slow property/fuzz checks, deselected by default (see docs/hardening.md)",
+	"differential: slow differential checks against other tools, deselected by default",
+	"crosshair: symbolic-execution variants of the properties (CrossHair backend), deselected by default",
+	"mutation: mutation testing runs, deselected by default",
 ]
