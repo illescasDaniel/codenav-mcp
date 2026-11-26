@@ -127,8 +127,27 @@ def test_given_typo_in_tool_name_then_suggests_closest():
 
 
 def test_given_unknown_parameter_then_lists_valid_parameters():
-	text = run([{"tool": "read_file", "args": {"path": "a.py"}}])
-	assert "unknown argument 'path' for read_file; allowed: file_path, line" in text
+	assert "unknown argument 'path' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
+		[{"tool": "read_file", "args": {"path": "a.py"}}]
+	)
+
+
+def test_given_close_unknown_parameter_then_suggests_the_real_name():
+	assert "unknown argument 'file' for read_file; did you mean 'file_path'?; allowed: file_path, line" in run(
+		[{"tool": "read_file", "args": {"file": "a.py"}}]
+	)
+
+
+def test_given_unrelated_unknown_parameter_then_no_suggestion():
+	text = run([{"tool": "read_file", "args": {"zzzz": 1}}])
+	assert "unknown argument 'zzzz' for read_file; allowed: file_path, line" in text
+	assert "did you mean" not in text
+
+
+def test_given_several_unknown_parameters_then_suggests_for_each_close_one():
+	text = run([{"tool": "read_file", "args": {"file": "a.py", "zzzz": 1, "lines": 2}}])
+	assert "did you mean 'file_path' for 'file', 'line' for 'lines'?" in text
+	assert "allowed: file_path, line" in text
 
 
 def test_given_wrong_type_then_validation_hint():

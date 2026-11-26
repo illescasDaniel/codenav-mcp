@@ -165,9 +165,20 @@ def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | No
 	hints = typing.get_type_hints(bare, include_extras=True)  # keep StrictBool: plain bool would accept "yes"
 	unknown = [key for key in args if key not in params]
 	if unknown:
+
+		def _closest(key: Any) -> str | None:
+			match = difflib.get_close_matches(str(key), list(params), n=1, cutoff=0.6)
+			return match[0] if match else None
+
 		allowed = ", ".join(params)
 		noun = "argument" if len(unknown) == 1 else "arguments"
-		return f"unknown {noun} {_names_text(unknown)} for {name}; allowed: {allowed}"
+		if len(unknown) == 1:
+			close = _closest(unknown[0])
+			did_you_mean = f"; did you mean {close!r}?" if close else ""
+		else:
+			plural = [f"{c!r} for {_short_repr(key)}" for key in unknown[:_MAX_NAMES] if (c := _closest(key))]
+			did_you_mean = f"; did you mean {', '.join(plural)}?" if plural else ""
+		return f"unknown {noun} {_names_text(unknown)} for {name}{did_you_mean}; allowed: {allowed}"
 	for key, value in args.items():
 		try:
 			# Strict: a string "3" or a bool is not a line number, as in every other parameter (NAVP-012).

@@ -111,7 +111,7 @@ def test_rc_031_unknown_argument_is_refused_by_name_over_mcp(workspace):
 	result = _call("edit", {"file_path": "src/a.py", "new_text": "x = 2\n", "aply": True})
 
 	assert result.is_error
-	assert _text(result).startswith("unknown argument 'aply' for edit; allowed: ")
+	assert _text(result).startswith("unknown argument 'aply' for edit; did you mean 'apply'?; allowed: ")
 
 
 def test_rc_107_unknown_argument_is_refused_not_ignored(workspace):
