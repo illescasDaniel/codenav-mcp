@@ -136,15 +136,15 @@ class _CodenavMCPServer(MCPServer):
 mcp = _CodenavMCPServer(
 	name="codenav",
 	instructions=(
-		'For Python, use lookup(name="Class.method") for a signature, definition location, typed references, '
-		"callers or Protocol implementations. Add file_path to narrow a name. Positions are an alternative "
-		"(1-based lines and UTF-16 columns). Use grep for exact-name text lookups and Read for known source. "
-		"Use search for symbol or mention discovery, outline for a file map, and check for ty diagnostics, "
-		"workspace settings or a git baseline. Use unused to find dead-code candidates and impact to inspect "
-		"call sites and related symbols before changing an API. Use rename, change_signature and move for "
-		"refactors that need linked usages. Use edit_symbol for definition or atomic multi-file edits, and "
-		"fix for ty quick fixes. Apply=false previews. Use edits to list, show, apply or undo stored changes. "
-		"The write gate checks types only. Run relevant tests and docs checks."
+		'Python code navigation and refactors, type-resolved by ty. Name-first: lookup(name="Class.method") gives '
+		"signature, location, typed references, callers and Protocol implementations; add file_path to narrow a "
+		"name (or give file_path+line+column, 1-based UTF-16). Use grep for exact-name text and Read for known "
+		"source. search finds symbols or text mentions, outline maps a file, check reports ty diagnostics (a "
+		"file, the workspace, or since a git baseline), unused finds dead code, impact shows what breaks before "
+		"you change an API. Refactor with rename, change_signature, move, edit_symbol (one definition, or "
+		"edits=[...] for several at once) and fix. Writes apply by default (apply=true) when the type check adds "
+		"no new errors; otherwise they are held as a preview, and apply=false always previews. edits lists, "
+		"shows, applies or undoes previews. The gate checks types only: run tests and docs checks yourself."
 	),
 )
 

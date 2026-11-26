@@ -395,3 +395,34 @@ def test_handoff_implementations_finds_a_protocol_in_an_extra_root(tmp_path, mon
 	# then
 	assert "outside the source root" not in text
 	assert "FileStore" in text
+
+
+def test_rc_147_search_path_glob_matches_a_nested_file_and_prefix_matches_the_directory(tmp_path, monkeypatch):
+	# given: the behavioural half of the v1 documentation test (the wording now lives in the tool description)
+	root = _ws(tmp_path, monkeypatch)
+	_write(root, "src/sub/b.py", "def helper(): pass\n")
+	_write(root, "other/c.py", "def helper(): pass\n")
+	_use(
+		monkeypatch,
+		_Client(
+			workspace_symbol=[
+				_symbol((root / "src/sub/b.py").as_uri(), "helper"),
+				_symbol((root / "other/c.py").as_uri(), "helper"),
+			]
+		),
+	)
+	# when
+	globbed = _run(read_tools.search(query="helper", path="src/**/*.py"))
+	prefixed = _run(read_tools.search(query="helper", path="src"))
+	# then
+	assert "src/sub/b.py" in globbed and "other/c.py" not in globbed
+	assert "src/sub/b.py" in prefixed and "other/c.py" not in prefixed
+
+
+def test_lookup_without_a_name_or_a_position_is_refused_with_an_example():
+	# v1 `implementations()` with no name had this refusal; every v2 read tool answers it from `lookup`
+	calls = [read_tools.lookup(), read_tools.lookup(file_path="a.py"), read_tools.lookup(file_path="a.py", line=1)]
+	for call in calls:
+		text = str(_run(call))
+		assert "Give name, or file_path with 1-based line and column." in text
+		assert 'Example: lookup(name="Cart.total")' in text

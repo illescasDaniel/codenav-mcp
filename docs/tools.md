@@ -121,11 +121,20 @@ gate checks types only. Run relevant tests and documentation checks.
 
 ## Arguments and errors
 
-Aliases include `symbol`, `symbol_name`, `qualified_name` and `query` for
-`name`; `name` for search's `query`; `file`, `filepath` and `path` for
-`file_path`; `col` for `column`; and `line_number` and `lineno` for
-`line`. Text edit items accept `old_str` and `new_str`. A tool's actual
-parameter takes precedence over an alias. Conflicting aliases are refused.
+Guessed argument names are renamed to the real ones before the call is
+checked, on every tool: `symbol`, `symbol_name`, `qualified_name` and
+`port_name` for `name` (`query` on `search`); `query` for `name`, and `name`
+for search's `query`; `file`, `filepath` and `path` for `file_path` (`unused`
+and `search` keep their own `path`); `col` for `column`; `line_number` and
+`lineno` for `line`; `in_` for `scope`; `edit_id` for `id`. Inside `edits`
+items, `old_str` and `new_str` mean `old_string` and `new_string`. A tool's
+actual parameter takes precedence over an alias; an alias is used only when
+the tool has no parameter of that name. An alias and its target with
+different values are refused, and with the same value accepted.
+
+Any other unknown name, a wrong type or a missing parameter is refused by name
+with the allowed parameters, the closest real name and an `Example:` call. An
+unknown tool name lists the available tools. The 1.x tool names are gone.
 
 ## Output limit
 
@@ -143,8 +152,9 @@ names with `CODENAV_MCP_EXCLUDE_DIRS` and `CODENAV_MCP_INCLUDE_DIRS`.
 
 ## Known limits
 
-Navigation and writes target Python files, and mention search can scan other
-text files. Static analysis cannot resolve every dynamic reference, mock,
+`rename` takes a symbol name, not a position, and does not rename function
+parameters; `change_signature` has no optional site ids. Navigation and
+writes target Python files, and mention search can scan other text files. Static analysis cannot resolve every dynamic reference, mock,
 framework registration or library extension. Check runtime behavior and
 review optional sites. Files outside the workspace and files with more than
 one hard link are protected from writes.

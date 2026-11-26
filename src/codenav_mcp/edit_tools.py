@@ -28,7 +28,7 @@ async def edit_symbol(
 	edits: list[dict[str, Any]] | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Edit definitions atomically. Example: `edit_symbol(name="parse", action="delete")`."""
+	"""Edit definitions by name. action=replace|replace_body|insert_after|insert_before|delete. Multi-edit (one type check, one undo id, all-or-nothing): edits=[{"file_path","old_string","new_string"} | {"name","action","source"}]. Example: `edit_symbol(name="parse", action="delete")`."""
 	try:
 		if edits is not None:
 			_reject(

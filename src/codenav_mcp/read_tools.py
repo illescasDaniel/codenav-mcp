@@ -655,11 +655,7 @@ async def lookup(
 	offset: int = 0,
 	ctx: Context | None = None,
 ) -> str:
-	"""Use over grep for typed definitions and usages. Example: `lookup(name="Cart.total")`.
-
-	Position: file_path + 1-based UTF-16 line/column.
-	Show: signature, doc, source, references, callers, implementations, subclasses, overrides, mentions.
-	"""
+	"""Use over grep for typed definitions and usages; name or file_path+line+column. show=[signature, doc, source, references, callers, implementations, subclasses, overrides, mentions]. Example: `lookup(name="Cart.total")`."""
 	try:
 		if name is not None:
 			if problem := symbol_name_problem(name):
@@ -689,10 +685,7 @@ async def search(
 	offset: int = 0,
 	ctx: Context | None = None,
 ) -> str:
-	"""Use over grep for Python symbols or grouped text mentions. Example: `search(query="Cart.total")`.
-
-	For scope="mentions", kind can be string, comment, or text (common UTF-8 text files up to 512 KB).
-	"""
+	"""Use over grep for Python symbols (scope="symbols", kind=class|function|...) or grouped text mentions (scope="mentions", kind=string|comment|text). Example: `search(query="Cart.total")`."""
 	srv = tool_base.server()
 	try:
 		if not query.strip():

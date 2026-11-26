@@ -23,7 +23,7 @@ async def unused(
 	offset: int = 0,
 	ctx: Context | None = None,
 ) -> str:
-	"""Find Python definitions without linked production uses, even when grep finds same-named decoys. Example: `unused(path="src/", kind="function")`."""
+	"""Find Python definitions (kind=class|constant|function|method) without linked production uses, even when grep finds same-named decoys. Example: `unused(path="src/", kind="function")`."""
 	try:
 		paginate([], limit, offset)
 		if kind is not None and kind not in KINDS:
@@ -67,10 +67,7 @@ async def impact(
 	limit: int = 30,
 	ctx: Context | None = None,
 ) -> Any:
-	"""What breaks if X changes? Groups calls (how args are passed), imports, overrides, tests, docs; grep can't. Example: `impact(name="send_mail", change="signature")`.
-
-	`change`: any|signature|rename|delete|type. `depth` 2-3 adds callers of callers. `file_path` narrows `name`.
-	"""
+	"""What breaks if X changes? Groups calls (how args are passed), imports, overrides, tests, docs; grep can't. change=any|signature|rename|delete|type; depth 2-3 adds callers of callers. Example: `impact(name="send_mail", change="signature")`."""
 	return await impact_reply(ctx, name, file_path, change, depth, limit)
 
 

@@ -129,7 +129,7 @@ async def change_signature(
 	allow_large: bool = False,
 	ctx: Context | None = None,
 ) -> str:
-	"""Change parameters and update typed callers. Example: `change_signature(name="parse", add=[{"name":"strict","default":"False"}])`."""
+	"""Change a signature, callers follow. add=[{name, annotation?, default?, value?, position?, keyword_only?}] (default or value needed); a default is appended keyword-only (no caller edits); value goes into calls. remove=[names]; reorder=[all names]. Example: `change_signature(name="parse", add=[{"name":"strict","default":"False"}])`."""
 	try:
 		change = Change(add=list(add or []), remove=list(remove or []), reorder=list(reorder or []))
 		if not (change.add or change.remove or change.reorder):

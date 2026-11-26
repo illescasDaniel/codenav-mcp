@@ -96,9 +96,7 @@ async def rename(
 	sites: list[str] | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Rename a symbol everywhere (refs, overrides, patch strings), type-checked; beats grep+Edit.
-	Uncertain sites (mocks, comments) get ids u1..: add with sites=["all"].
-	Example: `rename(name="Port.run", new_name="go")`"""
+	"""Rename a symbol everywhere (refs, overrides, patch strings), type-checked; beats grep+Edit. Uncertain sites (mocks, comments) get ids u1..: add them with sites=["u1"] or ["all"]. Example: `rename(name="Port.run", new_name="go")`."""
 	retry = {"name": name, "new_name": new_name, "file_path": file_path}
 	try:
 		session = await open_session(ctx)

@@ -26,8 +26,7 @@ async def edits(
 	limit: int = 10,
 	ctx: Context | None = None,
 ) -> str:
-	"""Apply, undo or show a previewed edit by id (kept across restarts). Example: `edits(action="apply", id="ab12", sites=["u1"])`.
-	action: list|apply|undo|show. sites: uncertain-site ids or ["all"]. Refuses if files changed."""
+	"""Manage previewed or applied edits by id (kept across restarts): action=list|show|apply|undo; sites=uncertain-site ids or ["all"]. Refuses if files changed. Example: `edits(action="apply", id="ab12", sites=["u1"])`."""
 	try:
 		if action not in _ACTIONS:
 			raise ToolInputError(
