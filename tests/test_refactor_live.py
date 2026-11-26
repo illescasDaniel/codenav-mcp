@@ -71,7 +71,7 @@ def test_given_new_param_with_default_when_change_signature_then_only_definition
 	)
 	# then
 	mailer = (project / "src/pkg/mailer.py").read_text()
-	assert "def send_mail(to: str, subject: str, body: str = '', retries: int = 3) -> bool:" in mailer
+	assert "def send_mail(to: str, subject: str, body: str = '', *, retries: int = 3) -> bool:" in mailer
 	assert "send_mail('x', 'y')" in (project / "src/pkg/app.py").read_text()
 	assert "Applied as edit" in text
 	assert "is unused" not in text  # an added parameter nothing reads yet is a hint, not a regression
@@ -83,7 +83,9 @@ def test_given_star_args_call_when_change_signature_then_plan_is_held_as_incompl
 	text = _run(
 		loop,
 		refactor_tools.change_signature(
-			name="send_mail", add=[{"name": "retries", "annotation": "int", "default": "3"}], apply=True
+			name="send_mail",
+			add=[{"name": "retries", "annotation": "int", "default": "3", "keyword_only": False}],
+			apply=True,
 		),
 	)
 	# then — nothing written, and the top of the reply says why and how to write it anyway
@@ -153,7 +155,8 @@ def test_given_new_positional_param_with_value_when_effectful_arguments_then_the
 	text = _run(
 		loop,
 		refactor_tools.change_signature(
-			name="search", add=[{"name": "exact", "annotation": "bool", "default": "False", "value": "False"}]
+			name="search",
+			add=[{"name": "exact", "annotation": "bool", "default": "False", "value": "False", "keyword_only": False}],
 		),
 	)
 	# then
@@ -292,7 +295,7 @@ def test_given_class_name_when_change_signature_then_init_and_constructor_calls_
 	)
 	# then
 	assert (
-		"def __init__(self, host: str, port: int = 25, tls: bool = False)"
+		"def __init__(self, host: str, port: int = 25, *, tls: bool = False)"
 		in (project / "src/pkg/mailer.py").read_text()
 	)
 	assert "Sender('localhost', tls=True)" in (project / "src/pkg/app.py").read_text()

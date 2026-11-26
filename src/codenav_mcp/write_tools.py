@@ -169,20 +169,25 @@ _NOTES_SHOWN = 5
 async def rename(
 	name: str,
 	new_name: str,
-	file_path: str | None = None,
+	file_path: str = "",
 	apply: bool = True,
 	sites: list[str] | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Rename a function, class, method or field everywhere, type-checked before writing; beats grep+Edit: it follows
-	references, overrides, Protocol implementations and patch-target strings. Uncertain sites (mock attributes,
-	`Mock(old=...)`, test fakes, comments) get ids u1..: add them with sites=["u1"] or ["all"].
-	Example: `rename(name="UserService.create", new_name="register", sites=["all"])`."""
-	retry = {"name": name, "new_name": new_name, "file_path": file_path}
+	"""Rename a symbol everywhere (references, overrides, patch strings), type-checked; use instead of grep+Edit.
+	Uncertain sites (mocks, comments) are listed as u1..: add them with sites=["all"].
+	Example: `rename(name="Port.run", new_name="go")`"""
+	retry = {"name": name, "new_name": new_name, "file_path": file_path or None}
 	try:
 		session = await open_session(ctx)
 		target = await resolve_target(
-			session.client, session.workspace, name=name, file_path=file_path, line=None, column=None, parameter=None
+			session.client,
+			session.workspace,
+			name=name,
+			file_path=file_path or None,
+			line=None,
+			column=None,
+			parameter=None,
 		)
 		plan = await plan_rename(
 			session.client,

@@ -28,7 +28,7 @@ def test_bug_lang_r01_change_signature_with_nul_text_file_refuses_cleanly(tmp_pa
 	text = _run(
 		loop,
 		refactor_tools.change_signature(
-			name="foo", file_path="target.py", add=[{"name": "p", "default": "0"}], apply=True
+			name="foo", file_path="target.py", add=[{"name": "p", "default": "0", "keyword_only": False}], apply=True
 		),
 	)
 	assert NUL_REFUSAL in text and "Error executing tool" not in text and "Applied" not in text
