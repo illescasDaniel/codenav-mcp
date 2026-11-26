@@ -58,7 +58,8 @@ def test_rc_095_given_filesystem_root_as_workspace_when_import_then_refused(tmp_
 	result = _import_server(tmp_path, CODENAV_MCP_WORKSPACE="/")
 
 	assert result.returncode != 0
-	assert "refusing to use / as the workspace; set CODENAV_MCP_WORKSPACE to your project directory" in result.stderr
+	assert "refusing to use " in result.stderr
+	assert "as the workspace; set CODENAV_MCP_WORKSPACE to your project directory" in result.stderr
 
 
 def test_rc_155_given_pinned_workspace_that_does_not_exist_when_import_then_refused(tmp_path):

@@ -5,6 +5,7 @@ that `implementations` reports test doubles from extra roots."""
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from codenav_mcp import server as codenav_server
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_TY = _REPO_ROOT / ".venv" / "bin" / "ty"
+_TY = Path(sys.executable).parent / ("ty.exe" if sys.platform == "win32" else "ty")
 
 pytestmark = [
 	pytest.mark.integration,

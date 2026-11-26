@@ -276,6 +276,7 @@ def _alive(pid: int) -> bool:
 
 
 @needs_ty
+@pytest.mark.skipif(not Path("/proc").is_dir(), reason="requires Linux procfs to inspect child processes")
 def test_rc_016_sigint_with_language_server_running_exits_cleanly(workspace):
 	proc = subprocess.Popen(
 		[sys.executable, "-m", "codenav_mcp.server"],

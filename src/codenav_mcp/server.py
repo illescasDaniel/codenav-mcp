@@ -154,6 +154,8 @@ class _CodenavNoticeBoard(NoticeBoard):
 				return CallToolResult(content=[TextContent(type="text", text=str(result))], is_error=True)
 			return result
 
+		# Python 3.14's lazy annotations are not copied by functools.wraps.
+		wrapper.__annotations__ = get_type_hints(decorated)
 		return wrapper
 
 

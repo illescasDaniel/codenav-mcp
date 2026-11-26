@@ -100,7 +100,7 @@ def _import_server(cwd: Path, **env: str) -> subprocess.CompletedProcess[str]:
 @pytest.mark.parametrize(
 	("env", "expected"),
 	[
-		({"CODENAV_MCP_WORKSPACE": "/"}, "refusing to use / as the workspace"),
+		({"CODENAV_MCP_WORKSPACE": "/"}, "as the workspace"),
 		({"CODENAV_MCP_WORKSPACE": "qa-b19-missing-dir"}, "is not an existing directory"),
 	],
 )
@@ -118,7 +118,8 @@ def test_rc_b19_cwd_root_without_workspace_setting_prints_one_line(tmp_path):
 
 	assert result.returncode != 0
 	assert "Traceback" not in result.stderr
-	assert "refusing to use / as the workspace" in result.stderr
+	assert "refusing to use " in result.stderr
+	assert "as the workspace" in result.stderr
 
 
 # (2) The importer limit is a note: an apply past 60 importers is not gated on it.

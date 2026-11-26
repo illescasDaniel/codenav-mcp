@@ -213,6 +213,8 @@ def test_rc_034_syntax_error_names_the_file_and_the_line():
 
 
 def test_rc_034_newer_syntax_gets_a_version_hint(monkeypatch):
+	if sys.version_info >= (3, 14):
+		pytest.skip("this interpreter parses the construct")
 	# given — `except A, B:` without parentheses is Python 3.14 syntax
 	text = "try:\n\tpass\nexcept A, B:\n\tpass\n"
 	# when

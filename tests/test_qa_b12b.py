@@ -37,7 +37,7 @@ class _Client:
 	async def document_symbol(self, file_path: str) -> list:
 		answer = self._answer("document_symbol")
 		if isinstance(answer, dict):
-			return next((value for key, value in answer.items() if file_path.endswith(key)), [])
+			return next((value for key, value in answer.items() if file_path.replace("\\", "/").endswith(key)), [])
 		return list(answer)
 
 	async def prepare_call_hierarchy(self, file_path: str, line: int, column: int) -> list:

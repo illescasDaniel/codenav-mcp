@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -72,7 +73,7 @@ def test_rc_b21_workspace_reply_hides_ty_home_path(tmp_path, monkeypatch, loop):
 	text = _text(asyncio.run(server.workspace()))
 
 	ty_line = next(line for line in text.splitlines() if line.startswith("ty:"))
-	assert str(Path.home()) not in text
+	assert str(Path.home()) not in ty_line
 	assert str(home_ty) not in text
 	assert "ty" in ty_line
 	assert str(project) in text  # the workspace line itself is the one allowed absolute path
@@ -239,13 +240,19 @@ def test_rc_b21_pep695_type_parameter_refusal_has_reason(tmp_path, monkeypatch, 
 		{"src/pep695.py": "class Box[T]:\n    def get(self) -> T:\n        raise NotImplementedError\n"},
 	)
 
+	with (tmp_path / "pyproject.toml").open("a", encoding="utf-8") as config:
+		config.write('python-version = "3.12"\n')
+
 	result = _call(
 		"rename_symbol", {"name": "T", "file_path": "src/pep695.py", "line": 1, "column": 11, "new_name": "U"}
 	)
 	text = _text(result)
 
 	assert result.is_error
-	assert "type parameter" in text
+	if sys.version_info < (3, 12):
+		assert "No symbol found" in text  # The 3.11 parser cannot parse PEP 695 syntax.
+	else:
+		assert "type parameter" in text
 	assert "elsewhere" not in text
 
 

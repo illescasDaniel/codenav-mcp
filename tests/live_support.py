@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from codenav_mcp import server as codenav_server, writes
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TY = REPO_ROOT / ".venv" / "bin" / "ty"
+TY = Path(sys.executable).parent / ("ty.exe" if sys.platform == "win32" else "ty")
 
 needs_ty = pytest.mark.skipif(not TY.is_file(), reason="repo .venv ty binary not available")
 
