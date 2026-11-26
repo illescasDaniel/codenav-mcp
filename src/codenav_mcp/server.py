@@ -125,11 +125,18 @@ def _compact_schema(value: Any) -> Any:
 	return schema
 
 
+_WRITES_BY_DEFAULT = "Writes by default; apply=false previews."
+
+
 class _CodenavMCPServer(MCPServer):
 	async def list_tools(self) -> list[Tool]:
 		tools = await super().list_tools()
 		for tool in tools:
+			apply_default = tool.input_schema.get("properties", {}).get("apply", {}).get("default")
 			tool.input_schema = _compact_schema(tool.input_schema)
+			if apply_default is not None:  # a write tool: say in the schema and the text that it writes by default
+				tool.input_schema["properties"]["apply"]["default"] = apply_default
+				tool.description = f"{(tool.description or '').rstrip()} {_WRITES_BY_DEFAULT}"
 		return tools
 
 

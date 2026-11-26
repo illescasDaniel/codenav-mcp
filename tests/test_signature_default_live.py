@@ -57,5 +57,5 @@ def test_given_keyword_only_false_then_callers_matter_and_the_value_use_holds_th
 			name="find", add=[{"name": "exact", "default": "False", "keyword_only": False}], apply=False
 		)
 	)
-	assert "+def find(root: str, query: str, limit: int = 10, exact=False)" in text
+	assert "+def find(root: str, query: str, limit: int = 10, exact: bool = False)" in text
 	assert "used as a value, not called" in text

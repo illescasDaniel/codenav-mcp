@@ -33,7 +33,7 @@ def tool_sizes():
 @pytest.mark.parametrize("name", sorted(TOOL_NAMES))
 def test_description_and_schema_fit_the_tool_budget(name, tool_sizes):
 	# edit_symbol and change_signature carry the shape of nested items (`edits`, `add`), which no schema can show.
-	assert tool_sizes[name] <= {"edit_symbol": 900, "change_signature": 850}.get(name, 800)
+	assert tool_sizes[name] <= {"edit_symbol": 960, "change_signature": 890}.get(name, 800)
 
 
 def test_v2_discovery_surface_and_total_budget(tool_sizes):

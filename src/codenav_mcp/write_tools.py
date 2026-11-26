@@ -38,7 +38,7 @@ from codenav_mcp.plan_merge import add_sites, track_optional_files
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import check_syntax
 from codenav_mcp.rename import plan_rename, resolve_target
-from codenav_mcp.rename_sites import UnknownSitesError, format_site, select_sites
+from codenav_mcp.rename_sites import UNVERIFIED_RUNTIME_USE, UnknownSitesError, format_site, select_sites
 from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
@@ -46,6 +46,7 @@ from codenav_mcp.writes import (
 	NOT_CHECKED,
 	PYTHON_SUFFIXES,
 	Outcome,
+	applied_line,
 	finish_plan,
 	require_workspace_file,
 	type_check_report,
@@ -89,25 +90,37 @@ _NOTES_SHOWN = 5
 
 
 async def rename(
-	name: str,
-	new_name: str,
+	name: str | None = None,
 	file_path: str | None = None,
 	apply: bool = True,
 	sites: list[str] | None = None,
 	ctx: Context | None = None,
+	*,
+	new_name: str,
+	parameter: str | None = None,
+	line: int | None = None,
+	column: int | None = None,
 ) -> str:
-	"""Rename a symbol everywhere (refs, overrides, patch strings), type-checked; beats grep+Edit. Uncertain sites (mocks, comments) get ids u1..: add them with sites=["u1"] or ["all"]. Example: `rename(name="Port.run", new_name="go")`."""
-	retry = {"name": name, "new_name": new_name, "file_path": file_path}
+	"""Typed rename by name or file_path+line+column (1-based UTF-16); parameter selects a function argument. Optional sites (mocks, text): sites=["u1"] or ["all"]. Example: `rename(name="Port.run", new_name="go")`."""
+	retry = dict(name=name, new_name=new_name, file_path=file_path, line=line, column=column, parameter=parameter)
 	try:
+		if not new_name:
+			raise ToolInputError('Give new_name. Example: rename(name="Port.run", new_name="go")')
+		if (line is None) != (column is None) or (
+			line is not None and (not file_path or line < 1 or not column or column < 1)
+		):
+			raise ToolInputError(
+				'Give file_path, line and column together (1-based). Example: rename(file_path="port.py", line=2, column=6, new_name="go")'
+			)
 		session = await open_session(ctx)
 		target = await resolve_target(
 			session.client,
 			session.workspace,
 			name=name,
 			file_path=file_path,
-			line=None,
-			column=None,
-			parameter=None,
+			line=line,
+			column=column,
+			parameter=parameter,
 		)
 		rename_plan = await plan_rename(
 			session.client,
@@ -120,6 +133,19 @@ async def rename(
 		)
 		chosen = select_sites(rename_plan.optional_sites, sites)
 		left = [site for site in rename_plan.optional_sites if site not in chosen]
+		unverified = [site.id for site in left if site.kind == UNVERIFIED_RUNTIME_USE]
+		hold_back = ""
+		if rename_plan.left_out:
+			hold_back = (
+				f"importers that cannot be rewritten would be left broken ({'; '.join(rename_plan.left_out)}); "
+				"fix or include them first."
+			)
+		elif unverified:
+			sample = ", ".join(unverified[:5])
+			more = f" and {len(unverified) - 5} more" if len(unverified) > 5 else ""
+			hold_back = (
+				f"ty reports Never at possible runtime uses ({sample}{more}); review the listed sites before applying."
+			)
 		base = track_optional_files(rename_plan, rename_plan.optional_sites, session.workspace)
 		plan = add_sites(base, chosen, session.workspace)
 		outcome = await finish_plan(
@@ -131,12 +157,7 @@ async def rename(
 			apply=apply,
 			max_new_errors=0,
 			optional_sites=left,
-			hold_back=(
-				f"importers that cannot be rewritten would be left broken ({'; '.join(rename_plan.left_out)}); "
-				"fix or include them first."
-			)
-			if rename_plan.left_out
-			else "",
+			hold_back=hold_back,
 		)
 	except UnknownSitesError as exc:
 		return format_tool_error(ToolInputError(f"{exc}\nExample: {call('rename', **retry, sites=['all'])}"))
@@ -151,7 +172,7 @@ def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], ch
 	A preview or refused plan keeps finish_plan's text (files, notes, type check, diff); the site list goes before the diff."""
 	if outcome.followup is not None:
 		left = outcome.followup.optional_sites
-	reply = Reply(f"{plan.description}. Applied as edit {outcome.applied_id}." if outcome.applied_id else "")
+	reply = Reply(f"{plan.description}. {applied_line(outcome.applied_id)}" if outcome.applied_id else "")
 	if outcome.applied_id:
 		blocks = str(outcome.text).split("\n\n")
 		reply.items.extend(blocks[1].splitlines()[1:] if len(blocks) > 1 else [])
@@ -162,6 +183,8 @@ def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], ch
 		reply.notes.append(type_check_line(outcome))
 	if chosen:
 		reply.notes.insert(0, f"{len(chosen)} optional site(s) included")
+		if text_paths := sorted({site.path for site in chosen if site.kind == "text"}):
+			reply.items.append("Optional text sites included in " + ", ".join(text_paths) + ".")
 	site_lines: list[str] = []
 	if left:
 		site_lines.append(f"{len(left)} optional site(s), not changed (add with sites):")
@@ -172,9 +195,9 @@ def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], ch
 		if plan_id:
 			if len(left) > _SITES_SHOWN:
 				reply.next_calls.append(call("edits", action="show", id=plan_id))
-			reply.next_calls.append(
-				call("edits", action="apply", id=plan_id, sites=["all"] if len(left) > 1 else [left[0].id])
-			)
+			runtime_sites = [site.id for site in left if site.kind == UNVERIFIED_RUNTIME_USE]
+			selection = runtime_sites or (["all"] if len(left) > 1 else [left[0].id])
+			reply.next_calls.append(call("edits", action="apply", id=plan_id, sites=selection))
 	if outcome.applied_id and len(reply.next_calls) < 2:
 		reply.next_calls.append(call("edits", action="undo", id=outcome.applied_id))
 	if outcome.applied_id:
@@ -184,7 +207,7 @@ def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], ch
 		whole = str(outcome.text)
 		cut = whole.find("\n--- a/")
 		head, diff = (whole[:cut], whole[cut:]) if cut != -1 else (whole, "")
-		extra = Reply("", [*site_lines], list(reply.notes), list(reply.next_calls)).render().lstrip("\n")
+		extra = Reply("", [*reply.items, *site_lines], list(reply.notes), list(reply.next_calls)).render().lstrip("\n")
 		text = "\n".join(part for part in (head, extra) if part) + diff
 	return FailedText(text) if isinstance(outcome.text, FailedText) else text
 

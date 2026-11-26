@@ -82,7 +82,13 @@ def ambiguity_listing(exc: Exception, tool: str, query: str | None, *, fixed: st
 		same = [c for c, n in zip(candidates, names, strict=True) if n == name]
 		args = f"{fixed}name={_quote(name)}"
 		if len(same) > 1:
-			if len({c.path for c in same}) < len(same):
+			if sum(c.path == candidate.path for c in same) > 1:
+				if tool == "rename" and not container:
+					args = (
+						f"{fixed}file_path={_quote(candidate.path)}, line={candidate.line}, column={candidate.column}"
+					)
+					lines.append(f"  {tool}({args})  [{candidate.kind}, {candidate.path}:{candidate.line}]")
+					continue
 				unselectable = True  # the same name twice in one file: no name or file_path tells them apart
 				lines.append(f"  [{candidate.kind}] {candidate.path}:{candidate.line}:{candidate.column}")
 				continue

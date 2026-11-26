@@ -37,8 +37,14 @@ _ARGUMENT_ALIASES: dict[str, tuple[str, ...]] = {
 	"edit_id": ("id",),
 	"old_str": ("old_string",),
 	"new_str": ("new_string",),
+	"old_name": ("name",),
+	"old": ("old_string",),
+	"new": ("new_string",),
 }
+_ITEM = "edit item"  # the name `multi_edit` resolves the items of `edit_symbol(edits=[...])` under
+_ITEM_EXAMPLE = '{"file_path": "a.py", "old_string": "x = 1", "new_string": "x = 2"}'
 _EXAMPLE = re.compile(r"Examples?:\s*`([^`]+)`")
+_SHOW_SECTIONS = re.compile(r"show=\[([a-z_, ]+)\]")
 
 
 _registry: dict[str, ToolFn] = {}
@@ -165,7 +171,8 @@ def resolve_aliases(name: str, params: Set[str], args: Mapping[str, Any]) -> tup
 		if isinstance(key, str) and key not in params:
 			target = next((t for t in _ARGUMENT_ALIASES.get(key, ()) if t in params), key)
 		if target in result and result[target] is not None and value is not None:
-			if result[target] != value:
+			# Equal only when identical in kind too: Python's `True == 1` must not merge two different answers.
+			if result[target] != value or type(result[target]) is not type(value):
 				message = f"give either {given_as[target]!r} or {key!r}, not both (one parameter: {target})"
 				return dict(args), f"{name}: {message}"
 			continue
@@ -173,7 +180,39 @@ def resolve_aliases(name: str, params: Set[str], args: Mapping[str, Any]) -> tup
 			continue  # an explicit null adds nothing to the value already given
 		result[target] = value
 		given_as[target] = key
+	if name == _ITEM:
+		unknown = [key for key in result if key not in params]
+		if unknown:
+			return dict(args), _unknown_item_keys(unknown, params)
 	return result, None
+
+
+def _unknown_item_keys(unknown: list[Any], params: Set[str]) -> str:
+	"""The refusal for keys no edit item takes: the closest valid key for each, the valid keys, a literal item."""
+	close = [
+		f"{_short_repr(key)} -> {match[0]!r}"
+		for key in unknown[:_MAX_NAMES]
+		if (match := difflib.get_close_matches(str(key)[:_MAX_NAME_PROBE], sorted(params), n=1, cutoff=0.6))
+	]
+	did_you_mean = f"; did you mean {', '.join(close)}?" if close else ""
+	return (
+		f"unknown key(s) {_names_text(unknown)} in an edit item{did_you_mean}; allowed: {', '.join(sorted(params))}. "
+		f"Example: {_ITEM_EXAMPLE}"
+	)
+
+
+def _show_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | None:
+	"""A `show=[...]` value the tool's own description does not list: name the valid sections (the description is
+	the one list the caller sees, so the refusal is read from it)."""
+	shown = args.get("show")
+	found = _SHOW_SECTIONS.search(inspect.getdoc(_bare(fn)) or "")
+	if found is None or not isinstance(shown, list):
+		return None
+	valid = [section.strip() for section in found.group(1).split(",")]
+	unknown = [section for section in shown if section not in valid]
+	if not unknown:
+		return None
+	return f"{name}: unknown show section {_names_text(unknown)}; valid: {', '.join(valid)}.{_example_suffix(fn)}"
 
 
 def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | None:
@@ -207,6 +246,8 @@ def argument_problem(name: str, fn: ToolFn, args: Mapping[str, Any]) -> str | No
 			return (
 				f"{name}: {key} must be {_type_phrase(hints.get(key))} (got {_short_repr(value)}).{_example_suffix(fn)}"
 			)
+	if (problem := _show_problem(name, fn, args)) is not None:
+		return problem
 	missing = [key for key, param in params.items() if param.default is inspect.Parameter.empty and key not in args]
 	if missing:
 		hint = _signature_hint(name, params)

@@ -1,13 +1,16 @@
 """Combining edit plans: several plans into one (multi-edit), and optional sites into a plan (`sites=`).
 
 An `EditPlan` holds whole-file texts, not the edits that produced them, so both operations work on lines: a
-file's change is turned into hunks (`difflib`), hunks from different plans must not overlap, and a site's
-position is carried across the plan's own edits through unchanged lines or spans.
+file's change is turned into hunks (`line_changes`: a patience diff that aligns runs of repeated lines in place,
+never `difflib`'s arbitrary choice), hunks from different plans must not overlap, and a site's position is carried
+across the plan's own edits through unchanged lines or spans.
 """
 
 from __future__ import annotations
 
+import bisect
 import difflib
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -32,11 +35,125 @@ from codenav_mcp.pysource import check_syntax
 
 Hunk = tuple[int, int, list[str]]  # (first old line index, one past the last, replacement lines)
 
+_DP_LIMIT = 40_000  # cells of the edit-distance table for a block of repeated lines; bigger blocks are one hunk
+
+
+def _anchors(old: list[str], new: list[str]) -> list[tuple[int, int]]:
+	"""Lines that occur exactly once on each side, kept in order (the longest increasing run): patience anchors."""
+	old_count, new_count = Counter(old), Counter(new)
+	where = {line: index for index, line in enumerate(new) if new_count[line] == 1}
+	pairs = [(i, where[line]) for i, line in enumerate(old) if old_count[line] == 1 and line in where]
+	tails: list[int] = []  # tails[k]: the smallest new index that ends a run of k + 1 anchors
+	ends: list[int] = []  # ends[k]: which pair that is
+	previous = [-1] * len(pairs)
+	for index, (_, j) in enumerate(pairs):
+		k = bisect.bisect_left(tails, j)
+		previous[index] = ends[k - 1] if k else -1
+		if k == len(tails):
+			tails.append(j)
+			ends.append(index)
+		else:
+			tails[k], ends[k] = j, index
+	run: list[tuple[int, int]] = []
+	cursor = ends[-1] if ends else -1
+	while cursor >= 0:
+		run.append(pairs[cursor])
+		cursor = previous[cursor]
+	return run[::-1]
+
+
+def _align_repeated(old: list[str], new: list[str]) -> list[tuple[int, int, int, int]]:
+	"""Changed blocks (i1, i2, j1, j2) of two line runs with no unique line and different first and last lines.
+
+	`difflib` aligns repeated lines arbitrarily (it can report a one-line edit at the other end of a run of equal
+	lines, or as a delete plus an insert far apart), so a plan's edit would land on the wrong line when merged with
+	another's. Here lines are compared in place when the runs are as long as each other, otherwise by the cheapest
+	edit script that prefers replacing a line to deleting one and adding another."""
+	n, m = len(old), len(new)
+	if n == m:
+		spans: list[tuple[int, int, int, int]] = []
+		for index in range(n):
+			if old[index] != new[index]:
+				if spans and spans[-1][1] == index:
+					spans[-1] = (spans[-1][0], index + 1, spans[-1][2], index + 1)
+				else:
+					spans.append((index, index + 1, index, index + 1))
+		return spans
+	if (n + 1) * (m + 1) > _DP_LIMIT:
+		return [(0, n, 0, m)]
+	cost = [[0] * (m + 1) for _ in range(n + 1)]
+	for i in range(n + 1):
+		cost[i][0] = i
+	for j in range(m + 1):
+		cost[0][j] = j
+	for i in range(1, n + 1):
+		for j in range(1, m + 1):
+			same = cost[i - 1][j - 1] + (old[i - 1] != new[j - 1])
+			cost[i][j] = min(same, cost[i - 1][j] + 1, cost[i][j - 1] + 1)
+	blocks: list[tuple[int, int, int, int]] = []
+	i, j = n, m
+	while i or j:
+		if i and j and old[i - 1] == new[j - 1] and cost[i][j] == cost[i - 1][j - 1]:
+			i, j = i - 1, j - 1
+			continue
+		if i and j and cost[i][j] == cost[i - 1][j - 1] + 1:
+			step = (i - 1, j - 1)
+		elif i and cost[i][j] == cost[i - 1][j] + 1:
+			step = (i - 1, j)
+		else:
+			step = (i, j - 1)
+		if blocks and blocks[-1][0] == i and blocks[-1][2] == j:
+			blocks[-1] = (step[0], blocks[-1][1], step[1], blocks[-1][3])
+		else:
+			blocks.append((step[0], i, step[1], j))
+		i, j = step
+	return blocks[::-1]
+
+
+def line_changes(old: list[str], new: list[str]) -> list[tuple[int, int, int, int]]:
+	"""Where `new` differs from `old`: blocks (i1, i2, j1, j2), old[i1:i2] becoming new[j1:j2], in order.
+
+	Common first and last lines are peeled off, lines that occur once on each side anchor the rest (patience diff),
+	and what lies between anchors is aligned in place (`_align_repeated`)."""
+	found: list[tuple[int, int, int, int]] = []
+	work = [(0, len(old), 0, len(new))]
+	while work:
+		i1, i2, j1, j2 = work.pop()
+		while i1 < i2 and j1 < j2 and old[i1] == new[j1]:
+			i1, j1 = i1 + 1, j1 + 1
+		while i1 < i2 and j1 < j2 and old[i2 - 1] == new[j2 - 1]:
+			i2, j2 = i2 - 1, j2 - 1
+		if i1 == i2 and j1 == j2:
+			continue
+		if i1 == i2 or j1 == j2:
+			found.append((i1, i2, j1, j2))
+			continue
+		anchors = _anchors(old[i1:i2], new[j1:j2])
+		if not anchors:
+			found += [(i1 + a, i1 + b, j1 + c, j1 + d) for a, b, c, d in _align_repeated(old[i1:i2], new[j1:j2])]
+			continue
+		bounds = [(i1 - 1, j1 - 1), *((i1 + i, j1 + j) for i, j in anchors), (i2, j2)]
+		work += [(a + 1, b, c + 1, d) for (a, c), (b, d) in zip(bounds, bounds[1:], strict=False)]
+	return sorted(found)
+
+
+def line_opcodes(old: list[str], new: list[str]) -> list[tuple[str, int, int, int, int]]:
+	"""`difflib`-style opcodes (equal, replace, delete, insert) built on `line_changes`."""
+	codes: list[tuple[str, int, int, int, int]] = []
+	i = j = 0
+	for i1, i2, j1, j2 in [*line_changes(old, new), (len(old), len(old), len(new), len(new))]:
+		if i1 > i:
+			codes.append(("equal", i, i1, j, j1))
+		if i2 > i1 or j2 > j1:
+			tag = "replace" if i2 > i1 and j2 > j1 else "delete" if i2 > i1 else "insert"
+			codes.append((tag, i1, i2, j1, j2))
+		i, j = i2, j2
+	return codes
+
 
 def _hunks(old_text: str, new_text: str) -> list[Hunk]:
 	old, new = split_lines(old_text, keepends=True), split_lines(new_text, keepends=True)
-	matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
-	return [(i1, i2, new[j1:j2]) for tag, i1, i2, j1, j2 in matcher.get_opcodes() if tag != "equal"]
+	return [(i1, i2, new[j1:j2]) for i1, i2, j1, j2 in line_changes(old, new)]
 
 
 def merge_plans(labelled: Sequence[tuple[str, EditPlan]], description: str) -> EditPlan:
@@ -78,9 +195,11 @@ def _merge_file(path: Path, items: list[tuple[str, FileChange]]) -> FileChange:
 	merged: list[str] = []
 	cursor = 0
 	last: tuple[int, int, list[str], str] | None = None
+	seen: set[tuple[int, int, tuple[str, ...]]] = set()
 	for i1, i2, _order, lines, label in hunks:
-		if last is not None and (i1, i2, lines) == last[:3]:
+		if (i1, i2, tuple(lines)) in seen:
 			continue  # the same edit from two plans (say, the same import added twice)
+		seen.add((i1, i2, tuple(lines)))
 		if last is not None and i1 < last[1]:
 			raise ToolInputError(f"{last[3]} and {label} both change {name} around line {i1 + 1}; give them separately")
 		merged += old_lines[cursor:i1]
@@ -197,7 +316,7 @@ def site_followup(plan: EditPlan, sites: Sequence[OptionalSite], workspace: Path
 	for path, group in _sites_by_path(sites, workspace).items():
 		change = _site_change(group[0], path, changes, hashes)
 		old_lines, new_lines = _site_lines(change, group)
-		opcodes = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False).get_opcodes()
+		opcodes = line_opcodes(old_lines, new_lines)
 		for site in group:
 			edit = _carry(site, old_lines, new_lines, opcodes)
 			rebased[site.id] = replace(
@@ -220,7 +339,7 @@ def add_sites(plan: EditPlan, chosen: Sequence[OptionalSite], workspace: Path) -
 	for path, sites in _sites_by_path(chosen, workspace).items():
 		change = _site_change(sites[0], path, changes, hashes)
 		old_lines, new_lines = _site_lines(change, sites)
-		opcodes = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False).get_opcodes()
+		opcodes = line_opcodes(old_lines, new_lines)
 		edits = list(dict.fromkeys(_carry(site, old_lines, new_lines, opcodes) for site in sites))
 		new_text = apply_text_edits("".join(new_lines), edits, bom=bool(change.new_bom), bom_in_positions=False)
 		if path.suffix.lower() in (".py", ".pyi"):

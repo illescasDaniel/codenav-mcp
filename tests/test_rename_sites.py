@@ -82,7 +82,7 @@ def test_given_mock_keyword_when_scanned_then_it_is_flagged_as_mock_and_other_ke
 	text = "m = Mock(execute=1)\nn = SimpleNamespace(execute=2)\nc = Config(execute=3)\n"
 	path = _write(tmp_path, "tests/test_b.py", text)
 	scan = _scan_python(path, "tests/test_b.py", "execute", "run", set(), set(), test_file=True)
-	assert [(line, mock) for line, _, mock in scan.keywords] == [(1, True), (2, True), (3, False)]
+	assert [(line, mock) for line, _, mock, *_ in scan.keywords] == [(1, True), (2, True), (3, False)]
 
 
 def test_given_comments_and_docstrings_when_scanned_then_only_code_like_mentions_are_sites(tmp_path):

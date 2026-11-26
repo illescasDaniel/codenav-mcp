@@ -210,6 +210,29 @@ def _mentions_any(path: Path, words: re.Pattern[str]) -> bool | None:
 		return None
 
 
+def not_scanned_line(workspace: Path, *, shown: int = 6) -> str:
+	"""One line naming the directories (holding Python files) that text scans (`impact`, mentions) never look into
+	because they are excluded or nested checkouts; empty when none."""
+	pruned: list[tuple[Path, SkipReason]] = []
+	for _ in _walk(workspace, pruned):
+		pass
+	names: list[str] = []
+	for directory, reason in sorted(pruned):
+		if reason == "unreadable" or directory.name in _NEVER_SCAN or directory.name in _VCS_DIRS:
+			continue
+		if any(name.endswith((".py", ".pyi")) for _, _, files in os.walk(directory) for name in files):
+			names.append(_rel(directory, workspace) + "/")
+	if not names:
+		return ""
+	more = f" +{len(names) - shown} more" if len(names) > shown else ""
+	return f"Not scanned (excluded directories or nested repos): {', '.join(names[:shown])}{more}. Pass {ENV_PREFIX}_INCLUDE_DIRS=<name> to include one."
+
+
+def file_mentions(path: Path, words: re.Pattern[str]) -> bool | None:
+	"""Whether `path` matches `words` (None when it cannot be read)."""
+	return _mentions_any(path, words)
+
+
 def _skipped_importers(
 	workspace: Path,
 	pruned: list[tuple[Path, SkipReason]],
@@ -336,6 +359,76 @@ def find_dependents_report(
 		report.skipped.append(Skipped(f"{over_limit} more files", "limit", f"more than {limit} importers", over_limit))
 	report.skipped.extend(_skipped_importers(workspace, pruned, wanted, root_list, target_set))
 	return report
+
+
+def _reexported_names(init: Path, edited_modules: set[str], own: set[str]) -> set[str] | None:
+	"""Names `init` (a package `__init__`) imports from one of `edited_modules`, as bound in the package
+	(`from .base import Base as B` gives {Base, B}); None when it star-imports from one (everything is re-exported)."""
+	try:
+		tree = ast.parse(decode_source(_read_no_symlink(init)[1])[0])
+	except (OSError, SyntaxError, ValueError, UnicodeDecodeError):
+		return set()
+	names: set[str] = set()
+	for node in ast.walk(tree):
+		if not isinstance(node, ast.ImportFrom):
+			continue
+		targets = import_from_targets(node, own, is_package_init=True)
+		whole = bool(targets & edited_modules)
+		for alias in node.names:
+			# `from .base import X` re-exports X; `from . import base` re-exports the module itself.
+			if whole or any(f"{target}.{alias.name}" in edited_modules for target in targets):
+				if alias.name == "*":
+					return None
+				names.update({alias.name, alias.asname or alias.name})
+	return names
+
+
+def reexport_dependents(
+	workspace: Path,
+	edited: Iterable[Path],
+	dependents: Iterable[Path],
+	roots: Iterable[Path],
+	*,
+	depth: int = 3,
+) -> list[Path]:
+	"""Files that reach `edited` modules through a package re-export, which `find_dependents` (one hop) misses.
+
+	`pkg/__init__.py` doing `from .base import Base` lets `import pkg; class Sub(pkg.Base)` break when `base.Base`
+	changes, though that file never imports `pkg.base`. For each package `__init__` among `dependents`, the files
+	importing that package and mentioning one of the re-exported names are returned (nested packages are followed
+	up to `depth` levels)."""
+	root_list = list(roots)
+	edited_modules: set[str] = set()
+	for path in edited:
+		edited_modules |= module_names_for(path, root_list)
+	known = {p.resolve() for p in edited} | {p.resolve() for p in dependents}
+	found: list[Path] = []
+	inits = [p for p in dict.fromkeys(dependents) if p.name == "__init__.py"]
+	for _ in range(depth):
+		next_inits: list[Path] = []
+		for init in inits:
+			own = module_names_for(init, root_list)
+			names = _reexported_names(init, edited_modules, own)
+			if names is not None and not names:
+				continue
+			words = (
+				re.compile("|".join(rf"\b{re.escape(name)}\b" for name in sorted(names))) if names is not None else None
+			)
+			for importer in find_dependents_report(workspace, [init], root_list).files:
+				importer = importer.resolve()
+				if importer in known:
+					continue
+				if words is not None and _mentions_any(importer, words) is not True:
+					continue
+				known.add(importer)
+				found.append(importer)
+				if importer.name == "__init__.py":
+					next_inits.append(importer)
+			edited_modules |= module_names_for(init, root_list)
+		if not next_inits:
+			break
+		inits = next_inits
+	return found
 
 
 def find_dependents(

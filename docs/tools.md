@@ -58,7 +58,7 @@ configuration because it cannot compare against the old configuration.
 
 | Tool | Parameters and result |
 |---|---|
-| `rename` | `name`, `new_name`, optional `file_path`, `apply=true`, optional `sites`. Updates typed references, linked overrides, implementations and exact patch-target strings. Review uncertain sites by ID, then opt in with `sites=["u1"]` or `sites=["all"]`. |
+| `rename` | `new_name`, plus `name` with optional `file_path` or `file_path` with 1-based `line` and UTF-16 `column`. Optional `parameter`, `apply=true` and `sites`. Updates typed references, linked overrides, implementations and exact patch-target strings. Review uncertain sites by ID, then opt in with `sites=["u1"]` or `sites=["all"]`. |
 | `change_signature` | `name`, optional `file_path`, `add`, `remove`, `reorder`, `include_overrides=true`, `apply=true`, `max_new_errors=0`, `allow_large=false`. Rewrites typed callers and reports call sites that require manual attention. |
 | `move` | `to_file` and either `name` with optional `file_path` or just the module's `file_path`. Supports `keep_reexport` and `allow_import_cycle` for symbol moves, plus `apply`, `max_new_errors` and `allow_large`. |
 | `edit_symbol` | For one definition, use `name`, `action`, `source` and optional `file_path`. Use `edits` for a group of definition edits and literal replacements. Options include `apply`, `max_new_errors`, `force`, `imports`, `position` and `prune_imports`. |
@@ -140,8 +140,9 @@ checked, on every tool: `symbol`, `symbol_name` and `qualified_name` for
 `name` (`query` on `search`); `port_name` for `name`; `query` for `name`, and
 `name` for search's `query`; `file`, `filepath` and `path` for `file_path` (`unused`
 and `search` keep their own `path`); `col` for `column`; `line_number` and
-`lineno` for `line`; `in_` for `scope`; `edit_id` for `id`. Inside `edits`
-items, `old_str` and `new_str` mean `old_string` and `new_string`. A tool's
+`lineno` for `line`; `in_` for `scope`; `edit_id` for `id`; `old_name` for
+rename’s `name`. Inside `edits` items, `old` and `old_str` mean `old_string`,
+and `new` and `new_str` mean `new_string`. A tool's
 actual parameter takes precedence over an alias; an alias is used only when
 the tool has no parameter of that name. An alias and its target with
 different values are refused, and with the same value accepted.
@@ -166,9 +167,9 @@ names with `CODENAV_MCP_EXCLUDE_DIRS` and `CODENAV_MCP_INCLUDE_DIRS`.
 
 ## Known limits
 
-`rename` takes a symbol name, not a position, and does not rename function
-parameters; `change_signature` has no optional site ids. Navigation and
-writes target Python files, and mention search can scan other text files. Static analysis cannot resolve every dynamic reference, mock,
-framework registration or library extension. Check runtime behavior and
+`change_signature` has no optional site IDs. Rename can offer code-like text
+mentions as optional sites. When a generated document identifies its generator,
+rename names that generator so you can rebuild the document. Static analysis
+cannot resolve every dynamic reference, mock, framework registration or library extension. Check runtime behavior and
 review optional sites. Files outside the workspace and files with more than
 one hard link are protected from writes.

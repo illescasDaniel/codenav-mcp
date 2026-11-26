@@ -37,13 +37,13 @@ from codenav_mcp.ambiguity import Candidate, parse_candidates
 from codenav_mcp.args import example_call
 from codenav_mcp.deps import module_names_for
 from codenav_mcp.linked import locate_member_class
-from codenav_mcp.mentions import Mention, find_mentions
+from codenav_mcp.mentions import Mention, find_mentions, types_as_never
 from codenav_mcp.pysource import Definition, definition_name_position, find_definition, node_position, source_lines
 from codenav_mcp.reference_format import _hit_key, constructor_keyword_locations
 from codenav_mcp.rename import _is_unlinked_attr, _split_unlinked_attrs
 from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.tool_base import Session
-from codenav_mcp.ty_command import resolve_ty_command
+from codenav_mcp.ty_command import resolve_ty_command, ty_coverage
 from codenav_mcp.writes import NOT_CHECKED
 
 
@@ -549,6 +549,31 @@ def _counts(reply: Reply, args: dict[str, Any], refs: int, callers: int, impleme
 	)
 
 
+async def _unverified_references(
+	session: Session, target: _Target, locations: list[dict[str, Any]], reply: Reply
+) -> None:
+	coverage = ty_coverage(session.workspace)
+	if coverage.include or coverage.exclude:
+		reply.notes.append("Typed references omit files excluded by the ty configuration.")
+	if not target.owner or not target.name:
+		return
+	known = {_position(loc, session.workspace) for loc in locations}
+	candidates = [
+		m
+		for m in find_mentions(session.workspace, target.name, {}, include_text=False)
+		if m.column is not None
+		and _is_unlinked_attr(m)
+		and _Position(m.path, m.line, m.column + 1) not in known
+		and not coverage.excludes(session.workspace / m.path, session.workspace)
+	]
+	for m in candidates[:50]:
+		path = session.workspace / m.path
+		if await types_as_never(session.client, path, m.line, (m.column or 0) + 1):
+			reply.notes.append(f"Unverified same-name use in code ty types as Never: {m.path}:{m.line}.")
+	if len(candidates) > 50:
+		reply.notes.append("Checked the first 50 unlinked same-name attributes for Never.")
+
+
 async def _lookup(
 	session: Session,
 	name: str | None,
@@ -610,6 +635,7 @@ async def _lookup(
 		_counts(reply, args, len(locations), len(direct), None if protocol else len(related))
 		return reply.render()
 	if "references" in sections:
+		await _unverified_references(session, target, locations, reply)
 		locations.sort(key=lambda loc: _hit_key(loc, session.workspace))
 		reply.items.append(f"References ({len(locations)})")
 		reply.add_page(
@@ -667,10 +693,14 @@ async def lookup(
 		if limit < 1 or offset < 0:
 			raise ToolInputError("limit must be at least 1 and offset at least 0.")
 		if unknown := set(show or ()) - _SECTIONS:
-			raise ToolInputError(f"Unknown show section: {', '.join(sorted(unknown))}.")
+			raise ToolInputError(
+				f"Unknown show section: {', '.join(sorted(unknown))}. Valid: {', '.join(sorted(_SECTIONS))}."
+			)
 		session = await tool_base.open_session(ctx)
 		if file_path is not None:
 			tool_base.server()._check_python_file(file_path)
+			if ty_coverage(session.workspace).excludes(session.workspace / file_path, session.workspace):
+				raise ToolInputError(f"{file_path} is excluded by the ty configuration.")
 		return await _lookup(session, name, file_path, line, column, show, limit, offset)
 	except TOOL_ERRORS as exc:
 		return _ambiguity(exc, name, file_path, show, limit, offset) or _refusal(exc, lookup)
@@ -828,8 +858,11 @@ async def check(
 		if file_path is None:
 			return await _check_workspace(limit, offset)
 		srv._check_python_file(file_path)
-		client = await srv.get_client()
 		rel = srv._workspace_display_path(file_path)
+		workspace = srv.WORKSPACE_ROOT
+		if ty_coverage(workspace).excludes(workspace / file_path, workspace):
+			return Reply(f"{rel} was excluded by the ty configuration.").render()
+		client = await srv.get_client()
 		entries = entries_from_lsp(rel, "", await client.diagnostics(file_path))
 		error_count = sum(entry.is_error for entry in entries)
 		reply = Reply(

@@ -51,7 +51,7 @@ def test_given_server_when_listing_tools_then_write_tools_have_schemas_and_safet
 		assert tools[name].annotations.destructive_hint is True
 		assert "ctx" not in tools[name].input_schema["properties"]
 	assert tools["check"].annotations.read_only_hint is True
-	assert set(tools["rename"].input_schema["required"]) == {"name", "new_name"}
+	assert set(tools["rename"].input_schema["required"]) == {"new_name"}
 	assert "add" in tools["change_signature"].input_schema["properties"]
 
 

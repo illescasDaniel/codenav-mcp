@@ -271,15 +271,54 @@ def add_import(text: str, module: str, asname: str | None = None) -> str:
 	return _insert_statement(text, tree, render_import(None, [(module, asname)]))
 
 
-def _insert_statement(text: str, tree: ast.Module, statement: str) -> str:
-	lines = source_lines(text)
-	after, saw_import = _insertion_point(tree)
+def _header_end(lines: list[str]) -> int:
+	"""How many leading lines are a shebang or an encoding declaration (PEP 263: within the first two lines)."""
+	end = 0
 	for index, line in enumerate(lines[:2]):
 		if (index == 0 and line.startswith("#!")) or (
 			re.match(r"^[ \t\f]*\#.*?coding[:=]\s*[-\w.]+", line)
 			and (index == 0 or re.match(r"^[ \t\f]*(?:\#|\r?$)", lines[0]))
 		):
-			after = max(after, index + 1)
+			end = index + 1
+	return end
+
+
+def with_future_annotations(text: str) -> str:
+	"""`text` with `from __future__ import annotations` after the shebang, encoding line and module docstring."""
+	tree = parse_python(text)
+	if any(
+		isinstance(stmt, ast.ImportFrom)
+		and stmt.module == "__future__"
+		and any(alias.name == "annotations" for alias in stmt.names)
+		for stmt in tree.body
+	):
+		return text
+	docstring_end = 0
+	first = tree.body[0] if tree.body else None
+	if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+		docstring_end = first.end_lineno or 0
+	lines = source_lines(text)
+	at = max(docstring_end, _header_end(lines))
+	head, tail = "".join(lines[:at]), "".join(lines[at:])
+	if head and not head.endswith(("\n", "\r")):
+		head += "\n"
+	following_index = 1 if docstring_end else 0
+	following = tree.body[following_index] if len(tree.body) > following_index else None
+	if isinstance(following, ast.ImportFrom) and following.module == "__future__":
+		return head + "from __future__ import annotations\n" + tail
+	if following is None:
+		return head + "from __future__ import annotations\n" + tail
+	if isinstance(following, (ast.Import, ast.ImportFrom)):  # isort style: a blank line after the future imports
+		return head + "from __future__ import annotations\n\n" + tail
+	# nothing but code follows: keep PEP 8 spacing (a blank line after a docstring, two before a def/class)
+	gap = "\n" * (2 if isinstance(following, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else 1)
+	return head + ("\n" if docstring_end else "") + "from __future__ import annotations\n" + gap + tail.lstrip("\r\n")
+
+
+def _insert_statement(text: str, tree: ast.Module, statement: str) -> str:
+	lines = source_lines(text)
+	after, saw_import = _insertion_point(tree)
+	after = max(after, _header_end(lines))
 	eol = "\r\n" if "\r\n" in text else "\n"
 	statement = statement.replace("\n", eol)
 	head = "".join(lines[:after])

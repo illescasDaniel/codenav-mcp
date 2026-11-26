@@ -132,6 +132,22 @@ def undo_stored(state: WriteState, edit_id: str | None) -> AppliedEdit:
 	return state.journal.undo(edit_id)
 
 
+def reverted_outside(entry: AppliedEdit) -> bool:
+	"""Whether every file of an applied edit is back to the bytes it had before the edit (say, after `git checkout`)."""
+	return bool(entry.applied_hashes) and all(
+		_current(path) == entry.plan.base_hashes.get(path) for path in entry.applied_hashes
+	)
+
+
+def retire_if_reverted(state: WriteState, edit_id: str | None) -> AppliedEdit | None:
+	"""The edit that `undo` would target, if its files were all put back outside the tool; it leaves the history."""
+	history = state.journal.history()
+	target = next((entry for entry in history if entry.id == edit_id), None) if edit_id else next(iter(history), None)
+	if target is None or not reverted_outside(target) or state.journal._active_child(target.id) is not None:
+		return None
+	return state.journal.retire(target.id)
+
+
 def _current(path: Path) -> str | None:
 	try:
 		return hash_bytes(path.read_bytes())

@@ -107,7 +107,7 @@ def test_bug_sig_r01_plain_function_and_method_still_change(tmp_path, monkeypatc
 	text = _run(
 		loop, refactor_tools.change_signature(name="K.m", file_path="lib.py", add=[{"name": "y", "default": "0"}])
 	)
-	assert "Applied as edit" in text and "def m(self, x: int, *, y=0)" in (root / "lib.py").read_text()
+	assert "Applied as edit" in text and "def m(self, x: int, *, y: int = 0)" in (root / "lib.py").read_text()
 
 
 def test_bug_deps_r03_self_import_used_in_the_body_is_kept(tmp_path, monkeypatch, loop):

@@ -25,7 +25,7 @@ from mcp_nav_shared.resolve import resolve_symbol
 
 from codenav_mcp import tool_base
 from codenav_mcp.ambiguity import ambiguity_listing
-from codenav_mcp.deps import module_names_for
+from codenav_mcp.deps import module_names_for, not_scanned_line
 from codenav_mcp.linked import find_linked
 from codenav_mcp.mentions import Mention, find_mentions
 from codenav_mcp.pysource import (
@@ -310,6 +310,7 @@ class Data:
 	mentions: Mentions = field(default_factory=Mentions)
 	transitive: list[tuple[int, str, str]] = field(default_factory=list)  # (depth, `path:line name`, calls what)
 	notes: list[str] = field(default_factory=list)
+	not_scanned: str = ""  # one line: the directories no text scan looked into
 
 
 def write_calls(subject: Subject, change: str) -> list[str]:
@@ -400,6 +401,9 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 	subclasses = [s for s in data.sites if s.kind == "subclass"]
 	annotations = [s for s in prod if s.kind == "annotation"]
 	files = {s.path for s in everything}
+	# test files that use it, call it through an override, or hold a fake/implementation that must change with it
+	test_files = {s.path for s in everything if is_test_path(s.path)}
+	test_files |= {path for o in data.overrides if is_test_path(path := o.where.rsplit(":", 1)[0])}
 	counts = [
 		f"{len(calls_)} call{'s' if len(calls_) != 1 else ''}",
 		f"{len(values)} used as value",
@@ -417,13 +421,18 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 	strings_n = len(mention.strings) + len(mention.patch_targets) + len(mention.all_exports)
 	if (strings_n or text_n) and change != "signature":
 		counts.append(f"{strings_n} string(s), {text_n} text mention(s)")
+	elif text_n:  # a signature change leaves strings alone, but docs and examples show the old signature
+		counts.append(f"{text_n} text mention(s)")
+	unlinked_n = len({(m.path, m.line) for m in mention.unlinked})
+	if unlinked_n and change == "signature":  # callers in files the type checker does not check (scripts/, examples/)
+		counts.append(f"{unlinked_n} unresolved same-name use(s)")
 	if not everything and not data.overrides and not data.transitive:
 		extra = f"; {strings_n} string(s) and {text_n} text mention(s) name it" if strings_n or text_n else ""
 		head = f"Nothing in the project references {subject.name} ({subject.kind}, {subject.where}) besides its definition{extra}."
 	else:
 		head = (
 			f"Changing {subject.name} ({subject.kind}, {subject.where}) touches {', '.join(counts)} in {len(files)} file(s)."
-			f" Tests: {len({s.path for s in tests})} file(s)."
+			f" Tests: {len(test_files)} file(s)."
 		)
 	reply = Reply(head)
 	notes = reply.notes
@@ -480,6 +489,8 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 		"Tests that reference it (by file)",
 		[f"{path}  {desc}" for path, desc in _tests_lines([s for s in tests if s.kind != "value"])],
 	)
+	if change == "signature":
+		add("Docs and other text files that may show the old signature (file:lines)", _by_file(mention.text))
 	if change != "signature":
 		targets = [
 			f"{m.path}:{m.line}  {m.snippet}  [{'exact patch target' if exact else 'patch target?'}]"
@@ -489,7 +500,7 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 		add("Other strings (getattr, registries)", [f"{m.path}:{m.line}  {m.snippet}" for m in mention.strings])
 		add("Docs and other text files (file:lines)", _by_file(mention.text))
 		add("Comments (file:lines)", _by_file(mention.comments))
-	if mention.unlinked and change in ("any", "rename", "delete"):
+	if mention.unlinked and change in ("any", "rename", "delete", "signature"):
 		add(
 			"Same name, not resolved by the type checker (files it does not check, mocks, untyped objects, or "
 			"another symbol; file:lines)",
@@ -505,6 +516,8 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 		if in_tests:
 			reply.items.append(f"  + {in_tests} more function(s) in tests")
 	notes.extend(data.notes)
+	if data.not_scanned:
+		notes.append(data.not_scanned)
 	if subject.protocol:
 		notes.append(
 			f'{subject.name} is a Protocol: classes that satisfy it structurally are listed by lookup(name="{subject.name}", show=["implementations"])'
@@ -698,6 +711,7 @@ async def gather(session: Session, name: str, file_path: str | None, change: str
 		return read(workspace / rel_path)
 
 	data.mentions = group_mentions(raw, mention_name, qualified, read_rel)
+	data.not_scanned = not_scanned_line(workspace)
 	if depth > 1 and kind in ("function", "method", "class"):
 		data.transitive, stopped = await _transitive(session, rel, ref_line, ref_col, depth, workspace)
 		if stopped:

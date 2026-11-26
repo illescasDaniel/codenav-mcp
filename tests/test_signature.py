@@ -169,7 +169,7 @@ def test_given_removed_param_when_rebind_then_argument_dropped_positional_and_ke
 def test_given_reorder_when_rebind_then_positional_arguments_swapped():
 	# given / when / then
 	assert _rebind("f(1, 2)", "def f(a, b): ...\n", Change(reorder=["b", "a"])) == "f(2, 1)"
-	assert _rebind("f(1, b=2)", "def f(a, b): ...\n", Change(reorder=["b", "a"])) == "f(b=2, a=1)"
+	assert _rebind("f(1, b=2)", "def f(a, b): ...\n", Change(reorder=["b", "a"])) == "f(a=1, b=2)"
 
 
 def test_given_unbound_method_call_when_rebind_with_skip_then_receiver_left_alone():

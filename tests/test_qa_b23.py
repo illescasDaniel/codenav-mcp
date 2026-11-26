@@ -54,14 +54,14 @@ async def _preview(workspace: Path, plan: EditPlan, client: LspClient | None = N
 	)
 
 
-def test_rc_091_preview_of_a_new_file_is_refused_and_the_plan_is_kept(tmp_path):
+def test_rc_091_preview_of_a_new_file_is_unchecked_and_the_plan_is_kept(tmp_path):
 	# given a plan whose only change creates a file that does not exist
 	workspace = tmp_path
 	# when it is previewed
 	outcome = asyncio.run(_preview(workspace, _create_plan(workspace)))
-	# then the preview is refused, names the file, and offers the existing approval flow
-	assert isinstance(outcome.text, FailedText)
-	assert "Preview refused: the plan creates 1 new file ('new_mod.py')" in outcome.text
+	# then the unchecked preview names the file, and offers the existing approval flow
+	assert not isinstance(outcome.text, FailedText)
+	assert "Preview only, nothing written. The plan creates 1 new file ('new_mod.py')" in outcome.text
 	assert "previews never create files" in outcome.text
 	assert 'edits(action="apply", id="' in outcome.text
 	assert 'edits(action="undo", id="' in outcome.text
@@ -70,17 +70,17 @@ def test_rc_091_preview_of_a_new_file_is_refused_and_the_plan_is_kept(tmp_path):
 	assert writes.write_state(workspace).plans.get(outcome.preview_id) is not None
 
 
-def test_rc_091_refused_new_file_preview_never_touches_the_disk(tmp_path):
+def test_rc_091_unchecked_new_file_preview_never_touches_the_disk(tmp_path):
 	# given
 	workspace = tmp_path
-	# when the preview is refused
+	# when the plan is previewed
 	asyncio.run(_preview(workspace, _create_plan(workspace)))
 	# then no file was created and no directory appeared
 	assert list(workspace.iterdir()) == []
 
 
 def test_rc_091_approving_the_kept_plan_writes_it_and_undo_removes_it(tmp_path):
-	# given a refused preview whose plan was kept
+	# given an unchecked preview whose plan was kept
 	workspace = tmp_path
 	target = workspace / "new_mod.py"
 	outcome = asyncio.run(_preview(workspace, _create_plan(workspace)))
@@ -93,7 +93,7 @@ def test_rc_091_approving_the_kept_plan_writes_it_and_undo_removes_it(tmp_path):
 	assert not target.exists()
 
 
-def test_rc_091_move_preview_creating_the_destination_is_refused(tmp_path):
+def test_rc_091_move_preview_creating_the_destination_leaves_it_absent(tmp_path):
 	# given a move-like plan: create the destination, delete the source (which exists)
 	workspace = tmp_path
 	source = workspace / "old.py"
@@ -107,8 +107,8 @@ def test_rc_091_move_preview_creating_the_destination_is_refused(tmp_path):
 	)
 	# when it is previewed
 	outcome = asyncio.run(_preview(workspace, plan))
-	# then the preview is refused with the destination named, and nothing was created or deleted
-	assert "Preview refused: the plan creates 1 new file ('new_pkg/moved.py')" in outcome.text
+	# then the plan is previewed with the destination named, and nothing was created or deleted
+	assert "Preview only, nothing written. The plan creates 1 new file ('new_pkg/moved.py')" in outcome.text
 	assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
 	assert not (workspace / "new_pkg").exists()
 

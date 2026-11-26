@@ -435,6 +435,19 @@ class PersistentJournal(EditJournal):
 			self._save()
 		return entry
 
+	def retire(self, edit_id: str) -> AppliedEdit:
+		"""Drop an entry whose files were put back outside the tool: nothing is written, it just leaves the history."""
+		with _locked(self._directory):
+			self._load()
+			entry = self._entries.pop(edit_id, None)
+			if entry is None:
+				raise ToolInputError(f"edit {echo_text(edit_id)} is not in the undo history")
+			self._undone[edit_id] = None
+			while len(self._undone) > 100:
+				self._undone.popitem(last=False)
+			self._save()
+		return entry
+
 	def undo(self, edit_id: str | None = None) -> AppliedEdit:
 		with _locked(self._directory):
 			self._load()

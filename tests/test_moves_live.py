@@ -250,7 +250,7 @@ def test_given_move_module_preview_when_undo_after_apply_then_tree_restored(proj
 	originals = {p: p.read_text() for p in project.rglob("*.py")}
 	# B23: the preview is refused (the destination file does not exist yet); nothing is written
 	preview = _run(loop, refactor_tools._move_module(from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py"))
-	assert "Preview refused" in preview and (project / "src/pkg/dates.py").exists()
+	assert "Preview only, nothing written" in preview and (project / "src/pkg/dates.py").exists()
 	# when
 	_run(
 		loop,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import io
+import re
 import tokenize
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -202,6 +203,49 @@ class Change:
 	add: list[dict[str, Any]] = field(default_factory=list)
 	remove: list[str] = field(default_factory=list)
 	reorder: list[str] = field(default_factory=list)
+
+
+_LITERAL_TYPES: dict[type, str] = {bool: "bool", int: "int", float: "float", str: "str"}
+
+
+def _literal_type(source: object) -> str | None:
+	"""`bool`/`int`/`float`/`str` for source text that is a literal of that type, `None` text for "None", else None."""
+	try:
+		value = ast.literal_eval(str(source).strip())
+	except (ValueError, SyntaxError, MemoryError, RecursionError):
+		return None
+	if value is None:
+		return "None"
+	return _LITERAL_TYPES.get(type(value))
+
+
+def infer_annotations(change: Change) -> list[str]:
+	"""Give every added parameter without an `annotation` the type of its literal default (or, for a `None` default,
+	`X | None` from a literal `value`), in place; returns the notes saying what was inferred and what could not be."""
+	inferred: list[str] = []
+	missing: list[str] = []
+	for index, spec in enumerate(change.add):
+		if spec.get("annotation") or not isinstance(spec.get("name"), str):
+			continue
+		default, value = spec.get("default"), spec.get("value")
+		kind = _literal_type(default) if default is not None else _literal_type(value)
+		if kind == "None":  # the default says "absent": the type has to come from a value, if one is given
+			other = _literal_type(value) if value is not None else None
+			kind = f"{other} | None" if other not in (None, "None") else None
+		if kind is None:
+			missing.append(spec["name"])
+			continue
+		change.add[index] = {**spec, "annotation": kind}
+		inferred.append(f"{spec['name']}: {kind}")
+	notes = []
+	if inferred:
+		notes.append(f"annotated from the default: {', '.join(inferred)}; pass annotation=... to choose another type")
+	if missing:
+		notes.append(
+			f"added {', '.join(missing)} without a type annotation (cannot infer one from the default); "
+			"pass annotation=... to add it"
+		)
+	return notes
 
 
 def added_keyword_only(spec: dict[str, Any]) -> bool:
@@ -401,6 +445,8 @@ def rebind_call(
 		if param.kind == POSONLY:
 			raise ManualCallError(f"positional-only parameter {param.name!r} would have to be passed by keyword")
 		broken = True
+		if source is not None and not was_positional:
+			continue  # already a keyword argument: kept below, in the order and spelling it was written
 		keyword_out.append((f"{param.name}={text}", source))
 		emitted.add(param.name)
 	if extras:
@@ -481,21 +527,32 @@ def call_edit(
 		raise ManualCallError("could not locate the argument list")
 	if not old_args:
 		return span[0], span[0], ", ".join(new_args)
-	multiline = "\n" in smap.text[old_args[0].start : old_args[-1].end]
-	if multiline and common < len(old_args):
-		row = smap.text[: old_args[common].start].rsplit("\n", 1)[-1]
-		indent = row[: len(row) - len(row.lstrip())]
-		separator = ",\n" + indent
-	else:
-		separator = ", "
 	tail = new_args[common:]
+	separator = _separator(smap, old_args, common)
 	if common == len(old_args):  # arguments only added
 		return old_args[-1].end, old_args[-1].end, separator + separator.join(tail)
 	if not tail:  # arguments only removed from the end
-		if common == 0:
-			return old_args[0].start, old_args[-1].end, ""
+		if common == 0:  # no argument left: empty the parentheses, trailing comma and layout included
+			return span[0], span[1], ""
 		return old_args[common - 1].end, old_args[-1].end, ""
 	return old_args[common].start, old_args[-1].end, separator.join(tail)
+
+
+_GAP = re.compile(r",[ \t\r\n\f]*")
+
+
+def _separator(smap: SourceMap, old_args: list[CallArg], common: int) -> str:
+	"""The text that separates arguments where the change happens: the call's own, so its layout is kept."""
+	if len(old_args) >= 2:
+		after = min(max(common, 1), len(old_args) - 1)
+		gap = smap.text[old_args[after - 1].end : old_args[after].start]
+		if _GAP.fullmatch(gap):
+			return gap
+	anchor = old_args[min(common, len(old_args) - 1)]
+	row = smap.text[: anchor.start].rsplit("\n", 1)
+	if len(row) == 2 and not row[1].strip():  # the argument starts its own line: a new one gets a line too
+		return ",\n" + row[1]
+	return ", "
 
 
 def find_call_at(tree: ast.Module, smap: SourceMap, end: tuple[int, int]) -> ast.Call | None:

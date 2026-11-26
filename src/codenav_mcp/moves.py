@@ -17,6 +17,7 @@ from mcp_nav_shared.edits import EditPlan, FileChange, convert_eol, detect_eol, 
 from mcp_nav_shared.errors import ToolInputError
 from mcp_nav_shared.transaction import refuse_home_path
 
+from codenav_mcp.all_entries import drop_all_entry as _drop_all_entry
 from codenav_mcp.deps import (
 	Skipped,
 	find_dependents_report,
@@ -25,7 +26,15 @@ from codenav_mcp.deps import (
 	module_names_for,
 	primary_module_name,
 )
-from codenav_mcp.imports import ImportStmt, add_from_import, add_import, module_imports, remove_names, render_alias
+from codenav_mcp.imports import (
+	ImportStmt,
+	add_from_import,
+	add_import,
+	module_imports,
+	remove_names,
+	render_alias,
+	with_future_annotations as _with_future_annotations,
+)
 from codenav_mcp.mentions import find_mentions, format_mentions
 from codenav_mcp.pysource import (
 	check_syntax,
@@ -181,24 +190,6 @@ def _has_future_annotations(tree: ast.Module) -> bool:
 	)
 
 
-def _with_future_annotations(text: str) -> str:
-	tree = parse_python(text)
-	if _has_future_annotations(tree):
-		return text
-	at = 0
-	first = tree.body[0] if tree.body else None
-	if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
-		at = first.end_lineno or 0  # after the module docstring
-	lines = source_lines(text)
-	head, tail = "".join(lines[:at]), "".join(lines[at:])
-	following = tree.body[1 if at else 0] if len(tree.body) > (1 if at else 0) else None
-	if following is None or isinstance(following, (ast.Import, ast.ImportFrom)):
-		return head + "from __future__ import annotations\n" + tail
-	# nothing but code follows: keep PEP 8 spacing (a blank line after a docstring, two before a def/class)
-	gap = "\n" * (2 if isinstance(following, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else 1)
-	return head + ("\n" if head else "") + "from __future__ import annotations\n" + gap + tail.lstrip("\r\n")
-
-
 def _all_literal(tree: ast.Module) -> ast.List | ast.Tuple | None:
 	"""The literal value of a module-level `__all__ = [...]` (or tuple), if there is one."""
 	found: ast.List | ast.Tuple | None = None
@@ -217,41 +208,6 @@ def _all_names(tree: ast.Module) -> set[str]:
 	if literal is None:
 		return set()
 	return {e.value for e in literal.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)}
-
-
-def _drop_all_entry(text: str, name: str) -> str:
-	literal = _all_literal(parse_python(text))
-	if literal is None:
-		return text
-	smap = SourceMap(text)
-	edits: list[tuple[int, int, str]] = []
-	for element in literal.elts:
-		if not (isinstance(element, ast.Constant) and element.value == name):
-			continue
-		start, end = smap.start(element), smap.end(element)
-		after = end
-		while after < len(text) and text[after] in " \t\r\n":
-			after += 1
-		if after < len(text) and text[after] == ",":
-			stop = after + 1
-			while stop < len(text) and text[stop] == " ":
-				stop += 1
-			line_start = text.rfind("\n", 0, start) + 1
-			line_end = text.find("\n", stop)
-			line_end = len(text) if line_end == -1 else line_end
-			rest = text[stop:line_end].strip()
-			if not text[line_start:start].strip() and (not rest or rest.startswith("#")):
-				# the entry is alone on its line (a trailing comment belongs to it): drop the whole line, so no
-				# whitespace-only line is left behind
-				edits.append((line_start, min(line_end + 1, len(text)), ""))
-			else:
-				edits.append((start, stop, ""))
-			continue
-		before = start - 1
-		while before >= 0 and text[before] in " \t\r\n":
-			before -= 1
-		edits.append((before if before >= 0 and text[before] == "," else start, end, ""))
-	return apply_offset_edits(text, edits)
 
 
 def _add_all_entry(text: str, name: str) -> str:
@@ -281,7 +237,7 @@ async def plan_move_symbol(
 			raise ToolInputError("nested functions cannot be moved; move the enclosing top-level function or class")
 		raise ToolInputError(
 			f"{definition.qualname} is nested inside {definition.parent.name}; only module-level symbols can be moved. "
-			"For a method, change the code with edit_symbol or edit instead; move cannot take a method with it."
+			"For a method, change the code with edit_symbol instead; move cannot take a method with it."
 		)
 	dest = _resolve_dest(session, to_file)
 	if dest == src:
@@ -499,11 +455,9 @@ async def plan_move_symbol(
 	]:
 		rel = relative_name(path, workspace)
 		edited = convert_eol(edited, detect_eol(original) if original else src_eol)
-		if original:
-			edited = sort_imports(workspace, original, edited, rel)
-			reason = sort_failure()
-			if reason:
-				notes.append(f"{rel}: {reason}")
+		edited = sort_imports(workspace, original, edited, rel)
+		if reason := sort_failure():
+			notes.append(f"{rel}: {reason}")
 		check_syntax(edited, rel)
 		# Preserve source permissions so a move cannot expose previously private code.
 		created_mode = src.stat().st_mode if path == dest and not path.exists() else None

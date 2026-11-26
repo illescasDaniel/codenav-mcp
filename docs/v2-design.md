@@ -95,16 +95,19 @@ and its preview flag.
 
 ### rename
 ```
-rename(name: str, new_name: str, file_path: str | None = None, apply: bool = True, sites: list[str] | None = None)
+rename(new_name, name=None, file_path=None, line=None, column=None, parameter=None, apply=True, sites=None)
 ```
+- Select the target by name with an optional file path, or with a file path and 1-based UTF-16 line and column.
+  Set `parameter` to rename a function parameter and its linked keyword arguments.
 - Certain sites (linked references, implementations/overrides, exact dotted patch-target strings
   `"pkg.mod.Class.old"` naming the renamed symbol, keyword arguments of calls that ty links to the symbol)
   are written.
 - Uncertain sites get ids `u1..uN` in the reply: unlinked attribute accesses on Mock/untyped receivers
   (ty-checked as in 1.x round 3: receivers resolving to another symbol are NOT candidates), `Mock(old=...)`
-  keyword args, same-named defs in test fakes, comments, docstrings. `sites=["u1","u3"]` or `sites=["all"]`
+  keyword args, same-named defs in test fakes, comments, docstrings, and code-like mentions in docs and config files. `sites=["u1","u3"]` or `sites=["all"]`
   on a rerun or on `edits(action="apply", id=..., sites=[...])` adds them.
-- Removes `include_unlinked_attrs`.
+- When ty reports `Never` at a possible production call, the rename holds the write for review.
+- A generated document with a generator marker is listed with its generator path when it mentions the old name.
 
 ### change_signature
 Same as 1.x (add/remove/reorder, keyword rewrite, holds incomplete plans, keyword_only hint). Add `sites=`

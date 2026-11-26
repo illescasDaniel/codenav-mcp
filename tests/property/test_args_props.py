@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import inspect
 
-import pytest
 from hypothesis import assume, given, strategies as st
 
 from codenav_mcp import args as args_module
@@ -128,7 +127,6 @@ def test_given_a_tool_then_a_key_it_cannot_take_is_never_silently_dropped(args):
 	assert {target_of(key, params) for key in args} == set(resolved)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #7")
 def test_given_an_alias_true_and_its_target_one_then_they_are_a_conflict_not_a_merge():
 	resolved, problem = resolve_aliases("t", {"line"}, {"line": 1, "lineno": True})
 	assert problem is not None, resolved

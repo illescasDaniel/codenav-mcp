@@ -42,6 +42,7 @@ from codenav_mcp.signature import (
 	apply_offset_edits,
 	call_edit,
 	find_call_at,
+	infer_annotations,
 	new_params,
 	read_call_args,
 	read_signature,
@@ -255,7 +256,7 @@ async def _plan_signature(
 	declarations = [
 		Declaration(origin_ctx, target_def, ref_line, ref_col, is_constructor, frozenset({ref_definition.name}))
 	]
-	notes: list[str] = []
+	notes: list[str] = infer_annotations(change)
 	if target_def.kind == "method" and target_def.name not in ("__init__", "__new__"):
 		related = await find_linked(
 			session.client,

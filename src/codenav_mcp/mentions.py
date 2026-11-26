@@ -17,13 +17,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mcp_nav_shared.edits import TextEdit, decode_source, relative_name
+from mcp_nav_shared.errors import TOOL_ERRORS
 from mcp_nav_shared.exclude import excluded_names
+from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp.deps import ENV_PREFIX, iter_python_files
 from codenav_mcp.pysource import reject_nul, utf16_column
 
 
-_TEXT_SUFFIXES = {".md", ".rst", ".txt", ".toml", ".yml", ".yaml", ".cfg", ".ini", ".json"}
+TEXT_SUFFIXES = frozenset({".md", ".rst", ".txt", ".toml", ".yml", ".yaml", ".cfg", ".ini", ".json"})
 _MAX_TEXT_FILES = 400
 _MAX_TEXT_BYTES = 512_000
 _FSTRING_MIDDLE = getattr(tokenize, "FSTRING_MIDDLE", None)
@@ -37,6 +39,18 @@ class Mention:
 	snippet: str
 	column: int | None = None  # 0-based UTF-16 column of an "attr" / "code" name; None for the other kinds
 	value: str | None = None  # a dotted string literal, when present
+
+
+async def types_as_never(client: LspClient, path: Path, line: int, column: int) -> bool:
+	"""True when ty types the expression at (1-based line, column) as `Never`: it keeps a stale narrowing (`assert x is
+	None` after `x.stop()`), so it resolves nothing below it and silently drops those uses from references and renames."""
+	try:
+		hover = await client.hover(str(path), line, column)
+	except TOOL_ERRORS:
+		return False
+	contents = (hover or {}).get("contents")
+	value = contents.get("value") if isinstance(contents, dict) else contents
+	return isinstance(value, str) and value.strip() == "Never"
 
 
 def _lines(text: str) -> list[str]:
@@ -108,7 +122,7 @@ def _text_files(workspace: Path, limit: int | None) -> list[Path]:
 			continue
 		dirs[:] = sorted(d for d in dirs if d not in skip)
 		for filename in sorted(names):
-			if Path(filename).suffix.lower() in _TEXT_SUFFIXES:
+			if Path(filename).suffix.lower() in TEXT_SUFFIXES:
 				files.append(Path(directory) / filename)
 				if limit is not None and len(files) >= limit:
 					return files

@@ -10,8 +10,9 @@ from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
 
 from codenav_mcp import edit_ops, tool_base
 from codenav_mcp.edit_state import StoredPlan, age_text, changed_files
+from codenav_mcp.plan_diff import plan_diff
 from codenav_mcp.reply import Reply, call, paginate
-from codenav_mcp.writes import WriteState, write_state
+from codenav_mcp.writes import WriteState, undo_call, write_state
 
 
 _ACTIONS = ("list", "apply", "undo", "show")
@@ -96,7 +97,10 @@ def _list(state: WriteState, limit: int) -> str:
 				age_text(state.journal.applied_at.get(entry.id, 0.0)) if state.journal.applied_at.get(entry.id) else ""
 			)
 			files = _count(len(entry.plan.changes), "file")
-			flag = f"  [changed since: {', '.join(stale[:3])}]" if stale else ""
+			if stale and edit_ops.reverted_outside(entry):
+				flag = "  [changed since: reverted outside edits]"
+			else:
+				flag = f"  [changed since: {', '.join(stale[:3])}]" if stale else ""
 			reply.items.append(f"  {entry.id}  {entry.plan.description}  [{files}]  {age}{flag}".rstrip())
 		if page.more:
 			reply.items.append(f"  ... {page.more} older")
@@ -107,7 +111,7 @@ def _list(state: WriteState, limit: int) -> str:
 	if history:
 		newest = history[0]
 		# An undo of an entry whose files changed afterwards is refused: point at `show` instead.
-		verb = "show" if _entry_changed(newest, state) else "undo"
+		verb = "show" if _entry_changed(newest, state) and not edit_ops.reverted_outside(newest) else "undo"
 		reply.next_calls.append(call("edits", action=verb, id=newest.id))
 	if more_calls:
 		reply.next_calls.append(more_calls[0])
@@ -145,7 +149,7 @@ async def _apply(ctx: Context | None, plan_id: str | None, sites: list[str] | No
 			raise ToolInputError(f"give the preview to apply: {which}. Example: {call('edits', action='list')}")
 		plan_id = pending[0].id
 	result = await edit_ops.apply_stored(session, plan_id, sites=sites, allow_large=allow_large)
-	reply = Reply(f"Applied edit {result.entry.id}: {result.plan.description}")
+	reply = Reply(f"Applied edit {result.entry.id}: {result.plan.description} (undo: {undo_call(result.entry.id)})")
 	reply.items += result.plan.summary(session.workspace).splitlines()
 	reply.items += result.after.splitlines()
 	reply.notes += result.plan.notes[:8]
@@ -159,6 +163,13 @@ async def _apply(ctx: Context | None, plan_id: str | None, sites: list[str] | No
 
 
 def _undo(state: WriteState, edit_id: str | None) -> str:
+	if (reverted := edit_ops.retire_if_reverted(state, edit_id)) is not None:
+		reply = Reply(
+			f"Edit {reverted.id} was already reverted outside edits (its files are back to what they were); "
+			"nothing to undo. Removed it from the history."
+		)
+		reply.notes += _unsaved_note(state)
+		return reply.render()
 	entry = edit_ops.undo_stored(state, edit_id)
 	reply = Reply(f"Reverted edit {entry.id}: {entry.plan.description}")
 	reply.items += entry.plan.summary(state.root).splitlines()
@@ -209,7 +220,7 @@ def _show(state: WriteState, workspace: Any, plan_id: str | None) -> str:
 				apply_args["sites"] = ["all"]
 			reply.next_calls.append(call("edits", **apply_args))
 	else:
-		reply.answer = f"Applied edit {plan_id}: {plan.description} - {files}"
+		reply.answer = f"Applied edit {plan_id}: {plan.description} - {files} (undo: {undo_call(plan_id)})"
 		reply.items += plan.summary(workspace).splitlines()
 		if followup := state.journal.followup(plan_id):
 			reply.items.append("Optional sites (opt in by id):")
@@ -223,7 +234,7 @@ def _show(state: WriteState, workspace: Any, plan_id: str | None) -> str:
 				reply.next_calls.append(call("edits", action="apply", id=plan_id, sites=["all"]))
 		reply.next_calls.append(call("edits", action="undo", id=plan_id))
 	reply.notes += plan.notes[:8]
-	diff = plan.diff(workspace, max_lines=_DIFF_LINES).rstrip()
+	diff = plan_diff(plan, workspace, max_lines=_DIFF_LINES).rstrip()
 	if diff:
 		reply.items += ["", *diff.splitlines()]
 	return reply.render()

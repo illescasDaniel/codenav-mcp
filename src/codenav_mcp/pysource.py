@@ -131,6 +131,14 @@ def leading_whitespace(line: str) -> str:
 	return line[: len(line) - len(line.lstrip(" \t"))]
 
 
+def _form_feed_prefix(line: str) -> str:
+	"""The leading run of spaces, tabs and form feeds up to and including its last form feed ('' if there is none).
+
+	A form feed resets Python's indentation column, so what counts as the line's indent is what follows it."""
+	lead = line[: len(line) - len(line.lstrip(" \t\x0c"))]
+	return lead[: lead.rfind("\x0c") + 1]
+
+
 @dataclass(frozen=True)
 class Definition:
 	node: _DefNode
@@ -336,6 +344,8 @@ def convert_indent_unit(source: str, unit: str) -> str:
 		if number in protected or not line.strip():
 			out.append(line)
 			continue
+		reset = _form_feed_prefix(line)
+		line = line[len(reset) :]
 		lead = leading_whitespace(line)
 		if own == "\t":
 			depth = lead.count("\t")
@@ -344,7 +354,7 @@ def convert_indent_unit(source: str, unit: str) -> str:
 			width = len(own)
 			depth, remainder = divmod(len(lead.replace("\t", own)), width)
 			rest = " " * remainder
-		out.append(unit * depth + rest + line[len(lead) :])
+		out.append(reset + unit * depth + rest + line[len(lead) :])
 	return "".join(out)
 
 
@@ -355,7 +365,11 @@ def indent_block(source: str, indent: str) -> str:
 	protected = _string_continuation_lines(source)
 	out = []
 	for number, line in enumerate(source_lines(source), start=1):
-		out.append(line if number in protected or not line.strip() else indent + line)
+		if number in protected or not line.strip():
+			out.append(line)
+		else:  # after a form feed, which resets the column: `\x0c pass` indented by a tab is `\x0c\t pass`
+			reset = _form_feed_prefix(line)
+			out.append(reset + indent + line[len(reset) :])
 	return "".join(out)
 
 

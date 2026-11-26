@@ -17,7 +17,7 @@ from hypothesis import assume, event, given, strategies as st
 from mcp_nav_shared.edits import EditPlan, FileChange, TextEdit
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp.plan_merge import _hunks, add_sites, merge_plans, site_followup
+from codenav_mcp.plan_merge import add_sites, merge_plans, site_followup
 from codenav_mcp.plan_sites import OptionalSite
 
 
@@ -93,10 +93,6 @@ FILE = Path(_tmp.name).resolve() / "m.py"
 def test_given_plans_from_one_base_then_merging_equals_applying_every_edit_or_refuses_an_overlap(pair):
 	base, plans = pair
 	flat = [(order, edit) for order, edits in enumerate(plans) for edit in edits]
-	# FINDINGS-h3 #4: a repeated identical insert is only de-duplicated when its copies are neighbours.
-	for point in {(e.start, e.end) for _, e in flat if e.start == e.end}:
-		here = [e for _, e in flat if (e.start, e.end) == point]
-		assume(len(set(here)) == len(here) or len(set(here)) == 1)
 	conflicts = [
 		(a, b) for index, (oa, a) in enumerate(flat) for ob, b in flat[index + 1 :] if oa != ob and overlap(a, b)
 	]
@@ -146,7 +142,6 @@ def test_given_one_plan_merged_with_itself_then_it_is_applied_once(pair):
 	assert [c.new_text for c in merged.changes] == [plan.changes[0].new_text]
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #4")
 def test_given_the_same_insert_in_two_items_with_another_insert_between_then_it_is_written_once():
 	base = ["a = 1\n", "b = 2\n"]
 	same = LineEdit(1, 1, ("import os\n",))
@@ -162,7 +157,6 @@ def test_given_the_same_insert_in_two_items_with_another_insert_between_then_it_
 	assert (merged.changes[0].new_text or "").count("import os") == 1
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #5")
 def test_given_two_edits_on_different_lines_of_a_file_with_repeated_lines_then_they_merge():
 	base = ["x = 1\n", "x = 1\n", "x = 1\n"]
 	one = ["FIRST\n", "x = 1\n", "x = 1\n"]
@@ -177,7 +171,6 @@ def test_given_two_edits_on_different_lines_of_a_file_with_repeated_lines_then_t
 	assert [c.new_text for c in merged.changes] == ["FIRST\nx = 1\nSECOND\n"]
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #6")
 def test_given_two_edits_whose_diffs_share_an_incidental_hunk_then_the_merge_is_not_silently_wrong():
 	base = "x = 1\n" * 4
 	one = "FIRST\n" + "x = 1\n" * 3
@@ -192,7 +185,6 @@ def test_given_two_edits_whose_diffs_share_an_incidental_hunk_then_the_merge_is_
 	assert [c.new_text for c in merged.changes] == ["FIRST\nx = 1\nSECOND\nx = 1\n"]
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #12")
 def test_given_two_single_line_edits_in_a_file_with_repeated_blocks_then_each_lands_on_its_own_line():
 	base = ["pass\n", "x = 1\n", "x = 1\n", "pass\n", "x = 1\n", "x = 1\n"]
 	one = ["FIRST\n", *base[1:]]
@@ -217,15 +209,6 @@ def test_given_repetitive_lines_then_two_plans_on_disjoint_places_still_give_a_v
 	one, two = list(base), list(base)
 	one[first] = "FIRST\n"
 	two[second] = "SECOND\n"
-	# FINDINGS-h3 #6: hunks that two plans happen to share (say, the same line deleted) are merged as one edit.
-	shared = {(a, b, tuple(c)) for a, b, c in _hunks("".join(base), "".join(one))} & {
-		(a, b, tuple(c)) for a, b, c in _hunks("".join(base), "".join(two))
-	}
-	assume(not shared)
-	# FINDINGS-h3 #12: with repeated lines difflib may report a plan's single edit at another place than intended;
-	# only plans whose diff is exactly the intended single-line replacement are merged here.
-	for edited, at, text in ((one, first, "FIRST\n"), (two, second, "SECOND\n")):
-		assume([(a, b, tuple(c)) for a, b, c in _hunks("".join(base), "".join(edited))] == [(at, at + 1, (text,))])
 	try:
 		merged = merge_plans(
 			[
@@ -234,9 +217,8 @@ def test_given_repetitive_lines_then_two_plans_on_disjoint_places_still_give_a_v
 			],
 			"m",
 		)
-	except ToolInputError:
-		event("false refusal (FINDINGS-h3 #5)")  # fail-safe, but the two edits do not touch the same line
-		return
+	except ToolInputError as exc:  # two edits on lines that are not even adjacent must merge
+		pytest.fail(f"false refusal: {exc}\n{base}\n{first} {second}")
 	expected = list(base)
 	expected[first], expected[second] = "FIRST\n", "SECOND\n"
 	assert [c.new_text for c in merged.changes] == ["".join(expected)]

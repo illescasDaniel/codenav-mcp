@@ -27,7 +27,15 @@ from mcp_nav_shared.lsp_client import LspClient
 from mcp_nav_shared.resolve import resolve_symbol
 from mcp_nav_shared.transaction import WriteGuard
 
-from codenav_mcp.deps import Skipped, SkipReason, find_dependents, format_skipped, module_names_for
+from codenav_mcp.attr_strings import Owner
+from codenav_mcp.deps import (
+	Skipped,
+	SkipReason,
+	find_dependents,
+	format_skipped,
+	import_from_targets,
+	module_names_for,
+)
 from codenav_mcp.linked import Conforms, classes_in_file, external_declaration, find_linked, locate_member_class
 from codenav_mcp.mentions import Mention
 from codenav_mcp.plan_sites import OptionalSite
@@ -43,6 +51,7 @@ from codenav_mcp.pysource import (
 	parse_python,
 	source_lines,
 	top_level_names,
+	utf16_column,
 	utf16_to_index,
 )
 from codenav_mcp.rename_sites import Declaration, plan_v2_sites
@@ -304,6 +313,49 @@ def dunder_all_edits(text: str, old: str, new: str) -> list[TextEdit]:
 	return edits
 
 
+@dataclass(frozen=True)
+class ReexportAlias:
+	"""`from .m import old as old` in an importer: the name and its alias, both 1-based (line, UTF-16 column)."""
+
+	path: Path
+	name: tuple[int, int]
+	alias: tuple[int, int]
+
+
+def find_reexport_aliases(
+	workspace: Path, roots: Sequence[Path], target_path: Path, old: str, *, limit: int = 200
+) -> list[ReexportAlias]:
+	"""Importers that re-export the renamed module-level symbol under its own name (`from .m import old as old`).
+	ty links such an alias to nothing: renaming the declaration leaves `old` imported from `m` (a broken import),
+	and the users of the package's `old` keep an unresolved name. Only module-level `from` statements count."""
+	modules = module_names_for(target_path, roots or [workspace])
+	found: list[ReexportAlias] = []
+	for importer in find_dependents(workspace, [target_path], roots or [workspace]):
+		try:
+			text = read_source(importer)[0]
+			tree = parse_python(text, str(importer))
+		except (OSError, UnicodeDecodeError, ValueError, PythonSyntaxError):
+			continue
+		own = module_names_for(importer, roots or [workspace])
+		lines = source_lines(text)
+		for stmt in tree.body:
+			if not isinstance(stmt, ast.ImportFrom):
+				continue
+			if not import_from_targets(stmt, own, is_package_init=importer.name == "__init__.py") & modules:
+				continue
+			for alias in stmt.names:
+				if alias.name != old or alias.asname != old:
+					continue
+				line, column = node_position(lines, alias)
+				row = lines[line - 1]
+				match = re.compile(rf"\bas\s+({re.escape(old)})\b").search(row, utf16_to_index(row, column - 1))
+				if match is not None and len(found) < limit:
+					found.append(
+						ReexportAlias(importer.resolve(), (line, column), (line, utf16_column(row, match.start(1)) + 1))
+					)
+	return found
+
+
 def _merge(into: dict[Path, list[TextEdit]], more: dict[Path, list[TextEdit]]) -> None:
 	for path, edits in more.items():
 		bucket = into.setdefault(path.resolve(), [])
@@ -547,6 +599,23 @@ async def plan_rename(
 				notes.append(f"could not rename {declaration.qualname} in {twin.name}: {exc}")
 			else:
 				merge_server_edits(more)
+	reexports: list[ReexportAlias] = []
+	if module_level or (
+		target.parameter is None and declaration is None and old_name in top_level_names(parse_python(text))
+	):
+		reexports = find_reexport_aliases(workspace, roots, target.path, old_name)
+	for alias in reexports:
+		# `from .m import old as old` -> `from .m import new as new`: the source name here, the alias through ty so
+		# the package's own users (`from pkg import old`, `pkg.old`) follow it.
+		line, column = alias.name
+		width = len(old_name.encode("utf-16-le")) // 2
+		merge_bom_free(alias.path, [TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)])
+		try:
+			more = await client.rename(str(alias.path), *alias.alias, new_name)
+		except TOOL_ERRORS as exc:
+			notes.append(f"could not rename the re-export in {relative_name(alias.path, workspace)}: {exc}")
+		else:
+			merge_server_edits(more)
 	if target.parameter is None and locate_member_class(text, target.line, old_name) is None:
 		# A literal `__all__` that exports the old name follows the rename, in this module and in any
 		# re-exporting `__init__.py` the rename touches (D36).
@@ -558,6 +627,29 @@ async def plan_rename(
 	declarations = [_declaration_for(target.path, target.line, old_name)] if target.parameter is None else []
 	if target.parameter is None:
 		declarations += [_declaration_for(site.cls.path, site.line, old_name) for site in related.sites]
+	owner = locate_member_class(text, target.member_line, member_name)
+	# Names a call to the renamed member/parameter can have: the function, its class (constructor keywords) and the
+	# classes that declare linked overrides.
+	callables = {member_name, *([owner.name] if owner else []), *(site.cls.name for site in related.sites)}
+	module_names = top_level_names(parse_python(text)) if target.parameter is None else set()
+	owner_classes = {(site.cls.path.resolve(), site.cls.def_line) for site in related.sites}
+	if owner is not None:
+		owner_classes.add((target.path.resolve(), owner.def_line))
+	string_owner: Owner | None = None
+	if target.parameter is None and is_member:
+		string_owner = Owner(classes=owner_classes)
+	elif target.parameter is None and old_name in module_names:
+		string_owner = Owner(modules={target.path.resolve(), *([twin.resolve()] if twin else [])})
+	table_files: set[Path] = set()
+	if target.parameter is None and not is_member:
+		# Where a package re-exports the symbol: the `__init__.py` files above the declaring module, and the
+		# importers that re-export it under its own name.
+		table_files = {alias.path for alias in reexports}
+		table_files |= {
+			(parent / "__init__.py").resolve()
+			for parent in target.path.resolve().parents
+			if parent.is_relative_to(workspace.resolve()) and (parent / "__init__.py").is_file()
+		}
 	sites = await plan_v2_sites(
 		client,
 		workspace,
@@ -568,6 +660,9 @@ async def plan_rename(
 		is_member=is_member,
 		parameter=target.parameter is not None,
 		link_keywords=target.parameter is not None or declaration is None,
+		callables=callables - {""},
+		owner=string_owner,
+		table_files=table_files,
 		edits=edits,
 		split_attrs=_split_unlinked_attrs,
 		is_unlinked_attr=_is_unlinked_attr,
@@ -575,7 +670,7 @@ async def plan_rename(
 	for path, extra in sites.certain.items():
 		guard.check_path(path)
 		merge_bom_free(path, extra)
-	notes += sites.notes
+	notes = [*sites.generated, *notes, *sites.notes]
 	for path in edits:
 		guard.check_path(path)
 	changes = changes_from_edits(

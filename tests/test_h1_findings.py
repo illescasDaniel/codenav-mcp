@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.integration, needs_ty]
 loop = make_loop_fixture()
 
 SCHEMAS = {
-	"rename": {"name", "new_name", "file_path", "apply", "sites"},
+	"rename": {"name", "new_name", "file_path", "line", "column", "parameter", "apply", "sites"},
 	"lookup": {"name", "file_path", "line", "column", "show", "limit", "offset"},
 }
 
@@ -40,7 +40,6 @@ def _listed_or_rewritten(root: Path, reply: str, file: str, needle: str, new: st
 	return True
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #1")
 def test_f1_string_attribute_names_are_rewritten_or_listed(tmp_path, monkeypatch, loop):
 	"""rename of `helper` leaves hasattr/getattr/monkeypatch.setattr(mod, "helper", ...) alone and does not list them."""
 	root = make_workspace(
@@ -59,7 +58,6 @@ def test_f1_string_attribute_names_are_rewritten_or_listed(tmp_path, monkeypatch
 	assert _listed_or_rewritten(root, reply, "tests/test_use.py", '"helper"', '"assist"')
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #2")
 def test_f2_gate_checks_files_that_subclass_through_a_package_reexport(tmp_path, monkeypatch, loop):
 	"""click: `change_signature(Command.parse_args, add=...)` applied with "0 new errors" although tests/ subclasses
 	`click.Command` (import click; class X(click.Command)) and now overrides it incompatibly (ty error)."""
@@ -87,7 +85,6 @@ def test_f2_gate_checks_files_that_subclass_through_a_package_reexport(tmp_path,
 	assert "invalid-method-override" not in checked.stdout or "NOT applied" in reply
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #3")
 def test_f3_delete_of_a_constant_does_not_point_at_a_removed_tool(tmp_path, monkeypatch, loop):
 	make_workspace(tmp_path, monkeypatch, {"src/pkg/__init__.py": "", "src/pkg/core.py": "LIMIT = 3\n"})
 	reply = _run(loop, edit_tools.edit_symbol(name="LIMIT", action="delete", file_path="src/pkg/core.py"))
@@ -96,7 +93,6 @@ def test_f3_delete_of_a_constant_does_not_point_at_a_removed_tool(tmp_path, monk
 	assert check_reply_format(reply, True, SCHEMAS) == []
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #4")
 def test_f4_ambiguity_retry_entries_are_calls(tmp_path, monkeypatch, loop):
 	make_workspace(
 		tmp_path,
@@ -108,7 +104,6 @@ def test_f4_ambiguity_retry_entries_are_calls(tmp_path, monkeypatch, loop):
 	assert check_reply_format(reply, True, SCHEMAS) == []
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #5")
 def test_f5_unused_and_delete_agree_on_a_string_forward_reference(tmp_path, monkeypatch, loop):
 	make_workspace(
 		tmp_path,
@@ -126,7 +121,6 @@ def test_f5_unused_and_delete_agree_on_a_string_forward_reference(tmp_path, monk
 		assert "Not deleted" not in reply
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #6")
 def test_f6_rename_updates_the_package_reexport(tmp_path, monkeypatch, loop):
 	root = make_workspace(
 		tmp_path,
@@ -142,7 +136,6 @@ def test_f6_rename_updates_the_package_reexport(tmp_path, monkeypatch, loop):
 	assert "wrap_text" in (root / "src/pkg/__init__.py").read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h1 #7")
 def test_f7_markdown_mentions_of_the_symbol_get_an_optional_site_id(tmp_path, monkeypatch, loop):
 	"""srxy: a test compares committed docs/api-reference.md with the rendered API; renaming the class left it red.
 	The reply only counts non-Python mentions ("3 non-Python file (not listed ...)"), so `sites=` cannot opt them in."""

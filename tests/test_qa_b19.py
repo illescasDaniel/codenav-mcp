@@ -211,7 +211,7 @@ def test_rc_b19_move_preview_creating_the_destination_is_refused(tmp_path, monke
 		refactor_tools._move_module(from_file="src/pkg/util.py", to_file="src/pkg/common.py", apply=False)
 	)
 
-	assert "Preview refused" in text and "src/pkg/common.py" in text
+	assert "Preview only, nothing written" in text and "src/pkg/common.py" in text  # a normal preview since fix D4
 	assert "previews never create files" in text
 	assert (project / "src/pkg/util.py").is_file()
 	assert not (project / "src/pkg/common.py").exists()

@@ -43,7 +43,7 @@ from codenav_mcp.deps import (
 	module_names_for,
 )
 from codenav_mcp.imports import add_from_import, add_import, module_imports, remove_names
-from codenav_mcp.mentions import Mention, find_mentions, format_mentions
+from codenav_mcp.mentions import format_mentions
 from codenav_mcp.pysource import (
 	Definition,
 	check_syntax,
@@ -61,10 +61,39 @@ from codenav_mcp.pysource import (
 from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.tidy import sort_failure, sort_imports
 from codenav_mcp.tool_base import Session, open_session
+from codenav_mcp.uses import unlinked_uses
 from codenav_mcp.writes import apply_call, finish_plan, require_workspace_file
 
 
-async def _locate(session: Session, name: str, file_path: str | None) -> tuple[Path, str, Definition]:
+def _statement_text(text: str, line: int) -> str:
+	"""The (whole) simple statement that contains 1-based `line`, as written in `text`; just that line if none is found."""
+	lines = text.splitlines(keepends=True)
+	try:
+		nodes = [
+			n
+			for n in ast.walk(ast.parse(text))
+			if isinstance(n, ast.stmt) and not hasattr(n, "body") and n.lineno <= line <= (n.end_lineno or n.lineno)
+		]
+	except (SyntaxError, ValueError):
+		nodes = []
+	first, last = (nodes[0].lineno, nodes[0].end_lineno or nodes[0].lineno) if nodes else (line, line)
+	chunk = "".join(lines[first - 1 : last])
+	return chunk if chunk.endswith("\n") else chunk + "\n"
+
+
+def _not_a_definition(name: str, rel: str, text: str, line: int, deleting: bool) -> str:
+	"""Why a variable or attribute cannot be edited by name, with the exact `edit_symbol(edits=...)` call that works."""
+	old = _statement_text(text, line)
+	item = {"file_path": rel, "old_string": old, "new_string": "" if deleting else old}
+	return (
+		f"{name!r} is a variable or attribute, not a class, function or method, so it is not edited by name. "
+		f"Edit its line instead. Example: {call('edit_symbol', edits=[item])}"
+	)
+
+
+async def _locate(
+	session: Session, name: str, file_path: str | None, *, deleting: bool = False
+) -> tuple[Path, str, Definition]:
 	"""The class/function/method called `name` (dotted `Class.method` accepted), with its file's text.
 
 	A given `file_path` is a hard scope for every write tool that resolves by name: outside the workspace it is
@@ -81,7 +110,7 @@ async def _locate(session: Session, name: str, file_path: str | None) -> tuple[P
 	)
 	if definition is None:
 		raise ToolInputError(
-			f"{name!r} is not a class, function or method (found a variable or attribute); edit it with `edit` instead."
+			_not_a_definition(name, relative_name(path, session.workspace), text, resolved.line + 1, deleting)
 		)
 	return path, text, definition
 
@@ -133,7 +162,7 @@ async def _replace_symbol(
 	where the old one stood and may use spaces or tabs; the file's own style is
 	kept. `imports` is a list of import statements the new code needs
 	(`["from decimal import Decimal"]`), added if missing. `name` resolves as in
-	symbol_info (`file_path` disambiguates).
+	`lookup` (`file_path` disambiguates).
 
 	The new code must be valid Python. By default the edit is written (undo
 	with `edits(action="undo")`) and the response lists the diagnostics it caused in this
@@ -478,7 +507,7 @@ async def _safe_delete(
 	"""
 	try:
 		session = await open_session(ctx)
-		path, text, definition = await _locate(session, name, file_path)
+		path, text, definition = await _locate(session, name, file_path, deleting=True)
 		rel = relative_name(path, session.workspace)
 		line, column = definition_name_position(source_lines(text), definition)
 		locations = await session.client.references(str(path), line, column, include_declaration=False)
@@ -545,27 +574,19 @@ async def _safe_delete(
 			check_syntax(content, relative_name(file, session.workspace))
 			old_text, bom = read_source(file)
 			changes.append(FileChange(file, old_text, content, bom, bom))
-		mentions = find_mentions(session.workspace, definition.name, {})
-		own_lines = set(range(definition.first_line, definition.last_line + 1))
 		pruned = (
 			{(relative_name(p, session.workspace), ln) for p, lines in import_only.items() for ln in lines}
 			if prune_imports
 			else set()
 		)
-		unseen = [
-			m
-			for m in mentions
-			if not (m.path == rel and m.line in own_lines)
-			and (m.path, m.line) not in pruned
-			and m.kind in ("attr", "code", "string")
-			and not (
-				m.kind == "code"
-				and m.path != rel
-				and re.match(rf"(?:async\s+)?(?:def|class)\s+{re.escape(definition.name)}\b", m.snippet)
-				and len(re.findall(rf"(?<!\w){re.escape(definition.name)}(?!\w)", m.snippet)) == 1
-			)
-		]
-		unseen, elsewhere = await _drop_other_symbols(session, unseen, (path, line))
+		unseen, elsewhere = await unlinked_uses(
+			session,
+			definition.name,
+			rel=rel,
+			own_lines=range(definition.first_line, definition.last_line + 1),
+			declared=(path, line),
+			pruned=pruned,
+		)
 		notes += format_mentions(unseen, definition.name)
 		if elsewhere:
 			notes.append(
@@ -597,47 +618,6 @@ async def _safe_delete(
 			f"Write it with {apply_call(outcome.preview_id)} or rerun with force=true.",
 		)
 	return outcome.text
-
-
-# Most same-named usages one delete asks the type checker about (sequential requests; the rest stay as blockers).
-_MAX_NAME_LOOKUPS = 200
-
-
-async def _drop_other_symbols(
-	session: Session, mentions: list[Mention], declared: tuple[Path, int]
-) -> tuple[list[Mention], int]:
-	"""(mentions still to review, how many were dropped): a bare-name or attribute use whose definition the type
-	checker finds somewhere other than `declared` (path, name line) is another symbol with the same name, not a use
-	of the deleted one. A use with no definition, a failed lookup, a string, or one past the cap stays."""
-	keep: list[Mention] = []
-	dropped = lookups = 0
-	for mention in mentions:
-		if mention.kind not in ("code", "attr") or mention.column is None or lookups >= _MAX_NAME_LOOKUPS:
-			keep.append(mention)
-			continue
-		lookups += 1
-		try:
-			locations = await session.client.definition(
-				str(session.workspace / mention.path), mention.line, mention.column + 1
-			)
-		except TOOL_ERRORS:
-			keep.append(mention)
-			continue
-		found = [
-			(uri_to_path(str(item.get("uri") or item.get("targetUri"))).resolve(), _start_line(item))
-			for item in locations
-			if str(item.get("uri") or item.get("targetUri") or "").startswith("file:")
-		]
-		if found and len(found) == len(locations) and declared not in found:
-			dropped += 1
-		else:
-			keep.append(mention)
-	return keep, dropped
-
-
-def _start_line(item: dict[str, Any]) -> int:
-	rng = item.get("range") or item.get("targetSelectionRange") or {}
-	return int(rng.get("start", {}).get("line", -1)) + 1
 
 
 def _importing_statements(session: Session, target: Path, name: str, skipped: list[Skipped]) -> dict[Path, list[int]]:

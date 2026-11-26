@@ -55,7 +55,7 @@ def test_given_function_when_rename_preview_then_nothing_written_and_diff_shown(
 	assert "Type check: 0 new error(s)" in text and "tests and docs not checked" in text
 	assert "+def calculate(" in text
 	assert (project / "src/pkg/core.py").read_text().startswith("def compute(")
-	assert "non-Python file" in text  # README mention
+	assert "optional site" in text  # README mention, offered as `sites=["u1"]` since A4
 	assert "README.md:1" in text
 
 

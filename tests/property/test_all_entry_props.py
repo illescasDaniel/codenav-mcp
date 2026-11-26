@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 
-import pytest
 from hypothesis import assume, given, strategies as st
 
 from codenav_mcp import moves
@@ -58,12 +57,9 @@ def listed(text: str) -> list[str]:
 @given(all_sources(), st.sampled_from(NAMES + ["zz"]))
 def test_given_any_all_layout_then_dropping_an_entry_keeps_the_module_valid_and_removes_only_that_name(case, name):
 	source, names = case
-	# FINDINGS-h3 #8: dropping the only entry of a parenthesis-less tuple leaves `__all__ = ` (a syntax error)
-	assume(not (source.count("__all__ = ") and '__all__ = "' in source.replace("'", '"') and names == [name]))
 	result = moves._drop_all_entry(source, name)
 	ast.parse(result)  # must stay valid Python
-	# FINDINGS-h3 #10: dropping the first of two entries of a tuple leaves `("b")`, a plain string
-	assume(not _all_became_a_string(result))
+	assert not _all_became_a_string(result)
 	assert listed(result) == sorted(set(names) - {name}), f"{source!r}\n--->\n{result!r}"
 	assert result.count("def a():") == 1 and "import os" in result
 
@@ -87,31 +83,26 @@ def test_given_an_entry_that_is_added_and_dropped_then_the_listed_names_are_as_b
 	assert listed(back) == sorted(names)
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #8")
 def test_given_a_bare_tuple_all_with_one_entry_then_dropping_that_entry_keeps_the_module_valid():
 	source = 'import os\n\n__all__ = "a",\n\n\ndef a():\n\treturn os\n'
 	ast.parse(moves._drop_all_entry(source, "a"))
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #9")
 def test_given_a_shebang_then_adding_the_future_import_keeps_the_shebang_on_the_first_line():
 	result = moves._with_future_annotations("#!/usr/bin/env python\nimport os\n")
 	assert result.startswith("#!/usr/bin/env python\n"), result
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #9")
 def test_given_an_encoding_line_then_adding_the_future_import_keeps_it_within_the_first_two_lines():
 	result = moves._with_future_annotations("# -*- coding: latin-1 -*-\nx = 1\n")
 	assert "coding: latin-1" in "\n".join(result.splitlines()[:2]), result
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #10")
 def test_given_a_two_entry_tuple_all_then_dropping_the_first_entry_leaves_a_tuple_not_a_string():
 	result = moves._drop_all_entry('__all__ = ("a", "b")\n', "a")
 	assert moves._all_names(ast.parse(result)) == {"b"}, result
 
 
-@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #11")
 def test_given_a_form_feed_in_an_indented_line_then_indenting_the_block_keeps_it_valid_python():
 	source = "class A:\n\x0c pass\n"
 	compile(source, "<original>", "exec")

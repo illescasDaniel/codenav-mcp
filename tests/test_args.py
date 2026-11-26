@@ -133,7 +133,7 @@ def test_given_a_wrong_type_then_the_hint_is_short_and_names_the_type():
 def test_given_a_missing_required_argument_then_the_hint_shows_the_signature_and_example():
 	text = _refusal("rename", {"name": "x"})
 	assert text.startswith("rename: missing required 'new_name'.")
-	assert "Parameters: rename(name, new_name, file_path=..." in text and "Example: rename(" in text
+	assert "Parameters: rename(name=..., file_path=..." in text and "Example: rename(" in text
 
 
 @pytest.mark.parametrize(
@@ -178,8 +178,8 @@ def test_given_a_tool_with_its_own_path_parameter_then_path_is_not_an_alias(tool
 
 
 def test_given_an_alias_whose_target_the_tool_lacks_then_it_stays_unknown():
-	text = _refusal("rename", {"name": "x", "new_name": "y", "col": 3})
-	assert "unknown argument 'col' for rename" in text
+	text = _refusal("search", {"query": "x", "col": 3})
+	assert "unknown argument 'col' for search" in text
 	assert "unknown argument 'symbol' for outline" in _refusal("outline", {"file_path": "a.py", "symbol": "x"})
 
 

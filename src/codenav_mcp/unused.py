@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import io
+import re
 import tokenize
 import tomllib
 import unicodedata
@@ -29,6 +30,8 @@ from codenav_mcp.pysource import (
 	utf16_column,
 )
 from codenav_mcp.tool_base import Session
+from codenav_mcp.ty_command import ty_coverage
+from codenav_mcp.uses import unlinked_uses
 from codenav_mcp.write_tools import conforms_probe
 
 
@@ -61,6 +64,16 @@ class Candidate:
 		return self.position[0]
 
 
+_LABELS = {
+	"exported": "exported, unused inside the project",
+	"exported, only in tests": "exported, used only in tests",
+	"not type-checked": "in a file ty's config excludes: uses not resolved",
+}
+_FSTRING_MIDDLE = getattr(tokenize, "FSTRING_MIDDLE", None)
+_STRING_TOKENS = frozenset({tokenize.STRING, *([_FSTRING_MIDDLE] if _FSTRING_MIDDLE is not None else [])})
+_WORD = re.compile(r"[A-Za-z_]\w*")
+
+
 @dataclass(frozen=True)
 class Finding:
 	candidate: Candidate
@@ -68,7 +81,7 @@ class Finding:
 
 	def render(self) -> str:
 		c = self.candidate
-		label = "exported, unused inside the project" if self.confidence == "exported" else self.confidence
+		label = _LABELS.get(self.confidence, self.confidence)
 		return f"{c.path}:{c.line}  {c.qualname} ({c.kind}, {label})"
 
 
@@ -84,6 +97,9 @@ class Scan:
 	dotted_strings: set[str] = field(default_factory=set)
 	reflective_strings: set[str] = field(default_factory=set)
 	textual_actions: set[str] = field(default_factory=set)
+	string_words: set[str] = field(
+		default_factory=set
+	)  # identifiers written inside string literals (forward references, docstrings)
 
 	def add(self, candidate: Candidate, *, eligible: bool = True) -> None:
 		self.declarations[(candidate.kind, candidate.qualname)].append(candidate)
@@ -269,6 +285,9 @@ def _scan_file(path: Path, rel: str, stamp: tuple[int, int, int]) -> Scan:
 	tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
 	scan = Scan(rel)
 	scan.counts.update(unicodedata.normalize("NFKC", t.string) for t in tokens if t.type == tokenize.NAME)
+	for token in tokens:
+		if token.type in _STRING_TOKENS:
+			scan.string_words.update(_WORD.findall(token.string))
 	# AST positions point to 'class', 'def' or 'async', not its name. Using
 	# the token also handles escaped newlines and normalized Unicode names.
 	positions: dict[Position, Position] = {}
@@ -563,10 +582,34 @@ def _confidence(
 			return None
 		test_refs = True
 	if exported:
-		return "exported"
+		return "exported, only in tests" if test_refs and not _is_test_path(candidate.path) else "exported"
 	if test_refs:
 		return None if _is_test_path(candidate.path) else "only in tests"
 	return "unused"
+
+
+async def _still_mentioned(
+	session: Session, scans: list[Scan], counts: Counter[str], candidate: Candidate
+) -> str | None:
+	"""The label to use instead of "unused" when `edit_symbol(action="delete")` would hold the symbol back: the
+	name is still written elsewhere where the type checker does not link it to this symbol ("only in strings",
+	for a forward reference such as `bound="Name"`, or "name used elsewhere"). None when nothing else mentions it."""
+	name = candidate.name
+	files = {scan.path for scan in scans if scan.counts.get(name) or name in scan.string_words}
+	if counts[name] <= 1 and all(name not in scan.string_words for scan in scans):
+		return None  # only its own declaration: nothing to ask the type checker about
+	workspace = session.workspace
+	uses, _ = await unlinked_uses(
+		session,
+		name,
+		rel=candidate.path,
+		own_lines=range(candidate.start[0], candidate.end[0] + 1),
+		declared=((workspace / candidate.path).resolve(), candidate.position[0]),
+		files=files,
+	)
+	if not uses:
+		return None
+	return "only in strings" if all(use.kind == "string" for use in uses) else "name used elsewhere"
 
 
 async def find_unused(
@@ -587,6 +630,7 @@ async def find_unused(
 	reflective = {value for scan in scans for value in scan.reflective_strings}
 	actions = {value for scan in scans for value in scan.textual_actions}
 	classes = ClassUses(session, scans)
+	coverage = ty_coverage(session.workspace)
 	failures: list[Candidate] = []
 	findings: list[Finding] = []
 	possible_test_doubles = 0
@@ -594,6 +638,7 @@ async def find_unused(
 		path = session.workspace / scan.path
 		if not path.is_relative_to(scope):
 			continue
+		type_checked = not coverage.excludes(path, session.workspace)
 		modules = module_names_for(path, session.roots)
 		primary = primary_module_name(path, session.roots)
 		twin_suffix = ".py" if path.suffix == ".pyi" else ".pyi"
@@ -640,6 +685,8 @@ async def find_unused(
 				):
 					confidence = "only in tests"
 					possible_test_doubles += 1
+				if confidence == "unused" and not has_string_ref:
+					confidence = await _still_mentioned(session, scans, counts, candidate) or confidence
 			except TOOL_ERRORS:
 				failures.append(candidate)
 				continue
@@ -648,10 +695,25 @@ async def find_unused(
 			elif confidence == "only in tests" and textual and candidate.name in actions:
 				# A known runtime binding is stronger evidence than a bare reflection string.
 				continue
+			if not type_checked:  # ty answers "no references" for a file its config excludes
+				confidence = "not type-checked"
 			findings.append(Finding(candidate, confidence))
-	order = {"unused": 0, "only in tests": 1, "only in strings": 2, "exported": 3}
+	order = {
+		"unused": 0,
+		"only in tests": 1,
+		"only in strings": 2,
+		"name used elsewhere": 2,
+		"not type-checked": 2,
+		"exported": 3,
+		"exported, only in tests": 3,
+	}
 	findings.sort(key=lambda row: (order[row.confidence], row.candidate.path, row.candidate.position))
 	notes = []
+	if any(row.candidate.kind == "constant" for row in findings):
+		notes.append(
+			"A constant is not deleted by name: remove its line with "
+			'edit_symbol(edits=[{"file_path": ..., "old_string": "<its line>", "new_string": ""}]).'
+		)
 	if possible_test_doubles:
 		notes.append(
 			"Methods on test classes used by tests are marked only in tests when dynamic dispatch may use them."

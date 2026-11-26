@@ -917,13 +917,11 @@ def test_given_a_removed_parameter_whose_argument_has_side_effects_then_the_call
 	assert reason == "changing effectful arguments could change evaluation order or discard side effects"
 
 
-def test_given_effectful_keywords_written_out_of_parameter_order_then_the_call_is_left_for_the_user():
-	# They would be re-emitted in parameter order, which changes the order they run in (see also FINDINGS-h3 #2).
-	new_statement, reason = _rewritten(
+def test_given_effectful_keywords_written_out_of_parameter_order_then_they_keep_their_order():
+	# Kept as written, so they still run in the order the call gave (FINDINGS-h3 #2); the new argument is appended.
+	assert _rewritten(
 		"def f(a, b):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 5}]), "result = f(b=g(), a=h())"
-	)
-	assert new_statement is None
-	assert reason is not None and "evaluation order" in reason
+	) == ("result = f(b=g(), a=h(), n=5)", None)
 
 
 def test_given_an_effectful_keyword_in_parameter_order_then_the_call_is_rewritten_with_it_kept():

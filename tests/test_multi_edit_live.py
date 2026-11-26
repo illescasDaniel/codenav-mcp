@@ -250,7 +250,8 @@ def test_given_max_new_errors_null_then_the_combined_plan_is_written(project, lo
 
 def test_given_bad_shapes_then_the_error_is_specific(project, loop):
 	assert "non-empty list" in _multi(loop, [])
-	assert "unknown key(s) old for a text edit" in _multi(loop, [{"file_path": "a.py", "old_string": "x", "old": "y"}])
+	assert "unknown key(s) 'bogus'" in _multi(loop, [{"file_path": "a.py", "old_string": "x", "bogus": "y"}])
+	assert "not both" in _multi(loop, [{"file_path": "a.py", "old_string": "x", "old": "y"}])
 	assert "each item is an object" in _multi(loop, ["x = 1"])
 	assert "needs `file_path`" in _multi(loop, [{"old_string": "a", "new_string": "b"}])
 	assert "put them inside the items of `edits`" in _multi(loop, [{"name": "x"}], name="parse")

@@ -157,10 +157,12 @@ def test_rc_122_docstring_note(tmp_path, monkeypatch, loop):
 	assert "Note: docstring of send still mentions parameter(s) 'cc'; update it manually." in result
 
 
-def test_effectful_keyword_reorder_is_manual():
+def test_effectful_keyword_reorder_leaves_the_call_as_written():
 	args = [CallArg("a=g()", "a", "g()", 0, 5), CallArg("b=h()", "b", "h()", 7, 12)]
-	with pytest.raises(ManualCallError, match="effectful"):
-		rebind_call(args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("b", NORMAL), Param("a", NORMAL)], {}, set())
+	new = rebind_call(
+		args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("b", NORMAL), Param("a", NORMAL)], {}, set()
+	)
+	assert new == ["a=g()", "b=h()"]
 
 
 def test_removed_effectful_argument_is_manual():
@@ -169,10 +171,12 @@ def test_removed_effectful_argument_is_manual():
 		rebind_call(args, [Param("a", NORMAL)], [], {}, {"a"})
 
 
-def test_keyword_order_preserved_by_manual_refusal():
+def test_keyword_order_is_preserved():
 	args = [CallArg("b=h()", "b", "h()", 0, 5), CallArg("a=g()", "a", "g()", 7, 12)]
-	with pytest.raises(ManualCallError, match="effectful"):
-		rebind_call(args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("a", NORMAL), Param("b", NORMAL)], {}, set())
+	new = rebind_call(
+		args, [Param("a", NORMAL), Param("b", NORMAL)], [Param("a", NORMAL), Param("b", NORMAL)], {}, set()
+	)
+	assert new == ["b=h()", "a=g()"]
 
 
 def test_parameter_nul_returns_input_error():

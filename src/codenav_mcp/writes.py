@@ -22,10 +22,13 @@ from mcp_nav_shared.transaction import WriteGuard, read_only_from_env, refuse_ho
 
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.edit_state import PersistentJournal, PersistentPlanStore, workspace_state_dir
+from codenav_mcp.mentions import TEXT_SUFFIXES
+from codenav_mcp.plan_diff import plan_diff
 from codenav_mcp.plan_merge import site_followup
 from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 from codenav_mcp.reply import call
 from codenav_mcp.simulate import simulate_plan
+from codenav_mcp.ty_command import ty_coverage
 
 
 READ_ONLY_ENV = "CODENAV_MCP_READ_ONLY"
@@ -56,7 +59,7 @@ def write_state(root: Path) -> WriteState:
 	if _state is None or _state.root != root:
 		guard = WriteGuard(
 			root=root,
-			allowed_suffixes=PYTHON_SUFFIXES,
+			allowed_suffixes=PYTHON_SUFFIXES | TEXT_SUFFIXES,
 			read_only=read_only,
 			allow_readonly=allow_readonly,
 			exclude_prefix=ENV_PREFIX,
@@ -107,6 +110,13 @@ def undo_call(edit_id: str) -> str:
 	return call("edits", action="undo", id=edit_id)
 
 
+def applied_line(edit_id: str, *, unchecked: str = "") -> str:
+	"""The one line every applied write reply carries: that it was written (apply=true is the default) and the
+	exact call that undoes it. `unchecked` is how many files the error check could not cover, if any."""
+	head = f"Applied as edit {edit_id} (undo: {undo_call(edit_id)})."
+	return f"{head} {unchecked} file(s) could not be checked for errors." if unchecked else head
+
+
 @dataclass
 class Outcome:
 	"""What `finish_plan` did, for tools that want to add to the text."""
@@ -125,6 +135,9 @@ def type_check_report(delta: DiagnosticsDelta) -> str:
 	"""`format_delta`'s report, said to be a type check (a green one says nothing about tests, docs or generated files)."""
 	head, _, rest = format_delta(delta).partition("\n")
 	head = f"{head.replace('Diagnostics:', 'Type check:', 1)} - {NOT_CHECKED}"
+	not_checked = getattr(delta, "not_checked", [])
+	if not_checked:  # one line: a green result never reads as covering files that were left out
+		head += f"; not checked: {', '.join(not_checked)}"
 	return f"{head}\n{rest}" if rest else head
 
 
@@ -134,19 +147,28 @@ def _count_label(count: int, noun: str) -> str:
 
 async def errors_after_write(client: LspClient, root: Path, plan: EditPlan, *, limit: int = 8) -> str:
 	"""Diagnostics of the edited files as they are on disk now (the simulation's second opinion)."""
+	files = [c for c in plan.changes if c.new_text is not None and c.path.suffix.lower() in PYTHON_SUFFIXES]
+	if not files:
+		return "After writing: no edited Python files to type-check."
+	coverage = ty_coverage(root)
+	excluded = [c for c in files if coverage.excludes(c.path, root)]
+	files = [c for c in files if c not in excluded]
+	excluded_note = (
+		"\nTy config excludes: " + ", ".join(relative_name(c.path, root) for c in excluded) + "." if excluded else ""
+	)
+	if not files:
+		return "After writing: no edited files covered by the type checker." + excluded_note
 	try:
 		await client.refresh()
 	except TOOL_ERRORS:
-		unchecked = [
-			relative_name(c.path, root)
-			for c in plan.changes
-			if c.new_text is not None and c.path.suffix.lower() in PYTHON_SUFFIXES
-		]
-		return f"Not checked (language server unavailable): {', '.join(unchecked)} ({len(unchecked)} files)."
+		unchecked = [relative_name(c.path, root) for c in files]
+		return (
+			f"Not checked (language server unavailable): {', '.join(unchecked)} ({len(unchecked)} files)."
+			+ excluded_note
+		)
 	lines: list[str] = []
 	total = 0
 	unchecked: list[str] = []
-	files = [c for c in plan.changes if c.new_text is not None and c.path.suffix.lower() in PYTHON_SUFFIXES]
 	created = [str(c.path) for c in files if c.old_text is None]
 	snapshot = None
 	if created:
@@ -155,16 +177,17 @@ async def errors_after_write(client: LspClient, root: Path, plan: EditPlan, *, l
 		except TOOL_ERRORS:
 			# If one prerequisite cannot be synchronized, none of the dependent diagnostics are reliable.
 			names = [relative_name(c.path, root) for c in files]
-			return f"Not checked (could not synchronize edited files): {', '.join(names)} ({len(names)} files)."
-	for change in plan.changes:
-		if change.new_text is None or change.path.suffix.lower() not in PYTHON_SUFFIXES:
-			continue
+			return (
+				f"Not checked (could not synchronize edited files): {', '.join(names)} ({len(names)} files)."
+				+ excluded_note
+			)
+	for change in files:
 		try:
 			items = snapshot[str(change.path)] if snapshot is not None else await client.diagnostics(str(change.path))
 		except TOOL_ERRORS:
 			unchecked.append(relative_name(change.path, root))
 			continue
-		for entry in entries_from_lsp(relative_name(change.path, root), change.new_text, items):
+		for entry in entries_from_lsp(relative_name(change.path, root), change.new_text or "", items):
 			if entry.is_error:
 				total += 1
 				if len(lines) < limit:
@@ -176,18 +199,20 @@ async def errors_after_write(client: LspClient, root: Path, plan: EditPlan, *, l
 			status += (
 				f"\nAfter writing: {_count_label(total, 'error')} in the checked files:\n" + "\n".join(lines) + more
 			)
-		return status
+		return status + excluded_note
 	if total == 0:
-		return f"After writing: no errors in the edited files (type check only; {NOT_CHECKED})."
+		checked = "checked files" if excluded else "the edited files"
+		return f"After writing: no errors in {checked} (type check only; {NOT_CHECKED})." + excluded_note
 	more = f"\n  ... {total - limit} more" if total > limit else ""
 	return (
 		f"After writing: {_count_label(total, 'error')} in the edited files (includes any that existed before):\n"
 		+ "\n".join(lines)
 		+ more
+		+ excluded_note
 	)
 
 
-def _refuse_new_file_preview(
+def _preview_new_files(
 	state: WriteState,
 	workspace: Path,
 	plan: EditPlan,
@@ -196,7 +221,7 @@ def _refuse_new_file_preview(
 	diff_lines: int,
 	optional_sites: Sequence[OptionalSite] = (),
 ) -> Outcome:
-	"""Refuse a preview that would create a file, and keep the plan for the existing approval flow.
+	"""Keep an unchecked preview for a plan that would create files.
 
 	Checking a new file needs it materialised in the workspace, which a crash (SIGKILL) could leave behind
 	(RC-091): a preview never creates files. The user approves the write through `edits(action="apply", ...)` (or `apply=true`).
@@ -206,8 +231,8 @@ def _refuse_new_file_preview(
 	lines = [
 		title,
 		"",
-		f"Preview refused: the plan creates {_count_label(len(created), 'new file')} ({names}). Checking a new file "
-		"needs a temporary file in the workspace that a crash could leave behind; previews never create files.",
+		f"Preview only, nothing written. The plan creates {_count_label(len(created), 'new file')} ({names}). "
+		"It is not type-checked in a preview (previews never create files).",
 		f"To approve the write: {apply_call(preview_id)} creates it "
 		f"({undo_call(preview_id)} reverts it), "
 		"or rerun the tool with apply=true to run the type check first.",
@@ -216,8 +241,8 @@ def _refuse_new_file_preview(
 		plan.summary(workspace),
 	]
 	if diff_lines > 0:
-		lines += ["", plan.diff(workspace, max_lines=diff_lines).rstrip()]
-	return Outcome(FailedText("\n".join(lines)), preview_id=preview_id)
+		lines += ["", plan_diff(plan, workspace, max_lines=diff_lines).rstrip()]
+	return Outcome("\n".join(lines), preview_id=preview_id)
 
 
 async def finish_plan(
@@ -258,9 +283,7 @@ async def finish_plan(
 		plan = EditPlan(plan.description, changes, plan.notes, dict(plan.base_hashes))
 	created = [change for change in plan.changes if change.kind == "create"]
 	if created and not apply:
-		return _refuse_new_file_preview(
-			state, workspace, plan, created, title, diff_lines, optional_sites=optional_sites
-		)
+		return _preview_new_files(state, workspace, plan, created, title, diff_lines, optional_sites=optional_sites)
 	delta = await simulate_plan(client, workspace, roots, plan, include_dependents=include_dependents)
 	lines = [title, ""]
 	# Only real diagnostics gate the write. Importers past the check limit are a note (simulate.py), not a gate.
@@ -295,9 +318,9 @@ async def finish_plan(
 		status = await errors_after_write(client, workspace, plan)
 		if status.startswith("Not checked"):
 			unchecked_count = status.splitlines()[0].rsplit(" (", 1)[-1].split()[0]
-			lines.append(f"Applied as edit {entry.id}. {unchecked_count} file(s) could not be checked for errors.")
+			lines.append(applied_line(entry.id, unchecked=unchecked_count))
 		else:
-			lines.append(f"Applied as edit {entry.id} ({undo_call(entry.id)} reverts it).")
+			lines.append(applied_line(entry.id))
 		lines.append(status)
 	else:
 		preview_id = state.plans.add(CodenavPlan(plan, list(optional_sites)))
@@ -318,7 +341,7 @@ async def finish_plan(
 		lines += ["", "Notes:", *(f"  - {note}" for note in plan.notes)]
 	lines += ["", type_check_report(delta)]
 	if applied_id is None and diff_lines > 0:
-		lines += ["", plan.diff(workspace, max_lines=diff_lines).rstrip()]
+		lines += ["", plan_diff(plan, workspace, max_lines=diff_lines).rstrip()]
 	text = "\n".join(lines)
 	return Outcome(
 		FailedText(text) if blocked else text,
