@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp_nav_shared import resolve
 from mcp_nav_shared.errors import ToolInputError
+from mcp_nav_shared.lsp_client import LspClient
 
-from codenav_mcp import server
+from codenav_mcp import read_tools
 from codenav_mcp.ambiguity import ambiguity_listing, parse_candidates
 
 
@@ -28,13 +29,15 @@ def _symbol(name: str, rel: str, line: int, kind: int = 12) -> dict[str, Any]:
 
 
 def _shared_refusal(query: str, candidates: list[dict[str, Any]]) -> Exception:
-	return asyncio.run(resolve._ambiguous(_NoSymbols(), query, candidates, Path("/ws")))  # type: ignore[arg-type]
+	return asyncio.run(resolve._ambiguous(cast(LspClient, _NoSymbols()), query, candidates, Path("/ws")))  # type: ignore[arg-type]
 
 
 def test_given_the_shared_ambiguity_refusal_then_its_candidates_parse():
 	exc = _shared_refusal("build", [_symbol("build", "src/a.py", 0), _symbol("build", "src/b.py", 4)])
 
-	total, matched, candidates = parse_candidates(exc, "build")  # type: ignore[misc]
+	parsed = parse_candidates(exc, "build")
+	assert parsed is not None
+	total, matched, candidates = parsed
 
 	assert (total, matched) == (2, "build")
 	assert [(c.display, c.kind, c.path, c.line) for c in candidates] == [
@@ -105,6 +108,7 @@ def test_given_a_message_about_another_name_then_there_is_no_listing():
 def test_given_reworded_shared_text_then_the_original_refusal_is_returned_unchanged():
 	exc = resolve.SymbolResolutionError("Found 2 symbols named 'x': pick one\n  x (a.py:1)")
 
-	reply = server._read_error(exc, "symbol_info", "x")
+	assert read_tools._ambiguity(exc, "x", None, None, 20, 0) is None
+	reply = read_tools._refusal(exc, read_tools.lookup)
 
-	assert reply == str(exc)
+	assert reply.startswith(str(exc) + "\nExample: ")

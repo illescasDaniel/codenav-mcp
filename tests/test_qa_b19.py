@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from codenav_mcp import batch_tools, edit_tools, refactor_tools, server, write_tools
+from codenav_mcp import args, edits_tools, refactor_tools, server, write_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -34,7 +34,7 @@ def test_rc_b19_unknown_arguments_refusal_is_capped_and_names_few(tmp_path, monk
 	monkeypatch.delenv("CODENAV_MCP_MAX_OUTPUT_CHARS", raising=False)
 	args = {f"key{i}": 1 for i in range(20_000)}
 
-	result = _refuse("hover", args)
+	result = _refuse("lookup", args)
 
 	text = _text(result)
 	assert result.is_error
@@ -44,7 +44,7 @@ def test_rc_b19_unknown_arguments_refusal_is_capped_and_names_few(tmp_path, monk
 
 
 def test_rc_b19_one_huge_unknown_argument_name_is_cut_short(tmp_path):
-	result = _refuse("hover", {"k" * 400_000: 1})
+	result = _refuse("lookup", {"k" * 400_000: 1})
 
 	text = _text(result)
 	assert result.is_error
@@ -65,9 +65,10 @@ def test_rc_b19_unknown_tool_name_reply_is_capped_and_does_not_echo_it(tmp_path)
 
 
 def test_rc_b19_batch_refusal_for_unknown_arguments_is_short(tmp_path):
-	fn = batch_tools.signature_of("hover")
+	fn = args.signature_of("lookup")
+	assert fn is not None
 
-	problem = batch_tools.argument_problem("hover", fn, {f"k{i}": 1 for i in range(20_000)})
+	problem = args.argument_problem("lookup", fn, {f"k{i}": 1 for i in range(20_000)})
 
 	assert problem is not None
 	assert len(problem) < 600
@@ -75,7 +76,7 @@ def test_rc_b19_batch_refusal_for_unknown_arguments_is_short(tmp_path):
 
 
 def test_rc_b19_batch_unknown_tool_and_names_are_short_in_a_call_shape_refusal(tmp_path):
-	message = batch_tools.unknown_tool_message("x" * 400_000)
+	message = args.unknown_tool_message("x" * 400_000)
 
 	assert len(message) < 400
 	assert message.startswith("Unknown tool '")
@@ -133,7 +134,7 @@ def test_rc_b19_importer_limit_is_a_note_and_does_not_block_apply(tmp_path, monk
 	project = make_workspace(tmp_path, monkeypatch, files)
 
 	text = loop.run_until_complete(
-		edit_tools.edit(file_path="src/pkg/util.py", old_string="return 1", new_string="return 2", apply=True)
+		write_tools._edit_text(file_path="src/pkg/util.py", old_string="return 1", new_string="return 2", apply=True)
 	)
 
 	assert "NOT applied" not in text
@@ -151,7 +152,7 @@ def test_rc_b19_first_line_dunder_all_rename_in_bom_crlf_file_is_applied(tmp_pat
 	project = make_workspace(tmp_path, monkeypatch, {"src/pkg/__init__.py": "", "src/pkg/lib.py": source})
 
 	text = loop.run_until_complete(
-		write_tools.rename_symbol(name="helper", file_path="src/pkg/lib.py", new_name="renamed", apply=True)
+		write_tools.rename(name="helper", file_path="src/pkg/lib.py", new_name="renamed", apply=True)
 	)
 
 	assert "NOT applied" not in text
@@ -183,7 +184,7 @@ def test_rc_b19_moved_module_keeps_mode_and_undo_restores_it(tmp_path, monkeypat
 	assert moved.is_file() and not source.exists()
 	assert (moved.stat().st_mode & 0o777) == 0o755
 
-	loop.run_until_complete(write_tools.undo_edit())
+	loop.run_until_complete(edits_tools.edits(action="undo"))
 
 	assert source.is_file() and not moved.exists()
 	assert (source.stat().st_mode & 0o777) == 0o755
@@ -223,7 +224,7 @@ def test_rc_b19_move_preview_creating_the_destination_is_refused(tmp_path, monke
 def test_rc_b19_multiple_matches_on_one_line_list_the_line_once(tmp_path, monkeypatch, loop):
 	project = make_workspace(tmp_path, monkeypatch, {"src/pkg/__init__.py": "", "src/pkg/m.py": "x = 'a a a'\n"})
 
-	text = loop.run_until_complete(edit_tools.edit(file_path="src/pkg/m.py", old_string="a", new_string="b"))
+	text = loop.run_until_complete(write_tools._edit_text(file_path="src/pkg/m.py", old_string="a", new_string="b"))
 
 	assert "matches 3 times (lines 1)" in text
 	assert "lines 1, 1" not in text

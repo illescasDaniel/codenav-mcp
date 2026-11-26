@@ -1,9 +1,8 @@
-"""MCP tools that change code: rename, checked edits, and applying/undoing them.
+"""Rename and shared planners for checked edits and git diagnostic comparisons.
 
 Every tool simulates its edit against the type checker first and reports the
 diagnostics it would add or fix. Refactorings preview by default
-(`apply=false`); `apply_edit` writes a preview, `undo_edit` reverts an applied
-edit if its files are untouched since.
+(`apply=false`); use `edits` to apply previews or undo writes.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import Context
+from mcp_nav_shared.diagnostics_delta import DiagEntry
 from mcp_nav_shared.edits import (
 	EditPlan,
 	FileChange,
@@ -30,19 +30,20 @@ from mcp_nav_shared.edits import (
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.transaction import refuse_home_path
 
-from codenav_mcp import edit_ops, tool_base
+from codenav_mcp import tool_base
 from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import Skipped, format_skipped, primary_module_name
 from codenav_mcp.linked import ClassRef
 from codenav_mcp.plan_merge import add_sites, track_optional_files
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import check_syntax
-from codenav_mcp.rename import ATTR_HINT, plan_rename, resolve_target
+from codenav_mcp.rename import plan_rename, resolve_target
 from codenav_mcp.rename_sites import UnknownSitesError, format_site, select_sites
-from codenav_mcp.reply import Reply, call
+from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
 from codenav_mcp.writes import (
+	NOT_CHECKED,
 	PYTHON_SUFFIXES,
 	Outcome,
 	finish_plan,
@@ -83,86 +84,6 @@ def conforms_probe(session: Session) -> Any:
 	return conforms
 
 
-async def rename_symbol(
-	new_name: str,
-	name: str | None = None,
-	file_path: str | None = None,
-	line: int | None = None,
-	column: int | None = None,
-	parameter: str | None = None,
-	apply: bool = True,
-	linked: bool = True,
-	max_new_errors: int | None = 0,
-	allow_large: bool = False,
-	include_unlinked_attrs: bool = False,
-	ctx: Context | None = None,
-) -> str:
-	"""Rename a symbol everywhere it is used, type-checking the result before writing it.
-
-	Example: `rename_symbol(name="UserService.create_user", new_name="register_user")`.
-	Give `name` (dotted `Class.method` accepted; `file_path` narrows it) or
-	`file_path` + `line` + `column` (1-indexed). Use `parameter="x"` with a
-	function's name to rename one of its parameters (keyword arguments at call
-	sites follow).
-
-	Built on ty's rename (imports, aliases, keyword arguments) plus what ty
-	misses: with `linked=true` (default) overriding methods in subclasses,
-	`super().name()` calls, and Protocol members together with the classes that
-	satisfy them are renamed as one, since renaming only one side would silently
-	break the override or the conformance. The result lists every extra member
-	it included, and the places still using the old name that the type checker
-	could not link (untyped attribute accesses, strings, comments, docs).
-	`include_unlinked_attrs=true` also renames those attribute accesses (`mock.old_name`,
-	untyped objects) in the same plan, for a method or field only, never strings or comments;
-	a `.name` that the type checker resolves to another symbol (`sqlite3.Connection.execute`) is left alone.
-
-	Writing: `apply=true` (default) writes when the new errors are within
-	`max_new_errors` (default 0); otherwise nothing is written and you get a
-	preview id for `apply_edit`. `apply=false` always previews. `undo_edit` reverts.
-	"""
-	try:
-		session = await open_session(ctx)
-		target = await resolve_target(
-			session.client,
-			session.workspace,
-			name=name,
-			file_path=file_path,
-			line=line,
-			column=column,
-			parameter=parameter,
-		)
-		plan = await plan_rename(
-			session.client,
-			session.workspace,
-			session.state.guard,
-			target,
-			new_name,
-			linked=linked,
-			conforms=conforms_probe(session) if linked else None,
-			roots=session.roots,
-			include_unlinked_attrs=include_unlinked_attrs,
-		)
-		outcome = await finish_plan(
-			session.client,
-			workspace=session.workspace,
-			roots=session.roots,
-			plan=plan,
-			title=plan.description,
-			apply=apply,
-			max_new_errors=max_new_errors,
-			allow_large=allow_large,
-			hold_back=(
-				f"importers that cannot be rewritten would be left broken ({'; '.join(plan.left_out)}); "
-				"fix or include them, or rerun with allow_large=true to rename anyway."
-			)
-			if plan.left_out
-			else "",
-		)
-	except TOOL_ERRORS as exc:
-		return write_refusal(exc, "rename_symbol", name, fixed=f"new_name={json.dumps(new_name)}, ")
-	return _with_attr_hint(outcome)
-
-
 _SITES_SHOWN = 30
 _NOTES_SHOWN = 5
 
@@ -196,10 +117,8 @@ async def rename(
 			session.state.guard,
 			target,
 			new_name,
-			linked=True,
 			conforms=conforms_probe(session),
 			roots=session.roots,
-			v2_sites=True,
 		)
 		chosen = select_sites(rename_plan.optional_sites, sites)
 		left = [site for site in rename_plan.optional_sites if site not in chosen]
@@ -214,7 +133,6 @@ async def rename(
 			apply=apply,
 			max_new_errors=0,
 			optional_sites=left,
-			edits_style=True,
 			hold_back=(
 				f"importers that cannot be rewritten would be left broken ({'; '.join(rename_plan.left_out)}); "
 				"fix or include them first."
@@ -275,18 +193,6 @@ def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], ch
 
 def type_check_line(outcome: Any) -> str:
 	return type_check_report(outcome.delta).splitlines()[0] if outcome.delta is not None else ""
-
-
-def _with_attr_hint(outcome: Any) -> str:
-	"""A written rename cannot just be rerun: its attribute note says to undo it first."""
-	if not outcome.applied_id:
-		return outcome.text
-	hint = (
-		f'to rename these too: undo_edit(id="{outcome.applied_id}"), then rerun with include_unlinked_attrs=true '
-		"(apply=false previews them first)"
-	)
-	text = outcome.text.replace(ATTR_HINT, hint)
-	return FailedText(text) if isinstance(outcome.text, FailedText) else text
 
 
 def _edit_target(workspace: Path, file_path: str) -> Path:
@@ -395,11 +301,11 @@ async def _edit_text(
 	replacement (`old_string` -> `new_string`, which must match exactly once
 	unless `replace_all`). Nothing is written by default: the result is the
 	diagnostics the edit would add or fix in the file and in the files that
-	import it, plus an id for `apply_edit`. Rejects text that is not valid Python.
+	import it, plus an id for `edits(action="apply")`. Rejects text that is not valid Python.
 
 	With `apply=true` the edit is written (atomically, undoable with
-	`undo_edit`) unless it adds more errors than `max_new_errors` (null:
-	no limit). The usual flow: `edit(apply=false)` first, change your approach if it
+	`edits(action="undo")`) unless it adds more errors than `max_new_errors` (null:
+	no limit). The usual flow: preview it first, change your approach if it
 	reports new errors, then apply.
 	"""
 	try:
@@ -479,7 +385,7 @@ def _git(workspace: Path, *args: str) -> str:
 	if result.returncode != 0:
 		if "not a git repository" in result.stderr:
 			# Git's own wording names $GIT_DISCOVERY_ACROSS_FILESYSTEM and the parent folders; one next step is enough.
-			raise ToolInputError("not a git repository: run verify_changes inside the project's git repository")
+			raise ToolInputError("not a git repository: run check(since=...) inside the project's git repository")
 		lines = (result.stderr.strip() or result.stdout.strip()).splitlines()
 		first = (lines[0] if lines else f"exit status {result.returncode}")[:200]
 		raise ToolInputError(f"git failed: {first}")
@@ -504,17 +410,8 @@ def _git_show(workspace: Path, since: str, rel: str) -> str | None:
 		return None
 
 
-async def verify_changes(since: str = "HEAD", include_dependents: bool = True, ctx: Context | None = None) -> str:
-	"""What did the edits since a git revision break? Compares ty diagnostics now against `since` (default HEAD).
-
-	Run it after editing with any tool (your own Edit/Write included) to see
-	the type errors the working tree has gained or lost relative to the last
-	commit: the changed Python files and the files importing them are checked
-	with the committed versions of the changed files substituted in for the
-	"before" side. Read-only. A changed pyproject.toml, ty.toml or .ty.toml changes the rules for every file:
-	then the whole project is checked and every current diagnostic is listed, because the old configuration
-	cannot be re-checked.
-	"""
+async def _check_changes(since: str, *, include_dependents: bool, limit: int, offset: int, ctx: Context | None) -> str:
+	"""Compare diagnostics with a git baseline without writing either version to disk."""
 	try:
 		if since.startswith("-"):
 			raise ToolInputError(f"invalid revision {since!r}")
@@ -564,11 +461,11 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 				touched.append(path)
 				added.add(path)
 		if not touched and not config:
-			return (
+			return Reply(
 				"No uncommitted Python changes. No Python files differ from HEAD."
 				if since == "HEAD"
 				else f"No Python files differ from {since}."
-			)
+			).render()
 		# Added files have no committed baseline, so they cannot be compared: they are reported as unchecked.
 		# Only a diff with nothing else to compare is refused.
 		modified = [path for path in touched if path not in added]
@@ -576,7 +473,8 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 			names = ", ".join(sorted(relative_name(path, workspace) for path in added))
 			raise ToolInputError(
 				f"Cannot verify changes: the only changed Python file(s) are new ({names}), and new files have no "
-				"baseline to compare with, so nothing can be checked. Run diagnostics on each of them instead."
+				"baseline to compare with, so nothing can be checked. "
+				f"\nExample: {call('check', file_path=relative_name(touched[0], workspace))}"
 			)
 		skipped: list[Skipped] = []
 		if config:
@@ -633,8 +531,31 @@ async def verify_changes(since: str = "HEAD", include_dependents: bool = True, c
 		header.append(
 			"Nothing is compared with the old configuration: every current diagnostic in the checked files is listed."
 		)
-	body = "\n".join(header)
-	return f"{body}\n\n{type_check_report(delta)}"
+	new_errors = len(delta.new_errors)
+	fixed_errors = len(delta.fixed_errors)
+	other = len(delta.new) - new_errors
+	headline = f"Type check: {new_errors} new error(s), {fixed_errors} fixed"
+	if other:
+		headline += f", {other} new warning(s)/hint(s)"
+	headline += f" ({delta.files_checked} file(s) checked, {delta.unchanged} unchanged) - {NOT_CHECKED}"
+	reply = Reply(headline, notes=[*header, *delta.notes])
+	if delta.unchecked:
+		reply.notes.append(f"{len(delta.unchecked)} not checked: {', '.join(delta.unchecked)}")
+	rows = [*(("+", item) for item in delta.new), *(("-", item) for item in delta.fixed)]
+
+	def render(row: tuple[str, DiagEntry]) -> str:
+		marker, entry = row
+		return f"{marker} {entry.render()}"
+
+	reply.add_page(
+		paginate(rows, limit, offset),
+		render,
+		"check",
+		since=since,
+		limit=limit,
+		include_dependents=False if not include_dependents else None,
+	)
+	return reply.render()
 
 
 def _project_python_files(workspace: Path) -> list[Path]:
@@ -644,40 +565,4 @@ def _project_python_files(workspace: Path) -> list[Path]:
 	return [path for path in paths if path.is_file()]
 
 
-async def apply_edit(id: str, allow_large: bool = False, ctx: Context | None = None) -> str:  # noqa: A002
-	"""Write a previewed edit (id from a write tool's preview). Example: `apply_edit(id="ab12")`. The applied edit keeps that id, so
-	undo_edit(id) reverts it. Fails if any file changed since the preview."""
-	try:
-		session = await open_session(ctx)
-		result = await edit_ops.apply_stored(session, id, allow_large=allow_large)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	return (
-		f"Applied edit {result.entry.id}: {result.plan.description}\n\n{result.after}\n\n"
-		f"Files:\n{result.plan.summary(session.workspace)}\n\n"
-		f'Revert with undo_edit(id="{result.entry.id}").'
-	)
-
-
-async def undo_edit(id: str | None = None, ctx: Context | None = None) -> str:  # noqa: A002
-	"""Revert an edit applied by the write tools (the latest one by default). The undo history keeps the last 50
-	edits per workspace, across server restarts; older ones, and ids that were already undone, cannot be reverted.
-
-	Refuses when any of its files was changed after the edit, so later work is never overwritten. An edit
-	blocked by a newer one names that edit, which must be undone first.
-	"""
-	try:
-		session = await open_session(ctx)
-		entry = edit_ops.undo_stored(session.state, id)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	return f"Reverted edit {entry.id}: {entry.plan.description}\n\nFiles restored:\n{entry.plan.summary(session.workspace)}"
-
-
-TOOLS: list[tuple[Any, Any]] = [
-	(rename_symbol, tool_base.WRITES),
-	(rename, tool_base.WRITES),
-	(verify_changes, tool_base.READS),
-	(apply_edit, tool_base.WRITES),
-	(undo_edit, tool_base.WRITES),
-]
+TOOLS = [(rename, tool_base.WRITES)]

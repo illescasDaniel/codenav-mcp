@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from mcp_nav_shared.workspace import resolve_extra_source_roots
 
-from codenav_mcp import server
+from codenav_mcp import read_tools, server
 
 
 def _use_root(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
@@ -37,7 +37,8 @@ def ws(tmp_path, monkeypatch):
 
 
 def _workspace_text() -> str:
-	return asyncio.run(server.workspace())
+	result = asyncio.run(server._notices.tool(read_tools.check)())
+	return result if isinstance(result, str) else result.content[0].text
 
 
 def _import_server(cwd: Path, **env: str) -> subprocess.CompletedProcess[str]:
@@ -157,13 +158,13 @@ def test_b13_guard_given_root_pyproject_when_workspace_then_no_warning(ws):
 	assert "Warning:" not in _workspace_text()
 
 
-def test_rc_156_given_unparseable_pyproject_when_workspace_then_notes_ty_defaults(ws):
+def test_rc_156_given_unparseable_pyproject_when_check_then_explains_failure(ws):
 	(ws / "pyproject.toml").write_text("[project]\nname = 'x'\n\n[tool.ty\n", encoding="utf-8")
 
 	text = _workspace_text()
 
-	assert "Note: pyproject.toml could not be parsed (" in text
-	assert "); ty runs with its defaults." in text
+	assert text.startswith("Workspace type check failed:")
+	assert "pyproject.toml could not be parsed (" in text
 
 
 def test_rc_128_given_src_layout_when_configured_then_source_root_is_src(ws, monkeypatch):

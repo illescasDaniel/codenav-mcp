@@ -483,10 +483,10 @@ def byte_to_utf16_column(line: str, byte_offset: int) -> int:
 	return utf16_column(line, len(line.encode("utf-8")[:byte_offset].decode("utf-8", errors="ignore")))
 
 
-def node_position(lines: list[str], node: ast.AST) -> tuple[int, int]:
+def node_position(lines: list[str], node: ast.expr | ast.stmt | ast.keyword | ast.arg | ast.alias) -> tuple[int, int]:
 	"""(1-based line, 1-based UTF-16 column) of an `ast` node's start."""
-	line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""  # type: ignore[attr-defined]
-	return node.lineno, byte_to_utf16_column(line, node.col_offset) + 1  # type: ignore[attr-defined]
+	line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
+	return node.lineno, byte_to_utf16_column(line, node.col_offset) + 1
 
 
 def definition_name_position(lines: list[str], definition: Definition) -> tuple[int, int]:

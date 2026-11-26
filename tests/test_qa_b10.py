@@ -1,4 +1,4 @@
-"""Tool contract (B10): argument refusals, batch `$N` and `stop_on_error`, names, paths, protocol and shutdown.
+"""Tool contract (B10): argument refusals, names, paths, protocol and shutdown.
 
 In-memory MCP tests run the real tool registration; the stdio tests start `python -m codenav_mcp.server`.
 """
@@ -20,7 +20,7 @@ import pytest
 from mcp import Client
 from mcp.types import LATEST_PROTOCOL_VERSION
 
-from codenav_mcp import batch_tools, server
+from codenav_mcp import server
 
 from .live_support import make_workspace, needs_ty
 
@@ -84,8 +84,9 @@ def _session(
 		stderr=subprocess.PIPE,
 		text=True,
 	)
+	assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
 	lines: queue.Queue[str] = queue.Queue()
-	threading.Thread(target=lambda: [lines.put(line) for line in proc.stdout], daemon=True).start()
+	threading.Thread(target=lambda stdout=proc.stdout: [lines.put(line) for line in stdout], daemon=True).start()
 	answers: dict[int, dict] = {}
 	try:
 		proc.stdin.write("".join(_line(message) for message in messages))
@@ -108,103 +109,41 @@ def _session(
 
 
 def test_rc_031_unknown_argument_is_refused_by_name_over_mcp(workspace):
-	result = _call("edit", {"file_path": "src/a.py", "new_text": "x = 2\n", "aply": True})
+	result = _call("edit_symbol", {"aply": True, "edits": [{"file_path": "src/a.py", "new_text": "x = 2\n"}]})
 
 	assert result.is_error
-	assert _text(result).startswith("unknown argument 'aply' for edit; did you mean 'apply'?; allowed: ")
+	assert _text(result).startswith("unknown argument 'aply' for edit_symbol; did you mean 'apply'?; allowed: ")
 
 
 def test_rc_107_unknown_argument_is_refused_not_ignored(workspace):
-	result = _call("symbol_info", {"name": "x", "nope": 1})
+	result = _call("lookup", {"name": "x", "nope": 1})
 
 	assert result.is_error
-	assert "unknown argument 'nope' for symbol_info" in _text(result)
+	assert "unknown argument 'nope' for lookup" in _text(result)
 
 
 def test_rc_031_wrong_type_is_the_short_hint_not_a_pydantic_dump(workspace):
-	result = _call("hover", {"file_path": "src/a.py", "line": "x", "column": 1})
+	result = _call("lookup", {"file_path": "src/a.py", "line": "x", "column": 1})
 
 	assert result.is_error
-	assert _text(result) == "hover: line must be a whole number (got 'x')"
-
-
-def test_rc_031_batch_and_direct_call_give_the_same_wording(workspace):
-	direct = _text(_call("hover", {"file_path": "src/a.py", "line": "x", "column": 1}))
-	batched = _text(
-		_call("batch", {"calls": [{"tool": "hover", "args": {"file_path": "src/a.py", "line": "x", "column": 1}}]})
-	)
-
-	assert direct == "hover: line must be a whole number (got 'x')"
-	assert direct in batched
-
-
-# RC-150: stop_on_error must be a real boolean; the SDK's coercion of "yes" and 1 is not allowed.
-
-
-@pytest.mark.parametrize(
-	("value", "got"),
-	[("yes", "'yes'"), (1, "1")],
-)
-def test_rc_150_stop_on_error_non_bool_is_refused(value, got, workspace):
-	result = _call("batch", {"calls": [{"tool": "outline", "args": {"file_path": "src/a.py"}}], "stop_on_error": value})
-
-	assert result.is_error
-	assert _text(result) == f"batch: stop_on_error must be true or false (got {got})"
-
-
-# RC-041 (D8 A): a call that is itself a result reference (`"$1"`) is refused; the batch has no result passing.
-
-
-def test_rc_041_whole_value_result_reference_is_refused(workspace):
-	result = _call("batch", {"calls": [{"tool": "outline", "args": {"file_path": "$1"}}]})
-
-	assert result.is_error
-	assert (
-		"batch call #1: result references ($1) are not supported in v1; "
-		"make the calls independent or run them one by one"
-	) in _text(result)
-
-
-def test_rc_041_dollar_digit_inside_text_still_runs():
-	# A `$5` inside an edit's new text is ordinary text, not a result reference.
-	prepared = batch_tools._prepare(
-		1, {"tool": "edit", "args": {"file_path": "src/a.py", "new_string": "cost is $5", "new_text": "y"}}
-	)
-
-	assert not isinstance(prepared, str), prepared
-
-
-# RC-106: the batch's static annotation stays destructive (it can write); the description says what is safe.
-
-
-def test_rc_106_batch_description_and_annotation():
-	async def scenario():
-		async with Client(server.mcp, mode="legacy") as client:
-			return (await client.list_tools()).tools
-
-	batch = next(tool for tool in asyncio.run(scenario()) if tool.name == "batch")
-
-	text = " ".join(batch.description.split())
-	assert "cannot refer to an earlier call's result" in text
-	assert "possibly destructive" in text
-	assert batch.annotations.destructive_hint is True
+	assert _text(result).startswith("lookup: line must be a whole number (got 'x')")
 
 
 # RC-146: a blank or dot-only name is refused up front with one message.
 
 
 def test_rc_146_blank_name_is_an_error_over_mcp(workspace):
-	result = _call("symbol_info", {"name": "   "})
+	result = _call("lookup", {"name": "   "})
 
 	assert result.is_error
-	assert _text(result) == "name must be a non-empty identifier or dotted path"
+	assert "is not a symbol name" in _text(result)
 
 
 # RC-032: missing-file messages do not echo an absolute path.
 
 
 def test_rc_032_missing_file_message_has_no_absolute_path(workspace):
-	result = _call("hover", {"file_path": "nope.py", "line": 1, "column": 1})
+	result = _call("lookup", {"file_path": "nope.py", "line": 1, "column": 1})
 
 	assert result.is_error
 	assert "File not found: nope.py" in _text(result)
@@ -212,7 +151,7 @@ def test_rc_032_missing_file_message_has_no_absolute_path(workspace):
 
 
 def test_rc_032_subdirectory_path_is_kept_relative(workspace):
-	result = _call("hover", {"file_path": "src/nope.py", "line": 1, "column": 1})
+	result = _call("lookup", {"file_path": "src/nope.py", "line": 1, "column": 1})
 
 	assert result.is_error
 	assert "File not found: src/nope.py" in _text(result).replace("\\", "/")
@@ -287,13 +226,14 @@ def test_rc_016_sigint_with_language_server_running_exits_cleanly(workspace):
 		stderr=subprocess.PIPE,
 		text=True,
 	)
+	assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
 	lines: queue.Queue[str] = queue.Queue()
-	threading.Thread(target=lambda: [lines.put(line) for line in proc.stdout], daemon=True).start()
+	threading.Thread(target=lambda stdout=proc.stdout: [lines.put(line) for line in stdout], daemon=True).start()
 	hover = {
 		"jsonrpc": "2.0",
 		"id": 3,
 		"method": "tools/call",
-		"params": {"name": "hover", "arguments": {"file_path": "src/a.py", "line": 1, "column": 1}},
+		"params": {"name": "lookup", "arguments": {"file_path": "src/a.py", "line": 1, "column": 1}},
 	}
 	try:
 		# Stdin stays open: closing it first would end the session before the hover answer (see qa/driver.py).

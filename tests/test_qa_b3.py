@@ -1,10 +1,13 @@
 import asyncio
 from pathlib import Path
+from typing import cast
 
 import pytest
 from mcp_nav_shared.edits import EditPlan, FileChange
 from mcp_nav_shared.errors import ToolInputError
+from mcp_nav_shared.lsp_client import LspClient
 
+from codenav_mcp import read_tools
 from codenav_mcp.writes import finish_plan, require_workspace_file
 
 
@@ -22,7 +25,13 @@ def test_rc_115_negative(tmp_path: Path) -> None:
 	with pytest.raises(ToolInputError, match="max_new_errors must be 0 or more"):
 		asyncio.run(
 			finish_plan(
-				None, workspace=tmp_path, roots=[], plan=EditPlan("x", []), title="x", apply=True, max_new_errors=-1
+				cast(LspClient, None),
+				workspace=tmp_path,
+				roots=[],
+				plan=EditPlan("x", []),
+				title="x",
+				apply=True,
+				max_new_errors=-1,
 			)
 		)
 
@@ -45,7 +54,7 @@ def test_rc_100_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	before = path.stat().st_mtime_ns
 	result = asyncio.run(
 		finish_plan(
-			None,
+			cast(LspClient, None),
 			workspace=tmp_path,
 			roots=[],
 			plan=EditPlan("x", [FileChange(path, "x = 1\n", "x = 1\n")]),
@@ -71,7 +80,9 @@ def test_rc_005_unavailable(tmp_path: Path) -> None:
 			raise LanguageServerExitedError("dead")
 
 	path = tmp_path / "a.py"
-	result = asyncio.run(errors_after_write(DeadClient(), tmp_path, EditPlan("x", [FileChange(path, "a", "b")])))
+	result = asyncio.run(
+		errors_after_write(cast(LspClient, DeadClient()), tmp_path, EditPlan("x", [FileChange(path, "a", "b")]))
+	)
 	assert result == "Not checked (language server unavailable): a.py (1 files)."
 
 
@@ -100,7 +111,9 @@ def test_rc_100_mixed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	inode = unchanged.stat().st_ino
 	plan = EditPlan("mixed", [FileChange(unchanged, "same", "same"), FileChange(changed, "old", "new")])
 	outcome = asyncio.run(
-		finish_plan(None, workspace=tmp_path, roots=[], plan=plan, title="mixed", apply=True, max_new_errors=0)
+		finish_plan(
+			cast(LspClient, None), workspace=tmp_path, roots=[], plan=plan, title="mixed", apply=True, max_new_errors=0
+		)
 	)
 	assert outcome.applied_id
 	assert unchanged.stat().st_ino == inode
@@ -124,7 +137,9 @@ def test_not_applied_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 	path.write_text("old")
 	plan = EditPlan("x", [FileChange(path, "old", "new")])
 	result = asyncio.run(
-		finish_plan(None, workspace=tmp_path, roots=[], plan=plan, title="x", apply=True, max_new_errors=0)
+		finish_plan(
+			cast(LspClient, None), workspace=tmp_path, roots=[], plan=plan, title="x", apply=True, max_new_errors=0
+		)
 	)
 	assert "\nNOT applied:" in result.text
 	assert path.read_text() == "old"
@@ -149,7 +164,9 @@ def test_rc_035_ambiguous_moves_report_new(tmp_path: Path, monkeypatch: pytest.M
 		return [DiagEntry(path, 1, 1, 1, "code", "bad", "bad") for path in paths], []
 
 	monkeypatch.setattr(simulate, "_collect", collect)
-	result = asyncio.run(simulate.diagnostics_delta(None, tmp_path, before=before, after={}, check=before))
+	result = asyncio.run(
+		simulate.diagnostics_delta(cast(LspClient, None), tmp_path, before=before, after={}, check=before)
+	)
 	assert len(result.new_errors) == 2
 	assert len(result.fixed_errors) == 2
 
@@ -170,7 +187,9 @@ def test_identical_files_are_not_assumed_to_be_renames(tmp_path: Path, monkeypat
 
 	monkeypatch.setattr(simulate, "_collect", collect)
 	result = asyncio.run(
-		simulate.diagnostics_delta(None, tmp_path, before={old: "bad", new: ""}, after={}, check=[old, new])
+		simulate.diagnostics_delta(
+			cast(LspClient, None), tmp_path, before={old: "bad", new: ""}, after={}, check=[old, new]
+		)
 	)
 	assert len(result.new_errors) == 1 and len(result.fixed_errors) == 1
 
@@ -196,7 +215,15 @@ def test_unreadable_importer_blocks_apply(tmp_path: Path, monkeypatch: pytest.Mo
 
 	plan = EditPlan("edit", [FileChange(edited, "x = 1\n", "x = 2\n")])
 	result = asyncio.run(
-		finish_plan(Client(), workspace=tmp_path, roots=[], plan=plan, title="Edit", apply=True, max_new_errors=0)
+		finish_plan(
+			cast(LspClient, Client()),
+			workspace=tmp_path,
+			roots=[],
+			plan=plan,
+			title="Edit",
+			apply=True,
+			max_new_errors=0,
+		)
 	)
 	assert "NOT applied: diagnostics could not be checked" in result.text
 	assert "importer.py" in result.text
@@ -218,7 +245,7 @@ def test_post_write_reports_errors_and_unchecked(tmp_path: Path) -> None:
 			return [{"severity": 1, "message": "broken", "range": {"start": {"line": 0, "character": 0}}}]
 
 	plan = EditPlan("edit", [FileChange(tmp_path / "a.py", "a", "b"), FileChange(tmp_path / "b.py", "a", "b")])
-	result = asyncio.run(errors_after_write(Client(), tmp_path, plan))
+	result = asyncio.run(errors_after_write(cast(LspClient, Client()), tmp_path, plan))
 	assert "Not checked" in result and "b.py" in result
 	assert "1 error" in result and "broken" in result and "a.py" in result
 
@@ -245,7 +272,7 @@ def test_missing_dependent_is_unchecked(tmp_path: Path) -> None:
 			return []
 
 	missing = tmp_path / "missing.py"
-	delta = asyncio.run(diagnostics_delta(Client(), tmp_path, before={}, after={}, check=[missing]))
+	delta = asyncio.run(diagnostics_delta(cast(LspClient, Client()), tmp_path, before={}, after={}, check=[missing]))
 	assert delta.unchecked == ["missing.py"]
 	assert delta.files_checked == 0
 
@@ -271,8 +298,8 @@ def test_verify_changes_reports_missing_historical_text(tmp_path: Path, monkeypa
 		return ""
 
 	async def delta(*args: object, **kwargs: object) -> DiagnosticsDelta:
-		assert path in kwargs["skip_before"]
-		assert path in kwargs["skip_after"]
+		assert isinstance(skip_before := kwargs["skip_before"], set) and path in skip_before
+		assert isinstance(skip_after := kwargs["skip_after"], set) and path in skip_after
 		return DiagnosticsDelta(files_checked=1)
 
 	monkeypatch.setattr(write_tools, "open_session", session)
@@ -281,7 +308,7 @@ def test_verify_changes_reports_missing_historical_text(tmp_path: Path, monkeypa
 	monkeypatch.setattr(write_tools, "_git_show", lambda *args: None)
 	monkeypatch.setattr(write_tools, "files_to_check", lambda *args, **kwargs: ([path], 0))
 	monkeypatch.setattr(write_tools, "diagnostics_delta", delta)
-	result = asyncio.run(write_tools.verify_changes())
+	result = asyncio.run(read_tools.check(since="HEAD"))
 	assert "not checked: a.py" in result
 	assert "0 file(s) checked" in result
 
@@ -291,7 +318,7 @@ def test_verify_added_module_does_not_claim_a_complete_comparison(
 ) -> None:
 	import subprocess  # noqa: S404
 
-	from codenav_mcp import server, write_tools
+	from codenav_mcp import server
 	from tests.live_support import TY, make_workspace
 
 	if not TY.is_file():
@@ -309,7 +336,7 @@ def test_verify_added_module_does_not_claim_a_complete_comparison(
 
 	async def run() -> str:
 		try:
-			return await write_tools.verify_changes()
+			return await read_tools.check(since="HEAD")
 		finally:
 			if server._client is not None:
 				await server._client.stop()
@@ -327,5 +354,13 @@ def test_noop_still_checks_write_guard(tmp_path: Path) -> None:
 	plan = EditPlan("noop", [FileChange(outside, "same", "same")])
 	with pytest.raises(ToolInputError):
 		asyncio.run(
-			finish_plan(None, workspace=tmp_path, roots=[], plan=plan, title="noop", apply=True, max_new_errors=0)
+			finish_plan(
+				cast(LspClient, None),
+				workspace=tmp_path,
+				roots=[],
+				plan=plan,
+				title="noop",
+				apply=True,
+				max_new_errors=0,
+			)
 		)

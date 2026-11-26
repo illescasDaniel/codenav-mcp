@@ -122,7 +122,10 @@ def test_given_bad_change_when_new_params_then_input_error(change, message):
 
 def _args(call_text: str):
 	smap = SourceMap(call_text)
-	call = ast.parse(call_text).body[0].value  # type: ignore[attr-defined]
+	statement = ast.parse(call_text).body[0]
+	assert isinstance(statement, ast.Expr)
+	call = statement.value
+	assert isinstance(call, ast.Call)
 	return smap, call, read_call_args(smap, call)
 
 
@@ -214,7 +217,10 @@ def test_given_call_positions_when_find_call_at_then_matches_callee_end_in_utf16
 	text = "x = '\U0001f600'; y = obj.run(1)\n"
 	smap = SourceMap(text)
 	tree = ast.parse(text)
-	call = tree.body[1].value  # type: ignore[attr-defined]
+	statement = tree.body[1]
+	assert isinstance(statement, ast.Assign)
+	call = statement.value
+	assert isinstance(call, ast.Call)
 	end_line, end_col = smap.lsp_end(call.func)
 	# when
 	found = find_call_at(tree, smap, (end_line, end_col))
@@ -230,4 +236,5 @@ def test_given_def_with_type_params_when_paren_span_then_skips_brackets():
 	# when
 	span = paren_span(smap, tokenize_source(text), 0)
 	# then
+	assert span is not None
 	assert text[span[0] : span[1]] == "a: T"

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
 from codenav_mcp import symbol_tools
 from codenav_mcp.pysource import definitions_in
-from codenav_mcp.symbol_tools import _apply_imports, _delete_span, quick_fix
+from codenav_mcp.symbol_tools import _apply_imports, _delete_span, fix
 from tests.live_support import make_loop_fixture, make_workspace, needs_ty
 
 
@@ -21,7 +22,7 @@ def test_rc_117_keep_comments():
 
 
 def test_rc_116_negative_line():
-	assert "line must be 1 or more" in asyncio.run(quick_fix("a.py", line=-1))
+	assert "line must be 1 or more" in asyncio.run(fix("a.py", line=-1))
 
 
 loop = make_loop_fixture()
@@ -64,7 +65,9 @@ def test_rc_132_held_back_hint(project, loop):
 @needs_ty
 def test_rc_061_binding_clashes(project, loop):
 	for source, kwargs in [("x = 4", {}), ("y = 4", {}), ("os = 4", {}), ("z = 4", {"into": "C"})]:
-		result = loop.run_until_complete(symbol_tools._insert_symbol(source, "bindings.py", **kwargs))
+		result = loop.run_until_complete(
+			symbol_tools._insert_symbol(source, "bindings.py", **cast(dict[str, Any], kwargs))
+		)
 		assert "already exists in bindings.py at line" in result
 
 
@@ -77,7 +80,7 @@ def test_rc_118_missing(project, loop):
 @needs_ty
 def test_rc_078_syntax(project, loop):
 	(project / "bad.py").write_text("def broken(:\n")
-	result = loop.run_until_complete(symbol_tools.quick_fix("bad.py"))
+	result = loop.run_until_complete(symbol_tools.fix("bad.py"))
 	assert "bad.py has a syntax error at line 1; fix it first" in result
 
 
@@ -115,23 +118,23 @@ def _mock_session(monkeypatch, tmp_path, diagnostics, actions):
 
 def test_rc_077_suppression(monkeypatch, tmp_path):
 	_mock_session(monkeypatch, tmp_path, [_diagnostic(0, "x")], {1: [_action("Ignore x")]})
-	assert "Only suppression fixes are available" in asyncio.run(quick_fix("a.py"))
+	assert "Only suppression fixes are available" in asyncio.run(fix("a.py"))
 
 
 def test_rc_135_invalid_choice(monkeypatch, tmp_path):
 	_mock_session(monkeypatch, tmp_path, [_diagnostic(0, "x")], {1: [_action("first"), _action("second")]})
-	assert asyncio.run(quick_fix("a.py", choice=3)) == "Choices: 1. first 2. second"
+	assert asyncio.run(fix("a.py", choice=3)).startswith("Choices: 1. first 2. second")
 
 
 def test_rc_136_fixable_lines(monkeypatch, tmp_path):
 	_mock_session(monkeypatch, tmp_path, [_diagnostic(0, "a"), _diagnostic(1, "b")], {2: [_action("fix")]})
-	result = asyncio.run(quick_fix("a.py", line=8))
+	result = asyncio.run(fix("a.py", line=8))
 	assert "Lines with fixes: 2." in result
 
 
 def test_rc_137_fixable_codes(monkeypatch, tmp_path):
 	_mock_session(monkeypatch, tmp_path, [_diagnostic(0, "a"), _diagnostic(1, "b")], {2: [_action("fix")]})
-	result = asyncio.run(quick_fix("a.py", code="missing"))
+	result = asyncio.run(fix("a.py", code="missing"))
 	assert "Available codes with fixes: b." in result and "fixes: a" not in result
 
 
@@ -141,7 +144,7 @@ def test_rc_076_duplicate_import(project, loop):
 	(project / "uses.py").write_text(
 		'"""Doc."""\nimport os\n\ndef a(): return Cart(), os.sep\ndef b(): return Cart()\n'
 	)
-	result = loop.run_until_complete(quick_fix("uses.py"))
+	result = loop.run_until_complete(fix("uses.py"))
 	assert "Applied as edit" in result
 	assert (project / "uses.py").read_text().count("from models import Cart") == 1
 
@@ -163,7 +166,7 @@ def test_duplicate_inserted_bindings_and_nested_scope_bindings(project, loop):
 
 @needs_ty
 def test_other_definition_with_dynamic_same_line_reference_is_held_back(project, loop):
-	(project / "b.py").write_text("from typing import Any\nobj: Any\ndef doomed(x=obj.doomed()):\n    pass\n")
+	(project / "b.py").write_text("from typing import Any, cast\nobj: Any\ndef doomed(x=obj.doomed()):\n    pass\n")
 	result = loop.run_until_complete(symbol_tools._safe_delete("doomed", file_path="a.py"))
 	assert "held back because" in result
 	assert "def doomed" in (project / "a.py").read_text()

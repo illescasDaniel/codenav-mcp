@@ -45,16 +45,9 @@ from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, forma
 from mcp_nav_shared.exclude import excluded_names, is_excluded, is_inside_nested_repo
 from mcp_nav_shared.format import (
 	STATIC_CALLERS_NOTE,
-	filter_symbols_by_kind_and_path,
-	format_callers,
-	format_diagnostics,
 	format_outline,
-	format_workspace_symbols,
 	outside_workspace_note,
-	parse_kind_filter,
-	snippet,
 	split_inside_workspace,
-	symbol_kind_label,
 	to_symbol_tree,
 	uri_to_path,
 	uri_to_relative,
@@ -63,7 +56,6 @@ from mcp_nav_shared.format import (
 from mcp_nav_shared.lsp_client import LspClient, LspRequestError
 from mcp_nav_shared.notices import NoticeBoard, package_source_dirs
 from mcp_nav_shared.output import cap_output
-from mcp_nav_shared.params import resolve_name_query
 from mcp_nav_shared.resolve import ResolvedSymbol, SymbolNotFoundError, resolve_symbol
 from mcp_nav_shared.transaction import read_only_from_env, refuse_home_path
 from mcp_nav_shared.workspace import (
@@ -76,10 +68,8 @@ from mcp_nav_shared.workspace import (
 
 import codenav_mcp
 from codenav_mcp import tool_base
-from codenav_mcp.ambiguity import ambiguity_listing
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.pysource import reject_nul
-from codenav_mcp.reference_format import format_references_listing, format_symbol_references
 from codenav_mcp.scan_cap import workspace_too_large
 from codenav_mcp.ty_command import resolve_ty_command, ty_config_note
 from codenav_mcp.writes import READ_ONLY_ENV
@@ -103,8 +93,7 @@ try:
 	# whole workspace; set CODENAV_MCP_SOURCE_ROOT (e.g. to "src") in a project's
 	# MCP config to pick another scope.
 	SOURCE_ROOT = resolve_source_root("CODENAV_MCP_SOURCE_ROOT", WORKSPACE_ROOT, autodetect_src=True)
-	# Extra directories `implementations` also scans (e.g. "tests", for test
-	# doubles of a port); their matches are listed under a separate heading.
+	# Extra directories to scan for implementations, such as tests/ for Protocol doubles.
 	EXTRA_SOURCE_ROOTS = resolve_extra_source_roots("CODENAV_MCP_EXTRA_SOURCE_ROOTS", WORKSPACE_ROOT)
 except WorkspaceConfigError as exc:
 	# The console script imports this module before `main` runs, so the check has to happen here. The
@@ -112,49 +101,50 @@ except WorkspaceConfigError as exc:
 	print(f"codenav-mcp: {exc}", file=sys.stderr)
 	raise SystemExit(2) from None
 
-_POSITION_NOTE = (
-	"Positions are 1-indexed. `column` is a UTF-16 character offset on the "
-	"line (not a visual/display column): a leading tab counts as one "
-	"character, so after a single tab the next character starts at column 2."
-)
+
+def _compact_schema(value: Any) -> Any:
+	"""Trim discovery metadata and express simple unions more compactly."""
+	if isinstance(value, list):
+		return [_compact_schema(item) for item in value]
+	if not isinstance(value, dict):
+		return value
+	schema = {
+		key: _compact_schema(item)
+		for key, item in value.items()
+		if key not in {"title", "default"} and (key, item) != ("additionalProperties", True)
+	}
+	variants = schema.get("anyOf", [])
+	if len(variants) == 2 and variants[1] == {"type": "null"}:
+		variant = variants[0]
+		if "enum" in variant:
+			return {"enum": [*variant["enum"], None]}
+		if "type" in variant:
+			return {**variant, "type": [variant["type"], "null"]}
+	if variants and all(isinstance(variant, dict) and variant.keys() == {"type"} for variant in variants):
+		schema["type"] = [variant["type"] for variant in schema.pop("anyOf")]
+	return schema
 
 
 class _CodenavMCPServer(MCPServer):
 	async def list_tools(self) -> list[Tool]:
 		tools = await super().list_tools()
 		for tool in tools:
-			if tool.name in {"lookup", "search"}:
-				# Pydantic titles repeat the tool and parameter names; nullable arguments already imply a null default.
-				schema = dict(tool.input_schema)
-				schema.pop("title", None)
-				schema["properties"] = {
-					key: {k: v for k, v in prop.items() if k != "title" and (k != "default" or v is not None)}
-					for key, prop in schema["properties"].items()
-				}
-				tool.input_schema = schema
+			tool.input_schema = _compact_schema(tool.input_schema)
 		return tools
 
 
 mcp = _CodenavMCPServer(
 	name="codenav",
 	instructions=(
-		"Code navigation for this Python codebase, backed by ty (Astral's type "
-		"checker/language server). Prefer this over grepping for symbol "
-		"definitions/usages: it resolves through type inference (imports, "
-		"dependency-injected parameters, dataclass fields, etc.), not just text "
-		"matching. Python files only (.py/.pyi) — other extensions are rejected. "
-		'Call shapes: symbol_info, callers, references take name="Class.method" (file_path optional, '
-		"narrows it; several matches: the reply lists exact retries); implementations takes name= of a "
-		"Protocol class; hover, definition (and references) take file_path+line+column; outline, "
-		"diagnostics take file_path; search_symbol takes query. Start with symbol_info (what is X, where is it used) or outline "
-		"(what's in this file) rather than chaining search_symbol → hover → definition → "
-		"references by hand. To change code, prefer the write tools over hand edits: edit (the "
-		"built-in Edit/str_replace for .py files plus a type check, one replacement per call), "
-		"edit_symbol (replace/insert/delete a definition by name), rename_symbol, change_signature, "
-		"move (a symbol or a module), quick_fix. They type-check the edit and write it only when it "
-		"adds no errors (max_new_errors=0; apply=false only previews); verify_changes shows what the "
-		"working tree broke, undo_edit reverts. Several calls or files: send one "
-		"batch(calls=[{tool, args}, ...]) instead of many separate calls. " + _POSITION_NOTE
+		'For Python, use lookup(name="Class.method") for a signature, definition location, typed references, '
+		"callers or Protocol implementations. Add file_path to narrow a name. Positions are an alternative "
+		"(1-based lines and UTF-16 columns). Use grep for exact-name text lookups and Read for known source. "
+		"Use search for symbol or mention discovery, outline for a file map, and check for ty diagnostics, "
+		"workspace settings or a git baseline. Use unused to find dead-code candidates and impact to inspect "
+		"call sites and related symbols before changing an API. Use rename, change_signature and move for "
+		"refactors that need linked usages. Use edit_symbol for definition or atomic multi-file edits, and "
+		"fix for ty quick fixes. Apply=false previews. Use edits to list, show, apply or undo stored changes. "
+		"The write gate checks types only. Run relevant tests and docs checks."
 	),
 )
 
@@ -398,19 +388,6 @@ def _display_path(uri: str, workspace_root: Path | None = None) -> str:
 	return label if label != path.as_posix() else f"<outside workspace>/{path.name}"
 
 
-def _format_definition(loc: dict[str, Any]) -> str:
-	"""`file:line:column` plus a short excerpt, with the path shown as `_display_path` gives it."""
-	uri = loc.get("uri") or loc.get("targetUri", "")
-	rng = loc.get("targetSelectionRange") or loc.get("range") or loc.get("targetRange") or {}
-	start = rng.get("start", {})
-	start_line = int(start.get("line", 0))
-	start_col = int(start.get("character", 0))
-	end_line = int((rng.get("end") or {}).get("line", start_line))
-	header = f"{_display_path(uri)}:{start_line + 1}:{start_col + 1}"
-	body = snippet(uri, start_line, end_line, context=2)
-	return f"{header}\n{body}" if body else header
-
-
 def _location_start(loc: dict[str, Any]) -> tuple[int, int]:
 	rng = loc.get("targetSelectionRange") or loc.get("range") or loc.get("targetRange") or {}
 	start = rng.get("start", {})
@@ -483,41 +460,7 @@ async def _is_unresolved_import(client: LspClient, loc: dict[str, Any]) -> bool:
 	)
 
 
-async def _definition_block(client: LspClient, loc: dict[str, Any]) -> str:
-	text = _format_definition(loc)
-	if await _is_unresolved_import(client, loc):
-		text += "\nNote: the import does not resolve."
-	return text
-
-
-async def _definition_text(client: LspClient, locations: list[dict[str, Any]]) -> str:
-	"""Definitions for display: a `.pyi` stub comes first, with its `.py` implementation as an `Also:` line."""
-	blocks: list[str] = []
-	for loc in locations:
-		stub = await _stub_twin_location(client, loc)
-		if stub is None:
-			blocks.append(await _definition_block(client, loc))
-			continue
-		blocks.append(await _definition_block(client, stub))
-		line, column = _location_start(loc)
-		uri = loc.get("uri") or loc.get("targetUri", "")
-		blocks.append(f"Also: {_display_path(uri)}:{line + 1}:{column + 1} (implementation)")
-	return "\n\n".join(blocks)
-
-
 _DEF_KEYWORD_RE = re.compile(r"(\s*)((?:async\s+)?(?:def|class))\b")
-
-
-def _on_definition_keyword(file_path: str, line: int, column: int) -> bool:
-	"""Whether the 1-indexed position is on the `def`/`class` keyword of a line (not on the name)."""
-	if line < 1:
-		return False
-	try:
-		source_line = split_lines((WORKSPACE_ROOT / file_path).read_text(encoding="utf-8"))[line - 1]
-	except (OSError, UnicodeDecodeError, IndexError):
-		return False
-	match = _DEF_KEYWORD_RE.match(source_line)
-	return match is not None and match.start(2) <= column - 1 < match.end(2)
 
 
 def _function_bound_names(tree: ast.AST) -> set[str]:
@@ -568,7 +511,7 @@ def _bound_in_function(name: str, file_path: str | None) -> bool:
 
 
 def _local_hint(name: str) -> str:
-	return f"{name} is a local variable/parameter; locals are only visible through hover/definition at their position."
+	return f"{name} is a local variable/parameter; locals are only visible through lookup at their position."
 
 
 def _local_only_in_file(name: str, file_path: str | None) -> bool:
@@ -605,7 +548,7 @@ def _outer_bound_names(tree: ast.AST) -> set[str]:
 
 
 def _ty_label(command: str) -> str:
-	"""The ty program for the workspace() reply: workspace-relative when it lies in the workspace, else its name only (NAVN-034/035)."""
+	"""The ty program for the check() reply: workspace-relative when it lies in the workspace, else its name only (NAVN-034/035)."""
 	path = Path(command)
 	if not path.is_absolute():
 		return command
@@ -621,7 +564,7 @@ def _ty_label(command: str) -> str:
 def _source_root_line() -> str:
 	if not os.environ.get("CODENAV_MCP_SOURCE_ROOT") and SOURCE_ROOT == WORKSPACE_ROOT / "src":
 		return "Source root: src (auto-detected)"
-	return f"Source root: {SOURCE_ROOT}"
+	return f"Source root: {SOURCE_ROOT.relative_to(WORKSPACE_ROOT).as_posix()}"
 
 
 def _pyproject_warning(root: Path) -> str | None:
@@ -646,15 +589,7 @@ def _pyproject_warning(root: Path) -> str | None:
 	)
 
 
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def workspace(ctx: Context | None = None) -> str:
-	"""Which directory is codenav navigating, and why?
-
-	Also shows the source root, the write mode, the ty command and any configuration
-	warnings. Use when results look like they come from the wrong checkout/worktree.
-	"""
-	await _use_workspace(ctx)
+def _workspace_details() -> list[str]:
 	writes = "disabled (CODENAV_MCP_READ_ONLY)" if read_only_from_env(READ_ONLY_ENV) else "enabled"
 	ty_command = _ty_label(resolve_ty_command(WORKSPACE_ROOT)[0])  # the trailing "server" is not shown
 	lines = [
@@ -665,59 +600,7 @@ async def workspace(ctx: Context | None = None) -> str:
 		f"ty: {ty_command}",
 	]
 	lines += [note for note in (ty_config_note(WORKSPACE_ROOT), _pyproject_warning(WORKSPACE_ROOT)) if note]
-	return "\n".join(lines)
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def hover(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
-	"""Get type/documentation info for the symbol at a position. Example: `hover(file_path="src/a.py", line=12, column=9)`.
-
-	1-indexed; `column` is a UTF-16 offset (a tab counts as one). Put the position on the symbol's name: on a `def`/`class`
-	keyword there is no hover. Paths outside the workspace are refused
-	before the file is read.
-	"""
-	await _use_workspace(ctx)
-	try:
-		_check_python_file(file_path)
-		client = await get_client()
-		result = await client.hover(file_path, line, column)
-		text = _format_hover_contents(result.get("contents"))
-		if text:
-			text = await _enrich_bare_type(text, client, file_path, line, column)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	if text:
-		return text
-	if _on_definition_keyword(file_path, line, column):
-		return "No hover information at that position; put the cursor on the name, not the 'def' keyword."
-	return "No hover information at that position."
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def definition(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
-	"""Go to the definition of the symbol at a position. Example: `definition(file_path="src/a.py", line=12, column=9)`.
-
-	1-indexed; `column` is a UTF-16 offset (a tab counts as one).
-
-	Resolves through ty's type inference, so this works even when the call
-	site only has a typed parameter/attribute (e.g. `services.some_method()`
-	where `services: AppServices` is a constructor argument), not just
-	direct references to a name in scope. A module with a `.pyi` stub gives
-	the stub first and the `.py` implementation as an `Also:` line. Library
-	locations show as `<stdlib>/...` or `<site-packages>/...`.
-	"""
-	await _use_workspace(ctx)
-	try:
-		_check_python_file(file_path)
-		client = await get_client()
-		locations = await client.definition(file_path, line, column)
-		if not locations:
-			return "No definition found at that position."
-		return await _definition_text(client, locations)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+	return lines
 
 
 def _is_under(path: Path, root: Path) -> bool:
@@ -758,14 +641,16 @@ def _caller_uri(call: dict[str, Any]) -> str:
 	return (call.get("from") or {}).get("uri", "")
 
 
-def _with_outside_note(text: str, outside: int) -> str:
-	note = outside_workspace_note(outside)
-	return f"{text}\n{note}" if note else text
-
-
-def _read_error(exc: Exception, tool: str, name: str | None) -> str:
-	"""A read tool's reply to an error: an ambiguous name gets a normal answer listing the exact retries."""
-	return ambiguity_listing(exc, tool, name) or format_tool_error(exc)
+def _on_definition_keyword(file_path: str, line: int, column: int) -> bool:
+	"""Whether the 1-indexed position is on the `def`/`class` keyword of a line (not on the name)."""
+	if line < 1:
+		return False
+	try:
+		source_line = split_lines((WORKSPACE_ROOT / file_path).read_text(encoding="utf-8"))[line - 1]
+	except (OSError, UnicodeDecodeError, IndexError):
+		return False
+	match = _DEF_KEYWORD_RE.match(source_line)
+	return match is not None and match.start(2) <= column - 1 < match.end(2)
 
 
 def _owning_class_name(nodes: list[dict[str, Any]], name: str, line: int) -> str | None:
@@ -809,7 +694,7 @@ async def _static_callers_note(client: LspClient, rel_path: str, resolved: Resol
 	if is_protocol:
 		return (
 			f"Static callers only; implementations of this Protocol member are not included: "
-			f'implementations(name="{owner}") lists them, then callers on one implementation.'
+			f'lookup(name="{owner}", show=["implementations"]) lists them.'
 		)
 	return STATIC_CALLERS_NOTE if _subclassed(owner) else None
 
@@ -832,116 +717,6 @@ async def _syntax_warning(client: LspClient, file_path: str) -> str:
 	if not lines:
 		return ""
 	return f"Warning: {_workspace_display_path(file_path)} has a syntax error at line {min(lines)}; the outline may be incomplete."
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def references(
-	file_path: str | None = None,
-	line: int | None = None,
-	column: int | None = None,
-	include_declaration: bool = True,
-	limit: int = 200,
-	name: str | None = None,
-	query: str | None = None,
-	ctx: Context | None = None,
-) -> str:
-	"""Find all usages of a symbol across the workspace. Example: `references(name="Cart.total")` or `references(file_path="src/cart.py", line=12, column=9)`.
-
-	Give `name` (dotted `Class.method` ok; `file_path` narrows it; `query` is an alias) or
-	`file_path` + `line` + `column` (1-indexed; `column` is a UTF-16 offset, a tab counts as one).
-
-	The first line is the exact total (`N reference(s) in M file(s):`). `limit`
-	(default 200) caps how many hits are listed; production code is listed before
-	tests. Hits in files outside the workspace are not shown.
-	"""
-	await _use_workspace(ctx)
-	by_name = name is not None or query is not None
-	try:
-		if by_name:
-			if line is not None or column is not None:
-				raise ToolInputError("give name (file_path narrows it) or file_path + line + column, not both")
-			name = resolve_name_query(preferred="name", example="Cart.total", name=name, query=query)
-		elif file_path is None or line is None or column is None:
-			raise ToolInputError(
-				"give name (dotted Class.method ok, file_path narrows it), or file_path + line + column. "
-				'Example: references(name="Cart.total")'
-			)
-		else:
-			_check_python_file(file_path)
-		_check_at_least_one(limit, "limit")
-		client = await get_client()
-		if by_name:
-			resolved = await resolve_symbol(client, WORKSPACE_ROOT, str(name), file_path=file_path)
-			file_path, line, column = (
-				uri_to_relative(resolved.uri, WORKSPACE_ROOT),
-				resolved.line + 1,
-				resolved.column + 1,
-			)
-		locations = await client.references(
-			str(file_path), int(line or 0), int(column or 0), include_declaration=include_declaration
-		)
-	except TOOL_ERRORS as exc:
-		return _read_error(exc, "references", name)
-	inside, outside = split_inside_workspace(locations, WORKSPACE_ROOT, _location_uri)
-	return _with_outside_note(format_references_listing(inside, WORKSPACE_ROOT, limit=limit), outside)
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def search_symbol(
-	query: str | None = None,
-	name: str | None = None,
-	kind: str | None = None,
-	path: str | None = None,
-	fuzzy: bool = False,
-	ctx: Context | None = None,
-) -> str:
-	"""Search the whole workspace for a symbol by name (class, function, method, etc.). Example: `search_symbol(query="create_user")`.
-
-	Use this to find a symbol's file/position first, then pass that position
-	to definition/references/hover for precise, type-resolved navigation.
-	Returned positions point at the identifier name (not the `class`/`def`
-	keyword) and use the same character-offset column convention as the
-	other tools. Results include a SymbolKind label and are capped; hits in
-	files outside the workspace, and in nested git checkouts below it (a
-	vendored repo, a linked worktree), are not shown.
-	`name` is accepted as an alias for `query`. Narrow broad queries with
-	`kind` (SymbolKind labels, comma-separated: `class`, `function,method`,
-	`interface`, ...) and `path`. `path` is a workspace-relative prefix matched
-	against the start of each file's path (`src/` matches `src/...`, but `p` also
-	matches `plugins/...`); a value with `*`, `?` or `[` is a glob matched against the
-	whole relative path (`src/**/*.py`; `*` also matches `/`). An absolute path inside
-	the workspace is accepted. Production code ranks before tests.
-	Loose fuzzy hits whose names don't contain the query are summarised as a
-	count; pass `fuzzy=true` to list them with a fuzzy marker.
-	A dotted query (`Cart.total`, `pkg.mod.func`) finds the name after the last dot
-	whose owner is the part before it (its class, or its module path).
-	"""
-	await _use_workspace(ctx)
-	try:
-		kinds = parse_kind_filter(kind)
-		query = resolve_name_query(preferred="query", example="create_user", query=query, name=name)
-		path = _workspace_relative(path) if path else path
-		if path:
-			_check_search_path(path)
-		client = await get_client()
-		# ty matches names literally, so the query is NFKC-normalised first (`ﬁ` finds `fi`).
-		qualifier, leaf = _split_dotted(_nfkc(query))
-		inside, outside, skipped = await _search_symbols(client, qualifier, leaf)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	if not inside:
-		return _with_search_notes(f"No symbols matching {query!r}.", outside, skipped)
-	matching = filter_symbols_by_kind_and_path(inside, WORKSPACE_ROOT, kinds=kinds, path=path)
-	if not matching:
-		filters = ", ".join(f"{k}={v!r}" for k, v in (("kind", kind), ("path", path)) if v)
-		return _with_search_notes(
-			f"No symbols matching {query!r} with {filters} ({len(inside)} without the filters).", outside, skipped
-		)
-	return _with_search_notes(
-		format_workspace_symbols(matching, WORKSPACE_ROOT, query=leaf, fuzzy=fuzzy), outside, skipped
-	)
 
 
 async def _search_symbols(client: LspClient, qualifier: str, leaf: str) -> tuple[list[dict[str, Any]], int, list[str]]:
@@ -992,11 +767,6 @@ def _excluded_dir_of(sym: dict[str, Any]) -> str | None:
 	return None
 
 
-def _with_search_notes(text: str, outside: int, skipped_dirs: list[str]) -> str:
-	notes = _search_notes(outside, skipped_dirs)
-	return "\n".join([text, *notes]) if notes else text
-
-
 def _search_notes(outside: int, skipped_dirs: list[str]) -> list[str]:
 	"""Notes for results dropped as outside the workspace or in excluded directories."""
 	notes = [outside_workspace_note(outside)] if outside > 0 else []
@@ -1045,24 +815,6 @@ async def _owned_by(client: LspClient, symbols: list[dict[str, Any]], owner: str
 	return kept
 
 
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def diagnostics(file_path: str, ctx: Context | None = None) -> str:
-	"""Get ty's type-check diagnostics (errors/warnings) for a single file.
-
-	Each line starts with the file's workspace-relative path, then line:column.
-	"""
-	await _use_workspace(ctx)
-	try:
-		_check_python_file(file_path)
-		client = await get_client()
-		items = await client.diagnostics(file_path)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	# ty's info lines (`Searched in the following paths`) carry absolute paths: scrub them like hover does.
-	return _scrub_text(format_diagnostics(items, path=_workspace_display_path(file_path)))
-
-
 async def _resolve_read_symbol(client: LspClient, name: str, file_path: str | None) -> ResolvedSymbol:
 	# A same-named module-level symbol elsewhere must not hide a local.
 	if _local_only_in_file(name, file_path):
@@ -1077,66 +829,8 @@ async def _resolve_read_symbol(client: LspClient, name: str, file_path: str | No
 
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
-async def symbol_info(
-	name: str | None = None,
-	query: str | None = None,
-	file_path: str | None = None,
-	include_references: bool = True,
-	ctx: Context | None = None,
-) -> str:
-	"""What is X and where is it used? Example: `symbol_info(name="UserService.create_user")`.
-
-	One-call summary for a name: header, hover text, definition, and
-	references grouped by file — the usual first lookup instead of chaining search_symbol → hover →
-	definition → references by hand.
-
-	`name` is a symbol name, or a dotted `Class.method` to resolve a specific
-	method when the plain name is ambiguous. A dotted module path
-	(`pkg.mod.func`) resolves to the function in that module. Pass `file_path`
-	(relative to the workspace root) to disambiguate when several symbols share
-	a name elsewhere in the workspace; if it's still ambiguous, the reply lists the
-	exact retry call for each candidate. Local
-	variables and parameters are not indexed, so they are not found by name.
-	`query` is accepted as an alias for `name`; passing both with different
-	values is refused.
-	"""
-	await _use_workspace(ctx)
-	try:
-		name = resolve_name_query(preferred="name", example="UserService.create_user", name=name, query=query)
-		client = await get_client()
-		resolved = await _resolve_read_symbol(client, name, file_path)
-		rel_path = uri_to_relative(resolved.uri, WORKSPACE_ROOT)
-		line, column = resolved.line + 1, resolved.column + 1
-		hover_result = await client.hover(rel_path, line, column)
-		definition_locations = await client.definition(rel_path, line, column)
-		reference_locations = await client.references(rel_path, line, column) if include_references else []
-		definition_text = (
-			await _definition_text(client, definition_locations) if definition_locations else "No definition found."
-		)
-	except TOOL_ERRORS as exc:
-		return _read_error(exc, "symbol_info", name)
-	header = f"{resolved.name}  [{symbol_kind_label(resolved.kind)}]  ({_display_path(resolved.uri)}:{line}:{column})"
-	hover_text = _format_hover_contents(hover_result.get("contents")) or "No hover information."
-	parts = [header, "", hover_text, "", "Definition:", definition_text]
-	if include_references:
-		retry = f'references(file_path="{rel_path}", line={line}, column={column}, limit={max(len(reference_locations), 1)})'
-		parts += ["", "References:", format_symbol_references(reference_locations, WORKSPACE_ROOT, retry)]
-	return "\n".join(parts)
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
 async def outline(file_path: str, depth: int | None = None, ctx: Context | None = None) -> str:
-	"""What's in this file? Example: `outline(file_path="src/app/services.py")`.
-
-	Indented outline (classes, methods, functions, with line numbers) of a
-	Python file, so you can navigate a large file without reading it in full.
-	`depth=1` lists only the top-level definitions. A file with a syntax error
-	gets a warning line first (the outline may be incomplete); a file that
-	contains a NUL byte is refused.
-	Follow up with hover/definition/references at a listed line, or
-	symbol_info by name.
-	"""
+	"""Map a Python file before reading it; depth=1 shows top-level definitions. Example: `outline(file_path="src/app.py")`."""
 	await _use_workspace(ctx)
 	try:
 		_check_python_file(file_path)
@@ -1161,54 +855,6 @@ async def _incoming_calls(
 		return None, 0
 	incoming = await client.incoming_calls(items[0])
 	return split_inside_workspace(incoming, WORKSPACE_ROOT, _caller_uri)
-
-
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def callers(
-	name: str | None = None,
-	query: str | None = None,
-	file_path: str | None = None,
-	limit: int = 200,
-	ctx: Context | None = None,
-) -> str:
-	"""Who calls this function? Example: `callers(name="create_user")`.
-
-	Narrower than references, since it
-	leaves out imports and type-only usages and only lists actual call sites.
-
-	`name` resolves the same way as symbol_info (dotted Class.method accepted;
-	pass file_path to disambiguate a common name). `query` is accepted as an
-	alias for `name`. The first line is the exact count of callers; `limit`
-	(default 200) caps how many are listed. A function that is only used as a
-	value (passed or stored, never called) gets a note saying so. For a method of a
-	class with subclasses, or a Protocol member, the reply says overriding/implementing
-	methods are not included (see `implementations`). Callers in files outside the workspace are not shown.
-	"""
-	await _use_workspace(ctx)
-	try:
-		name = resolve_name_query(preferred="name", example="create_user", name=name, query=query)
-		_check_at_least_one(limit, "limit")
-		client = await get_client()
-		resolved = await resolve_symbol(client, WORKSPACE_ROOT, name, file_path=file_path)
-		rel_path = uri_to_relative(resolved.uri, WORKSPACE_ROOT)
-		inside, outside = await _incoming_calls(client, rel_path, resolved.line + 1, resolved.column + 1)
-		if inside is None:
-			return f"{resolved.name} has no call hierarchy entry at that position (it may not be a callable)."
-		value_only = False
-		if not inside:
-			uses = await client.references(rel_path, resolved.line + 1, resolved.column + 1, include_declaration=False)
-			value_only = bool(split_inside_workspace(uses, WORKSPACE_ROOT, _location_uri)[0])
-		static_note = await _static_callers_note(client, rel_path, resolved) if resolved.kind == 6 else None
-	except TOOL_ERRORS as exc:
-		return _read_error(exc, "callers", name)
-	if value_only:
-		text = f"{resolved.name} is used as a value only (not called); see references for those uses."
-	else:
-		text = format_callers(inside, WORKSPACE_ROOT, limit=limit)
-	if static_note:
-		text = f"{text}\n{static_note}"
-	return _with_outside_note(text, outside)
 
 
 def _shown(path: Path) -> str:
@@ -1447,52 +1093,6 @@ def _candidate_files(root: Path) -> list[Path]:
 	return sorted(files)
 
 
-@mcp.tool(annotations=tool_base.READS, structured_output=False)
-@_notices.tool
-async def implementations(
-	port_name: str | None = None,
-	name: str | None = None,
-	query: str | None = None,
-	file_path: str | None = None,
-	ctx: Context | None = None,
-) -> str:
-	"""Find concrete classes that structurally satisfy a `Protocol` port. Example: `implementations(name="FileSystemPort")`.
-
-	Many hexagonal codebases define ports as `Protocol`s that adapters never
-	subclass explicitly, so ty's own `implementation`/`typeHierarchy` return
-	nothing for them. This scans classes under SOURCE_ROOT (the whole
-	workspace by default; see CODENAV_MCP_SOURCE_ROOT) whose method names
-	cover the protocol's, then verifies each candidate with ty's real type
-	checker via an in-memory probe file (never written to disk) — so a
-	result means "assignable", not just "same method names". `port_name`
-	must itself resolve to a `Protocol` class; other classes' subclasses are
-	better found with `references`/`symbol_info`. `name` and `query` are
-	accepted as aliases for `port_name`. `file_path` narrows the port lookup
-	to one file when the name exists in several. Members inherited from
-	same-workspace base classes, and fields/properties declared by the port,
-	count when matching names. Directories listed in
-	CODENAV_MCP_EXTRA_SOURCE_ROOTS (e.g. `tests`) are scanned too; their
-	matches (test doubles) are listed under a separate heading.
-	"""
-	await _use_workspace(ctx)
-	try:
-		port_name = resolve_name_query(
-			preferred="port_name",
-			example="FileSystemPort",
-			port_name=port_name,
-			name=name,
-			query=query,
-		)
-		client = await get_client()
-		port = await resolve_symbol(client, WORKSPACE_ROOT, port_name, file_path=file_path)
-		matches = await _protocol_matches(client, port)
-	except SymbolNotFoundError as exc:
-		return FailedText(f"{exc} Check the name with symbol_info or hover first.")
-	except TOOL_ERRORS as exc:
-		return _read_error(exc, "implementations", port_name)
-	return _format_protocol_matches(port.name, matches)
-
-
 @dataclass(frozen=True)
 class ProtocolImplementation:
 	path: Path
@@ -1522,7 +1122,7 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 	if port.name not in _protocol_class_names(port_source):
 		raise ToolInputError(
 			f"{port.name!r} is not a Protocol; implementations only finds structural "
-			"implementers of Protocol ports (use symbol_info/references for explicit subclasses)."
+			'implementers of Protocol ports (use lookup with show=["subclasses"] for explicit subclasses).'
 		)
 	port_class = next(
 		(n for n in to_symbol_tree(port_symbols) if n["kind"] == 5 and n["name"] == port.name),  # Class
@@ -1672,41 +1272,6 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 	return matches
 
 
-def _format_protocol_matches(name: str, matches: _ProtocolMatches) -> str:
-	skipped = (
-		f" ({matches.unreadable} file(s) under {_shown(SOURCE_ROOT)} skipped: unreadable)" if matches.unreadable else ""
-	)
-	if matches.no_match_members is not None:
-		return (
-			f"No classes under {_shown(SOURCE_ROOT)} cover {name}'s methods: "
-			f"{', '.join(sorted(matches.no_match_members))}.{skipped}{_unscanned_note()}"
-		)
-	verified = [candidate for candidate in matches.verified if not candidate.extra]
-	extra = [candidate for candidate in matches.verified if candidate.extra]
-	lines = [
-		f"{len(verified)} implementation(s) of {name} in {len({c.path for c in verified})} file(s) (type-verified):{skipped}"
-	]
-	lines += [candidate.listing() for candidate in verified] or ["(none)"]
-	if EXTRA_SOURCE_ROOTS:
-		roots = ", ".join(
-			str(r.relative_to(WORKSPACE_ROOT)) if r.is_relative_to(WORKSPACE_ROOT) else str(r)
-			for r in EXTRA_SOURCE_ROOTS
-		)
-		lines += ["", f"{len(extra)} more in extra roots ({roots}), e.g. test doubles (type-verified):"]
-		lines += [candidate.listing() for candidate in extra] or ["(none)"]
-	not_verified = len(matches.rejected) + matches.not_probed
-	if not_verified:
-		lines += ["", f"Method-name matches not verified as the port ({not_verified}):"]
-		lines += [f"{candidate.listing()}  — {reason}" for candidate, reason in matches.rejected]
-		if matches.not_probed:
-			lines.append(
-				f"{matches.not_probed} more could not be probed: their module has no import path under the source root."
-			)
-	if note := _unscanned_note():
-		lines += ["", note.strip()]
-	return "\n".join(lines)
-
-
 def _unscanned_note() -> str:
 	"""One line saying which root `implementations` scanned and how to include tests/, when a tests directory was left out."""
 	if EXTRA_SOURCE_ROOTS:
@@ -1727,13 +1292,13 @@ def _unscanned_note() -> str:
 	)
 
 
-def _register_write_tools() -> None:
-	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
+def _register_tools() -> None:
+	"""Register the v2 tool modules and the checked MCP dispatch."""
 	from mcp_nav_shared.errors import set_display_root
 
 	from codenav_mcp import (
 		analysis_tools,
-		batch_tools,
+		args,
 		edit_tools,
 		edits_tools,
 		read_tools,
@@ -1745,29 +1310,11 @@ def _register_write_tools() -> None:
 
 	tool_base.bind(sys.modules[__name__])
 	set_display_root(_workspace_root_for_errors)
-	for read_tool in (
-		workspace,
-		hover,
-		definition,
-		references,
-		search_symbol,
-		diagnostics,
-		symbol_info,
-		outline,
-		callers,
-		implementations,
-	):
-		batch_tools.register(read_tool.__name__, read_tool, writes=False)
-	# v2 modules (read_tools, analysis_tools, edits_tools) register the same way; see docs/v2-design.md.
+	args.register("outline", outline)
 	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools, read_tools, analysis_tools, edits_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
 			mcp.tool(annotations=tool_annotations, structured_output=False)(_notices.tool(fn))
-			batch_tools.register(fn.__name__, fn, writes=tool_annotations is tool_base.WRITES)
-	# Last: the batch can reach every tool registered above and carries the strictest hints of them.
-	batch_fn = batch_tools.make_batch_tool()
-	batch_tools.register_signature("batch", batch_fn)
-	mcp.tool(annotations=tool_base.WRITES, structured_output=False)(_notices.tool(batch_fn))
-	# Direct calls get the same argument checks as batch calls, before the SDK validates them.
+			args.register(fn.__name__, fn)
 	mcp.call_tool = _checked_call_tool(mcp.call_tool)
 	mcp.middleware.append(_require_initialize)
 
@@ -1804,7 +1351,7 @@ def _checked_call_tool(original: Any) -> Any:
 	"""Wrap `MCPServer.call_tool`: rename guessed argument names, then refuse unknown or mistyped ones by name.
 
 	The SDK ignores unknown arguments and answers a wrong type with its own validation dump. This
-	wrapper runs `batch_tools.argument_problem` (the batch's own check) first; a ValidationError the
+	wrapper runs `args.argument_problem` first; a ValidationError the
 	SDK still raises is turned into the same refusal. An unknown tool name is refused here too, so
 	the SDK's own 'Unknown tool' reply (which echoes the name unbounded) is never sent.
 	"""
@@ -1813,14 +1360,14 @@ def _checked_call_tool(original: Any) -> Any:
 		from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 		from pydantic import ValidationError
 
-		from codenav_mcp import batch_tools
+		from codenav_mcp import args
 
-		fn = batch_tools.signature_of(name)
+		fn = args.signature_of(name)
 		if fn is None:
-			return _refusal(batch_tools.unknown_tool_message(name))
+			return _refusal(args.unknown_tool_message(name))
 		# Guessed argument names (`symbol`, `file`, ...) become the real ones before anything is checked or called.
-		arguments, problem = batch_tools.apply_aliases(name, fn, arguments or {})
-		problem = problem or batch_tools.argument_problem(name, fn, arguments)
+		arguments, problem = args.apply_aliases(name, fn, arguments or {})
+		problem = problem or args.argument_problem(name, fn, arguments)
 		if problem is not None:
 			return _refusal(problem)
 		if _needs_literal_string_dispatch(fn, arguments):
@@ -1848,7 +1395,7 @@ def _checked_call_tool(original: Any) -> Any:
 		except ToolError as exc:
 			if isinstance(exc, UnexpectedToolError) or not isinstance(exc.__cause__, ValidationError):
 				raise
-			problem = batch_tools.argument_problem(name, fn, arguments)
+			problem = args.argument_problem(name, fn, arguments)
 			raise ToolError(problem or f"{name}: one or more arguments have the wrong type.") from exc
 
 	async def call_tool_recording_the_call(name: str, arguments: dict[str, Any], context: Any = None) -> Any:
@@ -1879,7 +1426,7 @@ async def _require_initialize(ctx: Any, call_next: Any) -> Any:
 		raise MCPError(INVALID_PARAMS, "the server is not initialized yet; send initialize first", "") from exc
 
 
-_register_write_tools()
+_register_tools()
 
 
 def _parse_args(argv: list[str]) -> None:

@@ -129,31 +129,7 @@ async def change_signature(
 	allow_large: bool = False,
 	ctx: Context | None = None,
 ) -> str:
-	"""Add, remove or reorder a function's parameters and update every call site. Example:
-	`change_signature(name="send_mail", add=[{"name": "retries", "annotation": "int", "default": "3"}])`.
-
-	`name` is a function, a method (`Class.method`) or a class (its `__init__`).
-	- `add`: list of `{"name", "annotation"?, "default"?, "value"?, "position"?, "keyword_only"?}`.
-	`default` is written in the definition and callers need not change (the parameter is appended
-	keyword-only, after `*`, unless you give `position` or `keyword_only=false`); `value` is
-	inserted at every call site as `name=value` (give both for a required-at-call
-	parameter with a default). `position` is a 0-based index among the parameters
-	(self/cls not counted); the default is the end. One of `default`/`value` is required.
-	- `remove`: parameter names; the matching argument is dropped at each call.
-	- `reorder`: the complete new order of the named parameters. Positional arguments
-	are rearranged, and turned into keywords where a position would no longer line up.
-
-	Call sites come from the type checker's references, so calls through injected
-	dependencies and typed attributes are found, not just textual matches. Overriding
-	methods get the same change (`include_overrides`). Calls using `*args`/`**kwargs`
-	and places where the function is passed around as a value are listed as manual
-	work rather than guessed at. Unresolved alias calls and calls with comments are also
-	listed for manual review; a reorder of effectful arguments is written with keywords
-	in the original order. Decorators and docstrings mentioning removed parameters produce
-	notes. Writes when new errors stay within `max_new_errors` (default 0) and no call
-	site was left for manual attention; otherwise previews with an id for `apply_edit`,
-	which writes it anyway. `apply=false` always previews.
-	"""
+	"""Change parameters and update typed callers. Example: `change_signature(name="parse", add=[{"name":"strict","default":"False"}])`."""
 	try:
 		change = Change(add=list(add or []), remove=list(remove or []), reorder=list(reorder or []))
 		if not (change.add or change.remove or change.reorder):
@@ -513,7 +489,7 @@ async def _move_symbol(
 	reported by name. A move that would create a module-level import cycle is refused unless
 	`allow_import_cycle=true`.
 	Preview by default; `apply=true` writes only if the new errors stay within `max_new_errors`.
-	`undo_edit` reverts it.
+	`edits(action="undo")` reverts it.
 	"""
 	try:
 		session = await open_session(ctx)

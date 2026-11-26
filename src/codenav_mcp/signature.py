@@ -45,22 +45,24 @@ class SourceMap:
 		row = self.lines[line - 1] if 0 < line <= len(self.lines) else ""
 		return self.starts[line - 1] + len(row.encode("utf-8")[:byte_col].decode("utf-8", errors="ignore"))
 
-	def start(self, node: ast.AST) -> int:
-		return self.offset(node.lineno, node.col_offset)  # type: ignore[attr-defined]
+	def start(self, node: ast.expr | ast.keyword | ast.stmt) -> int:
+		return self.offset(node.lineno, node.col_offset)
 
-	def end(self, node: ast.AST) -> int:
-		return self.offset(node.end_lineno, node.end_col_offset)  # type: ignore[attr-defined]
+	def end(self, node: ast.expr | ast.keyword | ast.stmt) -> int:
+		assert node.end_lineno is not None and node.end_col_offset is not None  # noqa: S101, invariant from ast.parse or argument partition
+		return self.offset(node.end_lineno, node.end_col_offset)
 
-	def segment(self, node: ast.AST) -> str:
+	def segment(self, node: ast.expr | ast.keyword | ast.stmt) -> str:
 		return self.text[self.start(node) : self.end(node)]
 
-	def lsp_end(self, node: ast.AST) -> tuple[int, int]:
+	def lsp_end(self, node: ast.expr | ast.keyword | ast.stmt) -> tuple[int, int]:
 		"""(0-based line, UTF-16 column) of a node's end, as the language server reports reference ends."""
-		line = node.end_lineno  # type: ignore[attr-defined]
+		line = node.end_lineno
+		assert line is not None and node.end_col_offset is not None  # noqa: S101, invariant from ast.parse or argument partition
 		row = self.lines[line - 1]
 		return line - 1, utf16_column(
 			row, len(row.encode("utf-8")[: node.end_col_offset].decode("utf-8", errors="ignore"))
-		)  # type: ignore[attr-defined]
+		)
 
 
 def tokenize_source(text: str, filename: str = "<source>") -> list[tokenize.TokenInfo]:
@@ -375,7 +377,8 @@ def rebind_call(
 		else:
 			extras.append(arg)
 	for arg in keyword_args:
-		provided[arg.keyword] = (arg.value, False, arg)  # type: ignore[index]
+		assert arg.keyword is not None  # noqa: S101, invariant from ast.parse or argument partition
+		provided[arg.keyword] = (arg.value, False, arg)
 	kept_keywords = [a for a in keyword_args if a.keyword not in removed]
 	for name in removed:
 		provided.pop(name, None)
@@ -405,9 +408,10 @@ def rebind_call(
 			raise ManualCallError("passes extra positional arguments that would shift")
 		positional_out += [(a.value, a) for a in extras]
 	for arg in kept_keywords:
+		assert arg.keyword is not None  # noqa: S101, invariant from ast.parse or argument partition
 		if arg.keyword not in emitted:
 			keyword_out.append((arg.text, arg))
-			emitted.add(arg.keyword)  # type: ignore[arg-type]
+			emitted.add(arg.keyword)
 	for name, value in new_values.items():
 		if name not in emitted:
 			keyword_out.append((f"{name}={value}", None))

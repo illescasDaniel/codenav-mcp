@@ -6,7 +6,7 @@ import ast
 
 import pytest
 
-from codenav_mcp import refactor_tools, write_tools
+from codenav_mcp import edits_tools, refactor_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -91,11 +91,11 @@ def test_given_star_args_call_when_change_signature_then_plan_is_held_as_incompl
 	# then — nothing written, and the top of the reply says why and how to write it anyway
 	assert "NOT applied: the plan is incomplete: 2 call site(s) were not updated" in text
 	assert "uses *args/**kwargs unpacking" in text and "used as a value, not called" in text
-	assert 'apply_edit(id="' in text and "writes it anyway" in text
+	assert 'edits(action="apply", id="' in text and "writes it anyway" in text
 	assert "retries" not in (project / "src/pkg/mailer.py").read_text()
 	# when — the held plan is written on request
-	plan_id = text.split('apply_edit(id="', 1)[1].split('"', 1)[0]
-	written = _run(loop, write_tools.apply_edit(id=plan_id))
+	plan_id = text.split('edits(action="apply", id="', 1)[1].split('"', 1)[0]
+	written = _run(loop, edits_tools.edits(id=plan_id, action="apply"))
 	# then
 	assert "retries: int = 3" in (project / "src/pkg/mailer.py").read_text()
 	assert "NOT" not in written.splitlines()[0]
@@ -374,6 +374,6 @@ def test_given_applied_change_when_undo_then_all_files_restored(project, loop):
 		),
 	)
 	# when
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	# then
 	assert {p: p.read_text() for p in project.rglob("*.py")} == originals

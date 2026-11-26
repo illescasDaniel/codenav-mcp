@@ -5,10 +5,11 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
-from codenav_mcp import edit_tools, refactor_tools, write_tools
+from codenav_mcp import edit_tools, edits_tools, refactor_tools, write_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -41,7 +42,7 @@ def _untouched(root: Path) -> bool:
 def test_rc_092_edit_symbol_outside_file_path_is_refused(twin, loop):
 	root, outside = twin
 	for kwargs in ({"action": "replace", "source": "def real_fn(x: int) -> int:\n\treturn 2\n"}, {"action": "delete"}):
-		text = _run(loop, edit_tools.edit_symbol(name="real_fn", file_path=outside, **kwargs))
+		text = _run(loop, edit_tools.edit_symbol(name="real_fn", file_path=outside, **cast(dict[str, Any], kwargs)))
 		assert "../out/real.py is outside the workspace; give a path inside it" in text
 		assert str(root) not in text
 		assert "Applied" not in text
@@ -173,7 +174,7 @@ def test_bug_deps_r04_no_cycle_no_note(tmp_path, monkeypatch, loop):
 
 
 def _plan_id(text: str) -> str:
-	return text.split('apply_edit(id="', 1)[1].split('"', 1)[0]
+	return text.split('edits(action="apply", id="', 1)[1].split('"', 1)[0]
 
 
 def _rename_with_left_out_importer(tmp_path, monkeypatch, loop, extra: dict[str, str]):
@@ -187,7 +188,7 @@ def _rename_with_left_out_importer(tmp_path, monkeypatch, loop, extra: dict[str,
 			**extra,
 		},
 	)
-	text = _run(loop, write_tools.rename_symbol(name="helper", file_path="pkg/a.py", new_name="assist"))
+	text = _run(loop, write_tools.rename(name="helper", file_path="pkg/a.py", new_name="assist"))
 	return root, text
 
 
@@ -208,7 +209,7 @@ def test_bug_deps_r06_rename_holds_back_for_a_nested_repo_importer_and_lists_it(
 	)
 	assert "def helper" in (root / "pkg/a.py").read_text() and "helper" in (root / "pkg/b.py").read_text()
 	# the kept plan writes the rename and leaves the nested repository's file alone
-	applied = _run(loop, write_tools.apply_edit(_plan_id(text)))
+	applied = _run(loop, edits_tools.edits(id=_plan_id(text), action="apply"))
 	assert "Applied edit" in applied
 	assert "def assist" in (root / "pkg/a.py").read_text() and "assist" in (root / "pkg/b.py").read_text()
 	assert "helper" in (root / "third_party/lib/inner.py").read_text()
@@ -224,16 +225,11 @@ def test_bug_deps_r06_rename_holds_back_for_an_excluded_dir_importer_and_allow_l
 	assert "Importers not updated (excluded directories): build/ (1 file)" in text
 	assert "def helper" in (root / "pkg/a.py").read_text()
 	# a preview says so too
-	preview = _run(loop, write_tools.rename_symbol(name="helper", file_path="pkg/a.py", new_name="assist", apply=False))
+	preview = _run(loop, write_tools.rename(name="helper", file_path="pkg/a.py", new_name="assist", apply=False))
 	assert "apply=true would be refused: importers that cannot be rewritten" in preview
-	# allow_large=true renames anyway and still lists the file
-	forced = _run(
-		loop,
-		write_tools.rename_symbol(
-			name="helper", file_path="pkg/a.py", new_name="assist", allow_large=True, max_new_errors=None
-		),
-	)
-	assert "Applied as edit" in forced and "build/ (1 file)" in forced
+	# The held preview remains explicitly applicable.
+	applied = _run(loop, edits_tools.edits(action="apply", id=_plan_id(preview), allow_large=True))
+	assert "Applied edit" in applied
 	assert "helper" in (root / "build/z.py").read_text()
 
 

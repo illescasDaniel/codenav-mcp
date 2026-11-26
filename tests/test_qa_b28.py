@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from codenav_mcp import server
+from codenav_mcp import read_tools, server
 
 
 _FILES = {
@@ -35,7 +35,7 @@ class _Client:
 	"""Answers `workspace_symbol` with one function symbol per file in `_FILES`, matched by name."""
 
 	def __init__(self, root: Path) -> None:
-		self.symbols = [
+		self.symbols: list[dict[str, Any]] = [
 			{
 				"name": name,
 				"kind": 12,
@@ -72,8 +72,8 @@ def ws(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _search(query: str) -> str:
-	result = asyncio.run(server.search_symbol(query=query))
-	return result.content[0].text if hasattr(result, "content") else result
+	result = asyncio.run(read_tools.search(query=query))
+	return result
 
 
 def test_rc_002_search_skips_build_env_dist_directories(ws):
@@ -81,7 +81,7 @@ def test_rc_002_search_skips_build_env_dist_directories(ws):
 	texts = {name: _search(name) for name in ("build_symbol", "env_symbol", "dist_symbol")}
 	# then — no file in an excluded directory is listed; the note says which directories were skipped
 	for name, text in texts.items():
-		assert text.startswith(f"No symbols matching {name!r}.\n"), text
+		assert text.startswith(f"0 symbols match {name!r}.\n"), text
 		assert "build/built.py" not in text
 	assert texts["build_symbol"].endswith(
 		"Symbols in excluded directories were not shown: build/ (1). Pass CODENAV_MCP_INCLUDE_DIRS=build to include them."
@@ -105,7 +105,7 @@ def test_rc_002_include_dirs_un_excludes_build(ws, monkeypatch):
 	env_text = _search("env_symbol")
 	# then — `build` is included by the override; `env` stays excluded
 	assert "build/built.py" in build_text
-	assert env_text.startswith("No symbols matching 'env_symbol'.")
+	assert env_text.startswith("0 symbols match 'env_symbol'.")
 	assert "env/ (1)" in env_text
 
 
@@ -115,5 +115,5 @@ def test_rc_002_exclude_dirs_adds_names_to_search_skip(ws, monkeypatch):
 	# when
 	text = _search("keep_symbol")
 	# then — a name added to the shared list is skipped by search too
-	assert text.startswith("No symbols matching 'keep_symbol'.")
+	assert text.startswith("0 symbols match 'keep_symbol'.")
 	assert "src/ (1)" in text

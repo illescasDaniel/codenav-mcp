@@ -6,7 +6,7 @@ import ast
 
 import pytest
 
-from codenav_mcp import refactor_tools, write_tools
+from codenav_mcp import edits_tools, refactor_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -91,7 +91,7 @@ def test_given_move_symbol_when_undo_then_new_file_removed_and_originals_back(pr
 		),
 	)
 	# when
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	# then
 	assert {p: p.read_text() for p in project.rglob("*.py")} == originals
 
@@ -258,7 +258,7 @@ def test_given_move_module_preview_when_undo_after_apply_then_tree_restored(proj
 			from_file="src/pkg/dates.py", to_file="src/pkg/renamed.py", apply=True, max_new_errors=None
 		),
 	)
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	# then
 	assert {p: p.read_text() for p in project.rglob("*.py")} == originals
 

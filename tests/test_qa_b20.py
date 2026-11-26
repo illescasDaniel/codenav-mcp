@@ -5,8 +5,12 @@ from __future__ import annotations
 
 import asyncio
 import re
+from typing import cast
 
-from codenav_mcp import edit_tools, refactor_tools, server, write_tools
+from mcp.types import CallToolResult, TextContent
+
+from codenav_mcp import edit_tools, edits_tools, refactor_tools, server, write_tools
+from codenav_mcp.tool_base import Session
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -47,16 +51,16 @@ def test_rc_sig024_large_rename_refusal_keeps_plan_under_an_id(tmp_path, monkeyp
 	project = make_workspace(tmp_path, monkeypatch, files)
 
 	refused = loop.run_until_complete(
-		write_tools.rename_symbol(name="helper", file_path="src/pkg/lib.py", new_name="renamed", apply=True)
+		write_tools.rename(name="helper", file_path="src/pkg/lib.py", new_name="renamed", apply=True)
 	)
 
 	assert "NOT applied" in refused
 	assert "touches 46 files (limit 40)" in refused
-	match = re.search(r'apply_edit\(id="([0-9a-f]+)", allow_large=true\)', refused)
+	match = re.search(r'edits\(action="apply", id="([0-9a-f]+)", allow_large=true\)', refused)
 	assert match, refused
 	assert "def helper" in (project / "src/pkg/lib.py").read_text(encoding="utf-8")
 
-	applied = loop.run_until_complete(write_tools.apply_edit(id=match.group(1), allow_large=True))
+	applied = loop.run_until_complete(edits_tools.edits(id=match.group(1), allow_large=True, action="apply"))
 
 	assert "Applied" in applied or "edit" in applied, applied
 	assert "def renamed" in (project / "src/pkg/lib.py").read_text(encoding="utf-8")
@@ -131,8 +135,9 @@ def test_rc_sig004_call_site_file_with_syntax_error_is_refused_readably(tmp_path
 def test_rc_sig033_add_entry_that_is_not_an_object_gets_a_true_message(tmp_path):
 	result = asyncio.run(server.mcp.call_tool("change_signature", {"name": "send", "add": ["x"]}))
 
-	text = result.content[0].text
-	assert result.is_error
+	assert isinstance(result, CallToolResult) and result.is_error
+	assert isinstance(content := result.content[0], TextContent)
+	text = content.text
 	assert "add must be a list of objects" in text
 	assert "(got ['x'])" in text
 
@@ -220,10 +225,10 @@ def test_quick_fix_warns_if_new_import_creates_direct_cycle(tmp_path):
 	(package / "models.py").write_text("from cyc.user import util\nclass CycCart: pass\n")
 	session = SimpleNamespace(workspace=tmp_path, roots=[tmp_path])
 	notes = _quick_fix_cycle_notes(
-		session, user, user.read_text(), "from cyc.models import CycCart\n" + user.read_text()
+		cast(Session, session), user, user.read_text(), "from cyc.models import CycCart\n" + user.read_text()
 	)
 	assert len(notes) == 1 and "import cycle" in notes[0] and "cyc.models" in notes[0]
-	assert not _quick_fix_cycle_notes(session, user, user.read_text(), "import os\n" + user.read_text())
+	assert not _quick_fix_cycle_notes(cast(Session, session), user, user.read_text(), "import os\n" + user.read_text())
 
 
 def test_parent_binding_distinguishes_literals_submodules_and_conditional_writes(tmp_path):
@@ -269,9 +274,9 @@ def test_quick_fix_import_cycle_warning_reaches_applied_reply(tmp_path, monkeypa
 			"src/cyc/models.py": "from cyc.user import util\n\nclass CycCart:\n    pass\n",
 		},
 	)
-	from codenav_mcp.symbol_tools import quick_fix
+	from codenav_mcp.symbol_tools import fix
 
-	result = loop.run_until_complete(quick_fix(file_path="src/cyc/user.py", choice="cyc.models", apply=True))
+	result = loop.run_until_complete(fix(file_path="src/cyc/user.py", choice="cyc.models", apply=True))
 	assert "Applied as edit" in result, result
 	assert "import cycle" in result and "cyc.models" in result, result
 	assert "from cyc.models import CycCart" in (project / "src/cyc/user.py").read_text()

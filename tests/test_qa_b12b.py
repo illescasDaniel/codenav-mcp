@@ -13,7 +13,7 @@ from typing import Any
 
 from mcp_nav_shared.resolve import ResolvedSymbol
 
-from codenav_mcp import server
+from codenav_mcp import read_tools, server
 
 
 class _Client:
@@ -24,6 +24,12 @@ class _Client:
 
 	def _answer(self, key: str, default: Any = None) -> Any:
 		return self.answers.get(key, [] if default is None else default)
+
+	async def definition(self, file_path: str, line: int, column: int) -> list:
+		return []
+
+	async def hover(self, file_path: str, line: int, column: int) -> dict:
+		return {"contents": {"value": "int"}}
 
 	async def references(self, file_path: str, line: int, column: int, include_declaration: bool = True) -> list:
 		return list(self._answer("references"))
@@ -134,8 +140,8 @@ def test_rc_017_hits_outside_the_workspace_are_not_listed(tmp_path, monkeypatch)
 		_Client(references=[_loc(root, "a.py"), outside_loc], workspace_symbol=[_symbol(outside.as_uri(), "helper")]),
 	)
 	# when
-	refs = _run(server.references(file_path="a.py", line=1, column=1))
-	symbols = _run(server.search_symbol(query="helper"))
+	refs = _run(read_tools.lookup(file_path="a.py", line=1, column=1, show=["references"]))
+	symbols = _run(read_tools.search(query="helper"))
 	# then
 	assert "1 result(s) outside the workspace were not shown." in refs
 	assert "site.py" not in refs
@@ -158,39 +164,39 @@ def test_rc_043_same_name_hits_are_listed_in_path_order(tmp_path, monkeypatch):
 		),
 	)
 	# when
-	text = _run(server.search_symbol(query="helper"))
+	text = _run(read_tools.search(query="helper"))
 	# then
 	assert text.index("pkg/a.py") < text.index("pkg/b.py")
 
 
 def test_rc_049_references_state_the_exact_total_and_cap_the_list(tmp_path, monkeypatch):
 	# given
-	assert "limit" in inspect.signature(server.references).parameters
+	assert "limit" in inspect.signature(read_tools.lookup).parameters
 	root = _ws(tmp_path, monkeypatch)
 	_write(root, "a.py")
 	_use(monkeypatch, _Client(references=[_loc(root, "a.py", 0), _loc(root, "a.py", 1), _loc(root, "a.py", 2)]))
 	# when
-	full = _run(server.references(file_path="a.py", line=1, column=1))
-	capped = _run(server.references(file_path="a.py", line=1, column=1, limit=2))
-	refused = _run(server.references(file_path="a.py", line=1, column=1, limit=0))
+	full = _run(read_tools.lookup(file_path="a.py", line=1, column=1, show=["references"]))
+	capped = _run(read_tools.lookup(file_path="a.py", line=1, column=1, limit=2, show=["references"]))
+	refused = _run(read_tools.lookup(file_path="a.py", line=1, column=1, limit=0, show=["references"]))
 	# then
-	assert full.splitlines()[0] == "3 reference(s) in 1 file(s):"
-	assert capped.splitlines()[0] == "3 reference(s) in 1 file(s):"
-	assert "1 more omitted; raise limit= to see them" in capped
-	assert "limit must be 1 or more" in refused
+	assert "References (3)" in full
+	assert "References (3)" in capped
+	assert "offset=2" in capped
+	assert "limit must be at least 1" in refused
 
 
 def test_rc_049_scale_references_limit_50_of_5000(tmp_path, monkeypatch):
 	# given
-	assert "limit" in inspect.signature(server.references).parameters
+	assert "limit" in inspect.signature(read_tools.lookup).parameters
 	root = _ws(tmp_path, monkeypatch)
 	_write(root, "big.py", "x = 1\n" * 6000)
 	_use(monkeypatch, _Client(references=[_loc(root, "big.py", i) for i in range(5000)]))
 	# when
-	text = _run(server.references(file_path="big.py", line=1, column=1, limit=50))
+	text = _run(read_tools.lookup(file_path="big.py", line=1, column=1, limit=50, show=["references"]))
 	# then
-	assert text.splitlines()[0] == "5000 reference(s) in 1 file(s):"
-	assert "4950 more omitted; raise limit= to see them" in text
+	assert "References (5000)" in text
+	assert "... 4950 more" in text
 	assert len(text) < 5000
 
 
@@ -211,7 +217,7 @@ def test_rc_082_callers_of_a_method_with_subclasses_say_static_only(tmp_path, mo
 		monkeypatch, _Client(document_symbol=tree, prepare=[{"name": "run"}], incoming=[_call_from(root, "use.py", 2)])
 	)
 	# when
-	text = _run(server.callers(name="Base.run"))
+	text = _run(read_tools.lookup(name="Base.run", show=["callers"]))
 	# then
 	assert "Static callers only; overriding methods are not included." in text
 
@@ -243,9 +249,9 @@ def test_rc_145_callers_of_a_value_only_function_say_so(tmp_path, monkeypatch):
 	)
 	_use(monkeypatch, _Client(prepare=[{"name": "make_key"}], incoming=[], references=[_loc(root, "m.py", 3)]))
 	# when
-	text = _run(server.callers(name="make_key"))
+	text = _run(read_tools.lookup(name="make_key", show=["callers"]))
 	# then
-	assert "make_key is used as a value only (not called); see references for those uses." in text
+	assert "make_key has references but no static callers." in text
 
 
 def test_rc_083_outline_of_a_file_with_a_syntax_error_warns_first(tmp_path, monkeypatch):
@@ -281,26 +287,10 @@ def test_rc_084_absolute_path_inside_the_workspace_filters_like_a_relative_one(t
 	_write(root, "src/a.py", "def helper(): pass\n")
 	_use(monkeypatch, _Client(workspace_symbol=[_symbol((root / "src/a.py").as_uri(), "helper")]))
 	# when
-	text = _run(server.search_symbol(query="helper", path=str(root / "src")))
+	text = _run(read_tools.search(query="helper", path=str(root / "src")))
 	# then
 	assert "helper" in text
 	assert "No symbols" not in text
-
-
-def test_rc_147_search_symbol_documents_path_as_prefix_or_glob(tmp_path, monkeypatch):
-	# given
-	doc = " ".join((server.search_symbol.__doc__ or "").split())  # docstring lines wrap
-	# then
-	assert "prefix" in doc
-	assert "glob" in doc
-	assert "`*` also matches `/`" in doc
-	assert "An absolute path inside the workspace is accepted." in doc
-	assert "substring" not in doc.lower()
-	# and the documented glob matches a nested file
-	root = _ws(tmp_path, monkeypatch)
-	_write(root, "src/sub/b.py", "def helper(): pass\n")
-	_use(monkeypatch, _Client(workspace_symbol=[_symbol((root / "src/sub/b.py").as_uri(), "helper")]))
-	assert "helper" in _run(server.search_symbol(query="helper", path="src/**/*.py"))
 
 
 def test_rc_085_fuzzy_only_result_says_there_is_no_exact_match(tmp_path, monkeypatch):
@@ -309,9 +299,9 @@ def test_rc_085_fuzzy_only_result_says_there_is_no_exact_match(tmp_path, monkeyp
 	_write(root, "a.py", "x = 1\n")
 	_use(monkeypatch, _Client(workspace_symbol=[_symbol((root / "a.py").as_uri(), "unrelated")]))
 	# when
-	text = _run(server.search_symbol(query="helper"))
+	text = _run(read_tools.search(query="helper"))
 	# then
-	assert "No exact match" in text and "fuzzy=true" in text
+	assert "No exact match" in text and "shorter query" in text
 
 
 def test_rc_087_diagnostic_lines_name_their_file(tmp_path, monkeypatch):
@@ -326,9 +316,9 @@ def test_rc_087_diagnostic_lines_name_their_file(tmp_path, monkeypatch):
 	}
 	_use(monkeypatch, _Client(diagnostics=[diag]))
 	# when
-	text = _run(server.diagnostics(file_path="a.py"))
+	text = _run(read_tools.check(file_path="a.py"))
 	# then
-	assert text.splitlines()[0].startswith("a.py:12:5 ")
+	assert text.splitlines()[1].startswith("a.py:12:5 ")
 
 
 def test_rc_142_test_file_is_listed_after_production_files(tmp_path, monkeypatch):
@@ -338,7 +328,7 @@ def test_rc_142_test_file_is_listed_after_production_files(tmp_path, monkeypatch
 	_write(root, "src/x.py")
 	_use(monkeypatch, _Client(references=[_loc(root, "tests/test_x.py"), _loc(root, "src/x.py")]))
 	# when
-	text = _run(server.references(file_path="src/x.py", line=1, column=1))
+	text = _run(read_tools.lookup(file_path="src/x.py", line=1, column=1, show=["references"]))
 	# then
 	assert text.index("src/x.py") < text.index("tests/test_x.py")
 
@@ -401,7 +391,7 @@ def test_handoff_implementations_finds_a_protocol_in_an_extra_root(tmp_path, mon
 	)
 	_use(monkeypatch, _Client(document_symbol={**port_tree, **adapter_tree}))
 	# when
-	text = _run(server.implementations(port_name="Store"))
+	text = _run(read_tools.lookup(name="Store", show=["implementations"]))
 	# then
 	assert "outside the source root" not in text
 	assert "FileStore" in text

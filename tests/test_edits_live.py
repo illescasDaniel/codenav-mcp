@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import re
-
 import pytest
 from mcp_nav_shared.edits import EditPlan, FileChange, TextEdit
 
 from codenav_mcp import edit_state, edits_tools, write_tools, writes
 from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 
-from .live_support import make_loop_fixture, make_workspace, needs_ty
+from .live_support import make_loop_fixture, make_workspace, needs_ty, required_match
 
 
 pytestmark = [pytest.mark.integration, needs_ty]
@@ -39,8 +37,8 @@ def _edits(loop, **kwargs) -> str:
 
 
 def _preview(loop) -> str:
-	text = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
-	return re.search(r'apply_edit\(id="(\w+)"\)', text).group(1)
+	text = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=False))
+	return required_match(r'edits\(action="apply", id="(\w+)"\)', text).group(1)
 
 
 def _restart() -> None:
@@ -247,13 +245,13 @@ def test_given_more_previews_than_the_limit_then_list_says_how_many_are_older(pr
 	assert 'next: edits(action="list", limit=4)' in text
 
 
-def test_given_a_v1_apply_edit_and_undo_edit_then_they_share_the_persistent_state(project, loop):
+def test_preview_apply_and_undo_share_the_same_edit_id_across_restarts(project, loop):
 	preview_id = _preview(loop)
 	_restart()
 
-	applied = _run(loop, write_tools.apply_edit(preview_id))
+	applied = _run(loop, edits_tools.edits(id=preview_id, action="apply"))
 	_restart()
-	undone = _run(loop, write_tools.undo_edit(preview_id))
+	undone = _run(loop, edits_tools.edits(id=preview_id, action="undo"))
 
 	assert applied.startswith(f"Applied edit {preview_id}")
 	assert undone.startswith(f"Reverted edit {preview_id}")

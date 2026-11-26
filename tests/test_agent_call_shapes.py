@@ -13,9 +13,9 @@ import pytest
 from mcp import Client
 from mcp_nav_shared.errors import FailedText
 
-from codenav_mcp import edit_tools, server, write_tools
+from codenav_mcp import edit_tools, edits_tools, read_tools, server, write_tools
 
-from .live_support import make_loop_fixture, make_workspace, needs_ty
+from .live_support import make_loop_fixture, make_workspace, needs_ty, required_match
 
 
 pytestmark = [pytest.mark.integration, needs_ty]
@@ -94,37 +94,39 @@ def _failed(result) -> bool:
 
 
 def test_given_symbol_for_name_when_called_over_mcp_then_it_runs(project, loop):
-	result = _mcp(loop, "callers", {"symbol": "StoragePort.get_hash"})
+	result = _mcp(loop, "lookup", {"show": ["callers"], "symbol": "StoragePort.get_hash"})
 	assert not result.is_error
-	assert "1 caller" in _text(result)
+	assert "Callers (1)" in _text(result)
 
 
 def test_given_file_and_col_aliases_when_called_over_mcp_then_they_reach_the_tool(project, loop):
-	result = _mcp(loop, "hover", {"file": "src/pkg/use.py", "line_number": 5, "col": 10})
+	result = _mcp(loop, "lookup", {"file": "src/pkg/use.py", "line_number": 5, "col": 10})
 	assert not result.is_error
 	assert "reveal_path" in _text(result)
 
 
 def test_given_alias_when_the_value_looks_like_json_then_the_literal_string_path_uses_the_real_name(project, loop):
 	# `new_text="[]"` is JSON-looking text: the call takes the SDK-bypassing dispatch, which must see `file_path`.
-	result = _mcp(loop, "edit", {"filepath": "src/pkg/plain.py", "new_text": "[]"})
+	result = _mcp(loop, "edit_symbol", {"edits": [{"filepath": "src/pkg/plain.py", "new_text": "[]"}]})
 	assert not result.is_error, _text(result)
 	assert (project / "src/pkg/plain.py").read_text().strip() == "[]"
 
 
 def test_given_alias_and_target_with_different_values_when_called_over_mcp_then_refused(project, loop):
-	result = _mcp(loop, "callers", {"symbol": "StoragePort.get_hash", "name": "Plain.only"})
+	result = _mcp(loop, "lookup", {"show": ["callers"], "symbol": "StoragePort.get_hash", "name": "Plain.only"})
 	assert result.is_error
 	assert "give either 'symbol' or 'name', not both" in _text(result)
 
 
 def test_given_alias_and_target_with_the_same_value_over_mcp_then_accepted(project, loop):
-	result = _mcp(loop, "callers", {"symbol": "StoragePort.get_hash", "name": "StoragePort.get_hash"})
+	result = _mcp(
+		loop, "lookup", {"show": ["callers"], "symbol": "StoragePort.get_hash", "name": "StoragePort.get_hash"}
+	)
 	assert not result.is_error
 
 
 def test_given_search_symbol_path_when_called_over_mcp_then_path_stays_its_own_filter(project, loop):
-	result = _mcp(loop, "search_symbol", {"query": "build", "path": "src/pkg/a.py"})
+	result = _mcp(loop, "search", {"query": "build", "path": "src/pkg/a.py"})
 	text = _text(result)
 	assert not result.is_error
 	assert "src/pkg/a.py" in text
@@ -132,141 +134,130 @@ def test_given_search_symbol_path_when_called_over_mcp_then_path_stays_its_own_f
 
 
 def test_given_unknown_argument_when_called_over_mcp_then_refusal_ends_with_the_example(project, loop):
-	result = _mcp(loop, "callers", {"nope": 1})
+	result = _mcp(loop, "lookup", {"show": ["callers"], "nope": 1})
 	assert result.is_error
-	assert _text(result).endswith('Example: callers(name="create_user")')
+	assert _text(result).endswith('Example: lookup(name="Cart.total")')
 
 
 def test_given_missing_required_argument_then_refusal_ends_with_the_example(project, loop):
-	result = _mcp(loop, "hover", {"file_path": "src/pkg/use.py"})
+	result = _mcp(loop, "lookup", {"file_path": "src/pkg/use.py"})
 	assert result.is_error
-	assert "missing required 'line', 'column'" in _text(result)
-	assert _text(result).endswith('Example: hover(file_path="src/a.py", line=12, column=9)')
+	assert "Give name, or file_path with 1-based line and column." in _text(result)
+	assert _text(result).endswith('Example: lookup(name="Cart.total")')
 
 
 # --- aliases in a batch ------------------------------------------------------------------------------------------
-
-
-def test_given_aliases_in_a_batch_then_each_call_runs(project, loop):
-	calls = [
-		{"tool": "callers", "args": {"symbol": "StoragePort.get_hash"}},
-		{"tool": "hover", "args": {"file": "src/pkg/use.py", "lineno": 5, "col": 10}},
-	]
-	result = _mcp(loop, "batch", {"calls": calls})
-	assert not result.is_error
-	assert "batch: 2/2 ok" in _text(result)
-
-
-def test_given_conflicting_alias_in_a_batch_then_that_call_is_refused(project, loop):
-	calls = [{"tool": "callers", "args": {"symbol": "a", "name": "b"}}]
-	text = _text(_mcp(loop, "batch", {"calls": calls}))
-	assert "callers: give either 'symbol' or 'name', not both" in text
 
 
 # --- references by name ------------------------------------------------------------------------------------------
 
 
 def test_given_name_when_references_then_lists_usages(project, loop):
-	text = _run(loop, server.references(name="StoragePort.get_hash"))
+	text = _run(loop, read_tools.lookup(name="StoragePort.get_hash", show=["references"]))
 	assert not _failed(text)
-	assert "reference(s) in" in text.splitlines()[0]
+	assert "References (2)" in text
 	assert "src/pkg/use.py" in text
 
 
 def test_given_name_and_file_path_when_references_then_file_path_only_narrows_the_name(project, loop):
-	text = _run(loop, server.references(name="build", file_path="src/pkg/a.py"))
+	text = _run(loop, read_tools.lookup(name="build", file_path="src/pkg/a.py", show=["references"]))
 	assert not _failed(text)
 	assert "src/pkg/a.py" in text
 	assert "src/pkg/b.py" not in text
 
 
 def test_given_query_when_references_then_accepted_like_name(project, loop):
-	text = _run(loop, server.references(query="StoragePort.get_hash"))
+	text = _run(loop, read_tools.lookup(name="StoragePort.get_hash", show=["references"]))
 	assert "src/pkg/use.py" in text
 
 
 def test_given_position_when_references_positionally_then_still_works(project, loop):
-	text = _run(loop, server.references("src/pkg/ports.py", 9, 6))
-	assert "reference(s)" in text
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/ports.py", line=9, column=6, show=["references"]))
+	assert "References (2)" in text
 	assert "src/pkg/use.py" in text
 
 
 def test_given_neither_name_nor_position_when_references_then_refused_with_an_example(project, loop):
-	text = _run(loop, server.references())
+	text = _run(loop, read_tools.lookup(show=["references"]))
 	assert _failed(text)
 	text = _text(text)
-	assert "give name (dotted Class.method ok, file_path narrows it), or file_path + line + column" in text
-	assert 'Example: references(name="Cart.total")' in text
+	assert "Give name, or file_path with 1-based line and column." in text
+	assert 'Example: lookup(name="Cart.total")' in text
 
 
 def test_given_name_and_position_when_references_then_refused(project, loop):
-	text = _run(loop, server.references(name="StoragePort.get_hash", file_path="src/pkg/ports.py", line=9, column=6))
+	text = _run(
+		loop,
+		read_tools.lookup(
+			name="StoragePort.get_hash", file_path="src/pkg/ports.py", line=9, column=6, show=["references"]
+		),
+	)
 	assert _failed(text)
-	assert "not both" in _text(text)
+	assert "Choose name with optional file_path" in _text(text)
 
 
 def test_given_ambiguous_name_when_references_then_a_normal_listing_of_retries(project, loop):
-	text = _run(loop, server.references(name="build"))
+	text = _run(loop, read_tools.lookup(name="build", show=["references"]))
 	assert not _failed(text)
-	assert text.startswith("2 symbols are named 'build'. Retry with one of:")
-	assert 'references(name="build", file_path="src/pkg/a.py")' in text
+	assert text.startswith("2 symbols match 'build'.")
+	assert 'lookup(name="build", file_path="src/pkg/a.py", show=["references"])' in text
 
 
 # --- ambiguous names in read tools -------------------------------------------------------------------------------
 
 
 def _retry_calls(text: str, tool: str) -> list[str]:
-	return re.findall(rf"^\s+({tool}\(.*?\))\s+\[", text, flags=re.MULTILINE)
+	return re.findall(rf"({tool}\([^\n]*\))$", text, flags=re.MULTILINE)
 
 
 def test_given_ambiguous_name_when_symbol_info_then_not_an_error_and_every_candidate_has_a_retry(project, loop):
-	text = _run(loop, server.symbol_info(name="reveal_path"))
+	text = _run(loop, read_tools.lookup(name="reveal_path"))
 	assert not _failed(text)
-	assert text.startswith("3 symbols are named 'reveal_path'. Retry with one of:")
-	assert sorted(_retry_calls(text, "symbol_info")) == [
-		'symbol_info(name="DesktopPort.reveal_path")',
-		'symbol_info(name="FakeDesktop.reveal_path")',
-		'symbol_info(name="LinuxDesktop.reveal_path")',
+	assert text.startswith("3 symbols match 'reveal_path'.")
+	assert sorted(_retry_calls(text, "lookup")) == [
+		'lookup(name="DesktopPort.reveal_path", file_path="src/pkg/ports.py")',
+		'lookup(name="FakeDesktop.reveal_path", file_path="src/pkg/desktop.py")',
+		'lookup(name="LinuxDesktop.reveal_path", file_path="src/pkg/desktop.py")',
 	]
-	assert "[Method, src/pkg/ports.py:5]" in text
+	assert "src/pkg/ports.py:5  DesktopPort.reveal_path [Method]" in text
 
 
 def test_given_a_listed_retry_when_run_then_it_resolves(project, loop):
-	text = _run(loop, server.symbol_info(name="reveal_path"))
-	retry = _retry_calls(text, "symbol_info")[0]
-	name = re.search(r'name="([^"]+)"', retry).group(1)
-	resolved = _run(loop, server.symbol_info(name=name))
-	assert resolved.startswith("reveal_path  [Method]")
+	text = _run(loop, read_tools.lookup(name="reveal_path"))
+	retry = _retry_calls(text, "lookup")[0]
+	name = required_match(r'name="([^"]+)"', retry).group(1)
+	resolved = _run(loop, read_tools.lookup(name=name))
+	assert resolved.startswith(name + "  ")
 
 
 def test_given_ambiguous_name_when_callers_then_not_an_error_and_lists_callers_retries(project, loop):
-	text = _run(loop, server.callers(name="reveal_path"))
+	text = _run(loop, read_tools.lookup(name="reveal_path", show=["callers"]))
 	assert not _failed(text)
-	assert 'callers(name="DesktopPort.reveal_path")' in text
+	assert 'lookup(name="DesktopPort.reveal_path", file_path="src/pkg/ports.py", show=["callers"])' in text
 
 
 def test_given_same_name_in_two_files_then_the_retry_adds_file_path(project, loop):
-	text = _run(loop, server.symbol_info(name="build"))
+	text = _run(loop, read_tools.lookup(name="build"))
 	assert not _failed(text)
-	assert 'symbol_info(name="build", file_path="src/pkg/a.py")' in text
-	assert 'symbol_info(name="build", file_path="src/pkg/b.py")' in text
+	assert 'lookup(name="build", file_path="src/pkg/a.py")' in text
+	assert 'lookup(name="build", file_path="src/pkg/b.py")' in text
 
 
 def test_given_ambiguous_class_in_a_dotted_name_then_the_retry_keeps_the_member_and_adds_file_path(project, loop):
-	text = _run(loop, server.symbol_info(name="Dup.go"))
+	text = _run(loop, read_tools.lookup(name="Dup.go"))
 	assert not _failed(text)
-	assert 'symbol_info(name="Dup.go", file_path="src/pkg/a.py")' in text
-	assert 'symbol_info(name="Dup.go", file_path="src/pkg/b.py")' in text
+	assert 'lookup(name="Dup.go", file_path="src/pkg/a.py")' in text
+	assert 'lookup(name="Dup.go", file_path="src/pkg/b.py")' in text
 
 
 def test_given_ambiguous_port_when_implementations_then_a_normal_listing(project, loop):
-	text = _run(loop, server.implementations(name="Port"))
+	text = _run(loop, read_tools.lookup(name="Port", show=["implementations"]))
 	assert not _failed(text)
-	assert 'implementations(name="Port", file_path="src/pkg/p1.py")' in text
+	assert 'lookup(name="Port", file_path="src/pkg/p1.py", show=["implementations"])' in text
 
 
 def test_given_unknown_name_when_symbol_info_then_still_an_error(project, loop):
-	text = _run(loop, server.symbol_info(name="no_such_thing_anywhere"))
+	text = _run(loop, read_tools.lookup(name="no_such_thing_anywhere"))
 	assert _failed(text)
 	assert _text(text).startswith("No symbol found matching")
 
@@ -274,7 +265,7 @@ def test_given_unknown_name_when_symbol_info_then_still_an_error(project, loop):
 @pytest.mark.parametrize(
 	("tool", "args"),
 	[
-		("rename_symbol", {"name": "reveal_path", "new_name": "reveal_in_file_manager"}),
+		("rename", {"name": "reveal_path", "new_name": "reveal_in_file_manager"}),
 		("edit_symbol", {"action": "delete", "name": "build"}),
 		("move", {"name": "build", "to_file": "src/pkg/moved.py"}),
 		("change_signature", {"name": "build", "add": [{"name": "x", "annotation": "int", "default": "0"}]}),
@@ -343,9 +334,9 @@ def test_given_a_name_that_is_really_used_when_delete_then_still_held(tmp_path, 
 			'edit_symbol(action="replace", name="build", file_path="src/pkg/b.py")',
 		),
 		(
-			"rename_symbol",
+			"rename",
 			{"name": "build", "new_name": "make"},
-			'rename_symbol(new_name="make", name="build", file_path="src/pkg/a.py")',
+			'rename(new_name="make", name="build", file_path="src/pkg/a.py")',
 		),
 		(
 			"change_signature",
@@ -374,55 +365,55 @@ def test_given_ambiguous_name_when_a_write_tool_refuses_then_it_lists_the_exact_
 
 
 def _rename(loop, **kwargs):
-	return _run(
-		loop, write_tools.rename_symbol(name="DesktopPort.reveal_path", new_name="reveal_in_file_manager", **kwargs)
-	)
+	return _run(loop, write_tools.rename(name="DesktopPort.reveal_path", new_name="reveal_in_file_manager", **kwargs))
 
 
 def test_given_default_when_rename_member_preview_then_unlinked_attr_stays_and_note_says_how_to_include_it(
 	project, loop
 ):
 	text = _rename(loop, apply=False)
-	assert "still accessed as an attribute the type checker could not link" in text
+	assert "optional site(s), not changed" in text
 	assert "tests/test_gui.py:6" in text
-	assert "to rename these too, rerun with include_unlinked_attrs=true" in text
+	assert 'sites=["u1"]' in text
 	assert "-\tdesktop.reveal_path('a')" not in text
 
 
 def test_given_default_when_rename_member_applied_then_the_note_says_to_undo_then_rerun(project, loop):
 	text = _rename(loop)
 	assert (project / "tests/test_gui.py").read_text() == _FILES["tests/test_gui.py"]
-	edit_id = re.search(r"Applied as edit (\w+)", text).group(1)
-	assert f'undo_edit(id="{edit_id}"), then rerun with include_unlinked_attrs=true' in text
-	assert "apply=false previews them first" in text
+	edit_id = required_match(r"Applied as edit (\w+)", text).group(1)
+	assert f'edits(action="apply", id="{edit_id}", sites=["u1"])' in text
+	assert f'edits(action="undo", id="{edit_id}")' in text
 
 
 def test_given_flag_when_rename_member_preview_then_the_attr_edit_is_in_the_plan_and_nothing_is_written(project, loop):
-	text = _rename(loop, apply=False, include_unlinked_attrs=True)
+	text = _rename(loop, apply=False, sites=["u1"])
 	assert "-\tdesktop.reveal_path('a')" in text
 	assert "+\tdesktop.reveal_in_file_manager('a')" in text
-	assert "include_unlinked_attrs: also renamed 1 attribute access(es)" in text
-	assert "rerun with include_unlinked_attrs=true" not in text
+	assert "1 optional site(s) included" in text
+	assert "nothing was changed" not in text
 	assert (project / "tests/test_gui.py").read_text() == _FILES["tests/test_gui.py"]
 
 
 def test_given_a_preview_when_apply_edit_then_no_placeholder_leaks_in_either_reply(project, loop):
 	preview = _rename(loop, apply=False)
-	edit_id = re.search(r'apply_edit\(id="(\w+)"\)', preview).group(1)
-	applied = _run(loop, write_tools.apply_edit(edit_id))
+	edit_id = required_match(r'edits\(action="apply", id="(\w+)"\)', preview).group(1)
+	applied = _run(loop, edits_tools.edits(id=edit_id, action="apply"))
 	assert "<rerun" not in preview + applied
-	assert "to rename these too, rerun with include_unlinked_attrs=true" in preview
+	assert 'sites=["u1"]' in preview
 	assert "Applied edit" in applied
 
 
 def test_given_str_replace_argument_names_when_edit_over_mcp_then_they_are_old_string_and_new_string(project, loop):
-	result = _mcp(loop, "edit", {"path": "src/pkg/plain.py", "old_str": "return 1", "new_str": "return 2"})
+	result = _mcp(
+		loop, "edit_symbol", {"edits": [{"path": "src/pkg/plain.py", "old_str": "return 1", "new_str": "return 2"}]}
+	)
 	assert not result.is_error, _text(result)
 	assert "return 2" in (project / "src/pkg/plain.py").read_text()
 
 
 def test_given_flag_when_rename_member_applied_then_only_the_attribute_access_changes(project, loop):
-	text = _rename(loop, include_unlinked_attrs=True)
+	text = _rename(loop, sites=["u1"])
 	assert "Applied as edit" in text
 	body = (project / "tests/test_gui.py").read_text()
 	assert "desktop.reveal_in_file_manager('a')" in body
@@ -458,9 +449,7 @@ def test_given_flag_when_attr_resolves_to_another_symbol_then_only_the_mock_acce
 	# when
 	text = _run(
 		loop,
-		write_tools.rename_symbol(
-			name="RunnerPort.execute", new_name="run", include_unlinked_attrs=True, max_new_errors=None
-		),
+		write_tools.rename(name="RunnerPort.execute", new_name="run", sites=["all"]),
 	)
 	# then
 	assert "Applied as edit" in text
@@ -469,27 +458,26 @@ def test_given_flag_when_attr_resolves_to_another_symbol_then_only_the_mock_acce
 	assert "connection.execute('select 1')" in db and "other.execute(1, 2)" in db
 	assert "def execute(self, a: int, b: int)" in db
 	assert (root / ".agents/tool.py").read_text() == _DECOY_FILES[".agents/tool.py"]
-	assert "also renamed 1 attribute access(es)" in text
-	assert "left 2 attribute access(es) alone: the type checker resolves them to another symbol" in text
+	assert "1 optional site(s) included" in text
+	assert "2 attribute access(es) resolve to another symbol" in text
 	assert ".agents" not in text
 
 
 def test_given_flag_when_the_rename_is_a_module_function_then_ignored_with_a_note_and_attrs_untouched(project, loop):
 	text = _run(
 		loop,
-		write_tools.rename_symbol(name="build", file_path="src/pkg/a.py", new_name="make", include_unlinked_attrs=True),
+		write_tools.rename(name="build", file_path="src/pkg/a.py", new_name="make"),
 	)
-	assert "include_unlinked_attrs was ignored" in text
+	assert "Applied as edit" in text
 	assert "mock_build.build()" in (project / "tests/test_gui.py").read_text()
 
 
 def test_given_flag_when_rename_is_a_bare_name_then_no_attr_edits_are_added(project, loop):
 	text = _run(
 		loop,
-		write_tools.rename_symbol(
-			name="build", file_path="src/pkg/a.py", new_name="make", apply=False, include_unlinked_attrs=True
-		),
+		write_tools.rename(name="build", file_path="src/pkg/a.py", new_name="make", apply=False),
 	)
+	assert "Preview only" in text
 	assert "tests/test_gui.py" not in text.split("Files:")[1].split("Notes:")[0]
 
 
@@ -497,28 +485,27 @@ def test_given_flag_when_rename_is_a_bare_name_then_no_attr_edits_are_added(proj
 
 
 def test_given_tests_dir_outside_the_source_root_when_implementations_then_says_it_was_not_scanned(project, loop):
-	text = _run(loop, server.implementations(name="DesktopPort"))
+	text = _run(loop, read_tools.lookup(name="DesktopPort", show=["implementations"]))
 	assert "Scanned only src; tests/ not scanned" in text
 	assert "CODENAV_MCP_EXTRA_SOURCE_ROOTS=tests" in text
-	empty = _run(loop, server.implementations(name="StoragePort"))
+	empty = _run(loop, read_tools.lookup(name="StoragePort", show=["implementations"]))
 	assert "CODENAV_MCP_EXTRA_SOURCE_ROOTS=tests" in empty
 
 
 def test_given_extra_root_set_when_implementations_then_no_unscanned_note(project, loop, monkeypatch):
 	monkeypatch.setattr(server, "EXTRA_SOURCE_ROOTS", [project / "tests"])
-	text = _run(loop, server.implementations(name="DesktopPort"))
+	text = _run(loop, read_tools.lookup(name="DesktopPort", show=["implementations"]))
 	assert "not scanned" not in text
 
 
 def test_given_protocol_member_when_callers_then_the_note_points_to_implementations(project, loop):
-	text = _run(loop, server.callers(name="StoragePort.get_hash"))
-	assert text.splitlines()[0].startswith("1 caller")
-	assert "Static callers only; implementations of this Protocol member are not included" in text
-	assert 'implementations(name="StoragePort")' in text
+	text = _run(loop, read_tools.lookup(name="StoragePort.get_hash", show=["callers"]))
+	assert "Callers (1)" in text
+	assert "Through StoragePort.get_hash (1)" in text
 
 
 def test_given_plain_method_without_subclasses_when_callers_then_no_static_note(project, loop):
-	text = _run(loop, server.callers(name="Plain.only"))
+	text = _run(loop, read_tools.lookup(name="Plain.only", show=["callers"]))
 	assert "Static callers only" not in text
 
 
@@ -537,23 +524,29 @@ def many_users(project):
 
 
 def test_given_thirty_files_and_a_big_limit_when_references_then_every_file_is_listed(many_users, loop):
-	text = _text(_mcp(loop, "references", {"name": "shared", "limit": 200}))
-	assert text.splitlines()[0] == "91 reference(s) in 31 file(s):"  # the definition, 30 imports, 60 calls
+	text = _text(_mcp(loop, "lookup", {"show": ["references"], "name": "shared", "limit": 200}))
+	assert "References (91)" in text  # the definition, 30 imports, 60 calls
 	assert all(f"src/pkg/user_{index:02d}.py:" in text for index in range(30))
 	assert "more file(s)" not in text and "more omitted" not in text
 
 
 def test_given_a_small_limit_when_references_then_hits_beyond_it_are_counted_with_the_hint(many_users, loop):
-	text = _text(_mcp(loop, "references", {"name": "shared", "limit": 20}))
-	assert text.splitlines()[0] == "91 reference(s) in 31 file(s):"
-	assert "… 71 more omitted; raise limit= to see them" in text
+	text = _text(_mcp(loop, "lookup", {"show": ["references"], "name": "shared", "limit": 20}))
+	assert "References (91)" in text
+	assert "... 71 more" in text
 	assert "more file(s)" not in text
 
 
 def test_given_thirty_files_when_symbol_info_then_the_omitted_files_line_says_how_to_list_them(many_users, loop):
-	text = _text(_mcp(loop, "symbol_info", {"name": "shared"}))
-	call = 'references(file_path="src/pkg/core.py", line=1, column=5, limit=91)'
-	assert f"more file(s); {call} lists every hit" in text
+	text = _text(_mcp(loop, "lookup", {"name": "shared"}))
+	call = 'lookup(name="shared", show=["references"])'
+	assert f"91 references (next: {call})" in text
 	# and that call does list every file
-	listed = _text(_mcp(loop, "references", {"file_path": "src/pkg/core.py", "line": 1, "column": 5, "limit": 91}))
+	listed = _text(
+		_mcp(
+			loop,
+			"lookup",
+			{"show": ["references"], "file_path": "src/pkg/core.py", "line": 1, "column": 5, "limit": 91},
+		)
+	)
 	assert all(f"src/pkg/user_{index:02d}.py:" in listed for index in range(30))

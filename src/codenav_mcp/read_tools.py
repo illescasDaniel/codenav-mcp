@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import re
+import subprocess  # noqa: S404
+import tomllib
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from mcp.server.mcpserver import Context
+from mcp_nav_shared.diagnostics_delta import entries_from_lsp
 from mcp_nav_shared.edits import position_to_offset, read_source
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.format import (
@@ -28,9 +32,9 @@ from mcp_nav_shared.format import (
 )
 from mcp_nav_shared.resolve import ResolvedSymbol, SymbolNotFoundError, resolve_symbol, symbol_name_problem
 
-from codenav_mcp import tool_base
+from codenav_mcp import tool_base, write_tools
 from codenav_mcp.ambiguity import Candidate, parse_candidates
-from codenav_mcp.batch_tools import example_call
+from codenav_mcp.args import example_call
 from codenav_mcp.deps import module_names_for
 from codenav_mcp.linked import locate_member_class
 from codenav_mcp.mentions import Mention, find_mentions
@@ -39,6 +43,8 @@ from codenav_mcp.reference_format import _hit_key, constructor_keyword_locations
 from codenav_mcp.rename import _is_unlinked_attr, _split_unlinked_attrs
 from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.tool_base import Session
+from codenav_mcp.ty_command import resolve_ty_command
+from codenav_mcp.writes import NOT_CHECKED
 
 
 _SECTIONS = frozenset(
@@ -429,13 +435,16 @@ async def _protocol_implementations(session: Session, target: _Target, reply: Re
 		reply.notes.append(note.strip())
 	if matches.unreadable:
 		reply.notes.append(f"{matches.unreadable} source files could not be checked for implementations.")
-	if matches.not_probed or matches.rejected:
-		reply.notes.append(f"{matches.not_probed + len(matches.rejected)} candidates did not pass the type check.")
+	if matches.not_probed:
+		reply.notes.append(f"{matches.not_probed} implementation candidates exceeded the probe limit.")
+	if matches.rejected:
+		reply.notes.append(f"{len(matches.rejected)} candidates did not pass the type check.")
 	classes = [
 		(_Position(uri_to_relative(candidate.path.as_uri(), session.workspace), candidate.line, 1), candidate.name)
 		for candidate in matches.verified
 	]
-	return await _related_rows(session, classes, target, inherited=True)
+	rows = await _related_rows(session, classes, target, inherited=True)
+	return [(position, label + (" [stub]" if position.file_path.endswith(".pyi") else "")) for position, label in rows]
 
 
 def _mention_row(mention: Mention, exact_strings: set[str] | None = None) -> _Row:
@@ -555,6 +564,8 @@ async def _lookup(
 	position = target.position.args()
 	hover = srv._format_hover_contents((await session.client.hover(**position)).get("contents"))
 	if not hover and not target.locations:
+		if srv._on_definition_keyword(**position):
+			raise ToolInputError("Put the cursor on the symbol name, not the 'def' or 'class' keyword.")
 		raise ToolInputError("No symbol at that position. Put the cursor on the symbol name (1-based UTF-16 column).")
 	default = show is None
 	signature, doc = _signature_and_doc(hover, target.definition, brief=default)
@@ -567,6 +578,11 @@ async def _lookup(
 	)
 	if doc and (default or "doc" in sections):
 		reply.items.append(doc)
+	if not name and default and hover:
+		enriched = await srv._enrich_bare_type(hover, session.client, **position)
+		reply.notes.extend(line for line in enriched.splitlines()[1:] if line.startswith("Type defined at "))
+	if not name and target.locations and await srv._is_unresolved_import(session.client, target.locations[0]):
+		reply.notes.append("The import does not resolve.")
 	if "source" in sections:
 		if body := _source(target):
 			reply.items.append(body)
@@ -609,6 +625,11 @@ async def _lookup(
 		structural = await _protocol_implementations(session, target, reply)
 	if "callers" in sections:
 		await _expand_callers(session, target, direct, reply, args, limit, offset, structural)
+		if not direct and structural is None and target.resolved and target.resolved.kind in {6, 12}:
+			uses = await session.client.references(**position, include_declaration=False)
+			if split_inside_workspace(uses, session.workspace, srv._location_uri)[0]:
+				reply.notes.append(f"{target.label} has references but no static callers.")
+				reply.next_calls.append(call("lookup", **args, show=["references"]))
 	if "subclasses" in sections:
 		rows = [_Row(f"{p.file_path}:{p.line}", label) for p, label in subclasses]
 		_add_section(reply, "Subclasses", rows, "subclasses", args, limit, offset)
@@ -641,8 +662,8 @@ async def lookup(
 	"""
 	try:
 		if name is not None:
-			if not name.strip():
-				raise ToolInputError("name must be nonempty.")
+			if problem := symbol_name_problem(name):
+				raise ToolInputError(problem)
 			if line is not None or column is not None:
 				raise ToolInputError("Choose name with optional file_path, or file_path with line and column.")
 		elif not file_path or line is None or column is None:
@@ -714,6 +735,8 @@ async def search(
 			matching = [sym for sym in symbols if leaf.casefold() in str(sym.get("name") or "").casefold()]
 			matching = filter_workspace_symbols(rank_workspace_symbols(matching, leaf))
 			reply = Reply(f"{len(matching)} symbols match {query!r}.", notes=srv._search_notes(outside, skipped))
+			if not matching and symbols:
+				reply.notes.append("No exact match among ty's results. Try a shorter query or broaden the filters.")
 
 			def render(sym: dict[str, Any]) -> str:
 				uri, line, col = workspace_symbol_position(sym)
@@ -728,4 +751,109 @@ async def search(
 		return _refusal(exc, search)
 
 
-TOOLS = [(lookup, tool_base.READS), (search, tool_base.READS)]
+def _read_toml(path: Path) -> dict[str, Any]:
+	try:
+		return tomllib.loads(path.read_text(encoding="utf-8"))
+	except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+		return {}
+
+
+def _python_summary(workspace: Path) -> str:
+	project = _read_toml(workspace / "pyproject.toml")
+	config = next((workspace / name for name in ("ty.toml", ".ty.toml") if (workspace / name).is_file()), None)
+	tools = project.get("tool")
+	settings = _read_toml(config) if config else (tools.get("ty") if isinstance(tools, dict) else None)
+	environment = settings.get("environment", {}) if isinstance(settings, dict) else {}
+	if isinstance(environment, dict) and isinstance(version := environment.get("python-version"), str):
+		return f"Python: {version} (ty configuration)"
+	metadata = project.get("project")
+	if isinstance(metadata, dict) and isinstance(requires := metadata.get("requires-python"), str):
+		return f"Python: {requires} (project requirement)"
+	return "Python: inferred by ty"
+
+
+def _run_ty(workspace: Path, command: list[str], *args: str) -> subprocess.CompletedProcess[str]:
+	try:
+		return subprocess.run(  # noqa: S603
+			[*command, *args], cwd=workspace, capture_output=True, text=True, timeout=60, check=False
+		)
+	except (OSError, subprocess.TimeoutExpired) as exc:
+		raise ToolInputError(f"ty could not run: {exc}") from exc
+
+
+async def _check_workspace(limit: int, offset: int) -> str:
+	srv = tool_base.server()
+	workspace = srv.WORKSPACE_ROOT
+	command = resolve_ty_command(workspace)[:-1]  # replace the server subcommand
+	metadata = srv._workspace_details()
+	metadata.append(_python_summary(workspace))
+	metadata.extend(f"Extra source root: {root.relative_to(workspace).as_posix()}" for root in srv.EXTRA_SOURCE_ROOTS)
+	result = await asyncio.to_thread(
+		_run_ty, workspace, command, "check", "--output-format", "concise", "--color", "never", "--no-progress"
+	)
+	if result.returncode not in {0, 1}:
+		reason = srv._scrub_text((result.stderr.strip() or result.stdout.strip())[:600])
+		reply = Reply(f"Workspace type check failed: {reason}", notes=metadata)
+		reply.items.append(f"Example: {call('check', file_path='src/app.py')}")
+		return FailedText(reply.render())
+	version = await asyncio.to_thread(_run_ty, workspace, command, "--version")
+	if version.returncode == 0:
+		metadata.append(f"ty version: {version.stdout.strip().removeprefix('ty ')}")
+	lines = srv._scrub_text(result.stdout).splitlines()
+	diagnostics = [line for line in lines if re.match(r"^(?:.+?: )?(?:error|fatal|warning|info)(?:\[|:)", line)]
+	error_count = sum(bool(re.match(r"^(?:.+?: )?(?:error|fatal)(?:\[|:)", line)) for line in diagnostics)
+	reply = Reply(
+		f"Workspace type check: {error_count} error(s), {len(diagnostics)} diagnostic(s) - {NOT_CHECKED}",
+		notes=metadata,
+	)
+	reply.add_page(paginate(diagnostics, limit, offset), str, "check", limit=limit)
+	return reply.render()
+
+
+async def check(
+	file_path: str | None = None,
+	since: str | None = None,
+	limit: int = 30,
+	offset: int = 0,
+	include_dependents: bool = True,
+	ctx: Context | None = None,
+) -> str:
+	"""Check ty diagnostics for a file, workspace, or changes since git. Example: `check(since="HEAD")`."""
+	srv = tool_base.server()
+	try:
+		paginate([], limit, offset)  # validate before either checker runs
+		if file_path is not None and since is not None:
+			raise ToolInputError("give either file_path or since")
+		if since is not None:
+			result = await write_tools._check_changes(
+				since, include_dependents=include_dependents, limit=limit, offset=offset, ctx=ctx
+			)
+			if isinstance(result, FailedText) and "\nExample: " not in result:
+				return FailedText(f"{result}\nExample: {call('check', since='HEAD')}")
+			return result
+		await srv._use_workspace(ctx)
+		if file_path is None:
+			return await _check_workspace(limit, offset)
+		srv._check_python_file(file_path)
+		client = await srv.get_client()
+		rel = srv._workspace_display_path(file_path)
+		entries = entries_from_lsp(rel, "", await client.diagnostics(file_path))
+		error_count = sum(entry.is_error for entry in entries)
+		reply = Reply(
+			f"{rel}: {error_count} error(s), {len(entries)} diagnostic(s) - {NOT_CHECKED}"
+			if entries
+			else f"No diagnostics in {rel} - {NOT_CHECKED}."
+		)
+		reply.add_page(
+			paginate(entries, limit, offset),
+			lambda entry: srv._scrub_text(entry.render()),
+			"check",
+			file_path=rel,
+			limit=limit,
+		)
+		return reply.render()
+	except TOOL_ERRORS + (ValueError,) as exc:
+		return _refusal(exc, check)
+
+
+TOOLS = [(lookup, tool_base.READS), (search, tool_base.READS), (check, tool_base.READS)]

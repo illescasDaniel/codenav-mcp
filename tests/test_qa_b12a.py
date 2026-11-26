@@ -8,7 +8,7 @@ import sysconfig
 import pytest
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp import server as codenav_server
+from codenav_mcp import read_tools, server as codenav_server
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -51,15 +51,13 @@ def _run(loop, coro) -> str:
 
 
 def test_rc_003_definition_lists_the_stub_first_then_the_implementation(project, loop):
-	text = _run(loop, codenav_server.definition(file_path="src/pkg/uses_stub.py", line=4, column=1))
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/uses_stub.py", line=4, column=1, show=["signature"]))
 	assert "stubbed.pyi:1" in text
-	assert "Also: " in text
-	assert "stubbed.py:1:5 (implementation)" in text
-	assert text.index("stubbed.pyi:1") < text.index("Also: ")
+	assert text.index("stubbed.pyi:1:5") < text.index("stubbed.py:1:5")
 
 
 def test_rc_038_library_definition_is_labelled_not_absolute(project, loop):
-	text = _run(loop, codenav_server.definition(file_path="src/pkg/uses_stdlib.py", line=4, column=6))
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/uses_stdlib.py", line=4, column=6, show=["signature"]))
 	assert "<stdlib>/json/" in text
 	assert "/usr/" not in text
 	assert "file://" not in text
@@ -95,17 +93,8 @@ def test_rc_048_outside_file_is_refused_by_hover_before_any_read(tmp_path, monke
 	ws.mkdir()
 	make_workspace(ws, monkeypatch, {"pkg/a.py": "x = 1\n"})
 	(tmp_path / "outside.py").write_text("secret = 1\n")
-	text = _run(loop, codenav_server.hover(file_path="../outside.py", line=1, column=1))
-	assert text == "../outside.py is outside the workspace; give a path inside it"
-
-
-def test_rc_079_outside_file_is_refused_by_definition_before_any_read(tmp_path, monkeypatch, loop):
-	ws = tmp_path / "ws"
-	ws.mkdir()
-	make_workspace(ws, monkeypatch, {"pkg/a.py": "x = 1\n"})
-	(tmp_path / "outside.py").write_text("secret = 1\n")
-	text = _run(loop, codenav_server.definition(file_path="../outside.py", line=1, column=1))
-	assert text == "../outside.py is outside the workspace; give a path inside it"
+	text = _run(loop, read_tools.lookup(file_path="../outside.py", line=1, column=1, show=["signature"]))
+	assert text.startswith("../outside.py is outside the workspace; give a path inside it")
 
 
 def test_rc_079_check_python_file_refuses_a_path_outside_the_workspace(tmp_path, monkeypatch):
@@ -117,72 +106,57 @@ def test_rc_079_check_python_file_refuses_a_path_outside_the_workspace(tmp_path,
 
 
 def test_rc_080_dotted_module_path_in_symbol_info_resolves_the_module_function(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="pkg.mod.func"))
-	assert text.splitlines()[0].startswith("func  [Function]")
+	text = _run(loop, read_tools.lookup(name="pkg.mod.func"))
+	assert text.splitlines()[0].startswith("pkg.mod.func  src/pkg/mod.py:1:5")
 	assert "pkg/mod.py:1:5" in text.splitlines()[0]
 
 
 def test_rc_090_ligature_query_finds_the_nfkc_normalised_name(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="ﬁ", file_path="src/pkg/nfkc.py"))
+	text = _run(loop, read_tools.lookup(name="ﬁ", file_path="src/pkg/nfkc.py"))
 	assert "No symbol" not in text
-	assert "[Variable]" in text.splitlines()[0]
+	assert "src/pkg/nfkc.py:1:1" in text.splitlines()[0]
 
 
 def test_rc_099_overloads_resolve_to_the_implementation(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="ov", file_path="src/pkg/ov.py"))
+	text = _run(loop, read_tools.lookup(name="ov", file_path="src/pkg/ov.py"))
 	assert "pkg/ov.py:8:5" in text.splitlines()[0]
 
 
 def test_rc_101_unknown_name_gets_a_did_you_mean_hint(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="targt"))
+	text = _run(loop, read_tools.lookup(name="targt"))
 	assert "No symbol found matching 'targt'. Did you mean: target?" in text
 
 
 def test_rc_103_name_and_query_with_different_values_are_refused(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="Cart", query="other"))
-	assert "give either name or query, not both" in text
+	text = _run(loop, codenav_server.mcp.call_tool("lookup", {"name": "Cart", "query": "other"}))
+	assert "give either 'name' or 'query', not both" in text
 
 
 def test_end_of_identifier_resolves_the_identifier_it_touches(project, loop):
 	# RC-124 (D25 A): test-only pin of existing behaviour, so it passes on base by design.
 	# Column 20 is just past `total_value`.
-	text = _run(loop, codenav_server.definition(file_path="src/pkg/end.py", line=2, column=20))
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/end.py", line=2, column=20, show=["signature"]))
 	assert "end.py:1:1" in text
 
 
 def test_rc_139_hover_on_def_keyword_points_at_the_name(project, loop):
-	text = _run(loop, codenav_server.hover(file_path="src/pkg/kw.py", line=1, column=1))
-	assert text == ("No hover information at that position; put the cursor on the name, not the 'def' keyword.")
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/kw.py", line=1, column=1, show=["signature"]))
+	assert "Put the cursor on the symbol name" in text
 
 
 def test_rc_141_definition_on_an_unresolved_import_adds_a_note(project, loop):
-	text = _run(loop, codenav_server.definition(file_path="src/pkg/badimport.py", line=4, column=1))
-	assert "Note: the import does not resolve." in text
+	text = _run(loop, read_tools.lookup(file_path="src/pkg/badimport.py", line=4, column=1, show=["signature"]))
+	assert "The import does not resolve." in text
 
 
 def test_rc_144_local_name_in_symbol_info_gets_the_indexing_hint(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="value"))
-	assert (
-		"value is a local variable/parameter; locals are only visible through hover/definition at their position."
-		in text
-	)
+	text = _run(loop, read_tools.lookup(name="value"))
+	assert "value is a local variable/parameter; locals are only visible through lookup at their position." in text
 
 
-def test_rc_056_the_ten_read_tools_are_annotated_read_only():
+def test_rc_056_the_six_read_tools_are_annotated_read_only():
 	tools = {tool.name: tool for tool in asyncio.run(codenav_server.mcp.list_tools())}
-	read_tools = {
-		"workspace",
-		"hover",
-		"definition",
-		"references",
-		"search_symbol",
-		"diagnostics",
-		"symbol_info",
-		"outline",
-		"callers",
-		"implementations",
-	}
-	for name in sorted(read_tools):
+	for name in ("lookup", "search", "outline", "check", "unused", "impact"):
 		annotations = tools[name].annotations
 		assert annotations is not None, name
 		assert annotations.read_only_hint is True, name
@@ -190,5 +164,5 @@ def test_rc_056_the_ten_read_tools_are_annotated_read_only():
 
 
 def test_rc_080_missing_module_path_in_symbol_info_gets_a_module_hint(project, loop):
-	text = _run(loop, codenav_server.symbol_info(name="pkg.nomod.func"))
+	text = _run(loop, read_tools.lookup(name="pkg.nomod.func"))
 	assert "pkg.nomod looks like a module path; give file_path= and the bare name." in text

@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import subprocess
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from mcp_nav_shared.edits import FileChange
+from mcp_nav_shared.errors import FailedText
 
-from codenav_mcp import server as codenav_server, symbol_tools, tidy, write_tools
+from codenav_mcp import read_tools, server as codenav_server, symbol_tools, tidy
 from codenav_mcp.deps import find_dependents_report, format_skipped
+from codenav_mcp.tool_base import Session
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -24,7 +27,7 @@ def _text(result) -> str:
 
 
 def _is_error(result) -> bool:
-	return bool(getattr(result, "is_error", False))
+	return isinstance(result, FailedText) or bool(getattr(result, "is_error", False))
 
 
 def _run(loop, coro) -> str:
@@ -47,15 +50,15 @@ def dotted_project(tmp_path, monkeypatch, loop):
 
 @needs_ty
 def test_rc_086_dotted_search_finds_the_member_of_that_class(dotted_project, loop):
-	text = _run(loop, codenav_server.search_symbol(query="Cart.total"))
-	assert "total  [Method]" in text
-	assert "cart.py:2:" in text
+	text = _run(loop, read_tools.search(query="Cart.total"))
+	assert "total [Method]" in text
+	assert "cart.py:2  " in text
 	assert "other.py" not in text
 
 
 @needs_ty
 def test_rc_086_dotted_search_with_no_such_owner_finds_nothing(dotted_project, loop):
-	assert _run(loop, codenav_server.search_symbol(query="Missing.total")) == "No symbols matching 'Missing.total'."
+	assert _run(loop, read_tools.search(query="Missing.total")) == "0 symbols match 'Missing.total'."
 
 
 # -- RC-090: NFKC-normalised search ----------------------------------------------------------------------------------
@@ -68,8 +71,8 @@ def nfkc_project(tmp_path, monkeypatch, loop):
 
 @needs_ty
 def test_rc_090_search_symbol_finds_the_nfkc_equal_name(nfkc_project, loop):
-	text = _run(loop, codenav_server.search_symbol(query="ﬁ"))
-	assert "fi  [Variable]" in text
+	text = _run(loop, read_tools.search(query="ﬁ"))
+	assert "fi [Variable]" in text
 	assert "nfkc.py" in text
 
 
@@ -96,7 +99,7 @@ def test_rc_039_scrub_drops_the_bare_workspace_root_and_library_install_paths(tm
 @needs_ty
 def test_rc_039_diagnostics_output_has_no_absolute_paths(tmp_path, monkeypatch, loop):
 	project = make_workspace(tmp_path, monkeypatch, {"needs_late.py": "import late_module\n"})
-	text = _run(loop, codenav_server.diagnostics(file_path="needs_late.py"))
+	text = _run(loop, read_tools.check(file_path="needs_late.py"))
 	assert "unresolved-import" in text
 	assert str(project) not in text
 	assert "/usr/lib" not in text
@@ -118,7 +121,7 @@ def test_rc_138_quick_fix_sorts_the_merged_import(tmp_path, monkeypatch, loop):
 			),
 		},
 	)
-	result = loop.run_until_complete(symbol_tools.quick_fix("uses.py"))
+	result = loop.run_until_complete(symbol_tools.fix("uses.py"))
 	assert "Applied as edit" in result
 	assert "from models import Cart, Item  # keep this comment" in (project / "uses.py").read_text()
 
@@ -166,7 +169,7 @@ def local_project(tmp_path, monkeypatch, loop):
 
 @needs_ty
 def test_rc_144_symbol_info_names_the_local_even_when_a_module_symbol_exists_elsewhere(local_project, loop):
-	result = loop.run_until_complete(codenav_server.symbol_info(name="local_var", file_path="src/pkg/a.py"))
+	result = loop.run_until_complete(read_tools.lookup(name="local_var", file_path="src/pkg/a.py"))
 	assert _is_error(result)
 	assert "local_var is a local variable/parameter" in _text(result)
 
@@ -181,8 +184,8 @@ def test_protocol_without_members_is_an_error_not_a_plain_answer(tmp_path, monke
 		monkeypatch,
 		{"src/pkg/ports.py": "from typing import Protocol\n\n\nclass Empty(Protocol):\n\tpass\n"},
 	)
-	result = loop.run_until_complete(codenav_server.implementations(port_name="Empty"))
-	assert not isinstance(result, str) and _is_error(result)
+	result = loop.run_until_complete(read_tools.lookup(name="Empty", show=["implementations"]))
+	assert _is_error(result)
 	assert "Empty has no members to match candidates against." in _text(result)
 
 
@@ -205,9 +208,9 @@ def test_unparsable_candidate_is_skipped_by_implementations(tmp_path, monkeypatc
 		return real(path)
 
 	monkeypatch.setattr(codenav_server, "_cached_class_infos", failing_for_bad)
-	text = _run(loop, codenav_server.implementations(port_name="Port"))
+	text = _run(loop, read_tools.lookup(name="Port", show=["implementations"]))
 	assert "Impl" in text
-	assert "skipped: unreadable" in text
+	assert "source files could not be checked for implementations" in text
 
 
 # -- RC-002 sibling: excluded importers are reported; .git is not listed as unreadable ---------------------------
@@ -242,7 +245,7 @@ def test_rc_002_importer_scan_reports_the_skipped_directory(tmp_path):
 	(tmp_path / "build" / "user.py").write_text("from app.target import tgt\n\ntgt()\n", encoding="utf-8")
 	session = SimpleNamespace(workspace=tmp_path, roots=[tmp_path])
 	skipped: list = []
-	found = symbol_tools._importing_statements(session, target, "tgt", skipped)
+	found = symbol_tools._importing_statements(cast(Session, session), target, "tgt", skipped)
 	assert found == {}
 	assert any(s.reason == "excluded dir" for s in skipped)
 
@@ -281,7 +284,7 @@ def test_rc_002_verify_changes_reports_importers_in_excluded_directories(tmp_pat
 	_git(project, "-c", "user.email=a@b.c", "-c", "user.name=t", "commit", "-q", "-m", "init")
 	core = project / "src/pkg/core.py"
 	core.write_text(core.read_text() + "\n\nEXTRA = 1\n", encoding="utf-8")
-	text = _run(loop, write_tools.verify_changes())
+	text = _run(loop, read_tools.check(since="HEAD"))
 	assert "Changed since HEAD: src/pkg/core.py" in text
 	assert "Importers not checked (excluded directories): build/ (1 file: " in text
 

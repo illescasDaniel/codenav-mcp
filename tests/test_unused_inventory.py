@@ -1,7 +1,9 @@
 import asyncio
 from types import SimpleNamespace
+from typing import cast
 
 from codenav_mcp import unused
+from codenav_mcp.tool_base import Session
 from codenav_mcp.unused import inventory
 
 
@@ -45,7 +47,9 @@ def test_find_unused_skips_ty_for_unique_tokens_and_reports_failures(tmp_path, m
 
 	monkeypatch.setattr(unused, "conforms_probe", lambda session: None)
 	session = SimpleNamespace(workspace=tmp_path, roots=[tmp_path], client=SimpleNamespace(references=references))
-	findings, notes = asyncio.run(unused.find_unused(session, scope=tmp_path, kind=None, include_private=True))
+	findings, notes = asyncio.run(
+		unused.find_unused(cast(Session, session), scope=tmp_path, kind=None, include_private=True)
+	)
 	assert calls == [("example.py", 2, 5)]
 	assert [finding.candidate.name for finding in findings] == ["singleton"]
 	assert notes == ["ty could not check 1 candidate(s), including example.py:2."]

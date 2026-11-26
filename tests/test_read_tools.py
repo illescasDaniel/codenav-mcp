@@ -8,7 +8,7 @@ import pytest
 from mcp_nav_shared.errors import FailedText
 
 from codenav_mcp import server  # noqa: F401  (registers the tool signatures)
-from codenav_mcp.batch_tools import apply_aliases, signature_of
+from codenav_mcp.args import apply_aliases, signature_of
 from codenav_mcp.mentions import find_mentions
 from codenav_mcp.read_tools import _signature_and_doc, lookup, search
 

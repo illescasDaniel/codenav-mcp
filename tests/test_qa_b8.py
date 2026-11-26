@@ -69,7 +69,10 @@ def test_given_effectful_argument_dropped_or_moved_when_rebinding_then_still_man
 def test_rc_062_comments_are_manual():
 	text = "f(a, # comment\n b)"
 	smap = SourceMap(text)
-	call = ast.parse(text).body[0].value
+	statement = ast.parse(text).body[0]
+	assert isinstance(statement, ast.Expr)
+	call = statement.value
+	assert isinstance(call, ast.Call)
 	from codenav_mcp.signature import read_call_args
 
 	with pytest.raises(ManualCallError, match="comments"):

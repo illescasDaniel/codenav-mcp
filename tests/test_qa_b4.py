@@ -69,9 +69,7 @@ def test_rc_001_rename_by_position_after_a_form_feed(tmp_path, monkeypatch, loop
 	# given — `def b` is on line 4 in the editor and in ty; the old splitting saw it on line 5
 	project = make_workspace(tmp_path, monkeypatch, {"src/pkg/__init__.py": "", "src/pkg/ff.py": _FF_SOURCE})
 	# when
-	text = loop.run_until_complete(
-		write_tools.rename_symbol(file_path="src/pkg/ff.py", line=8, column=5, new_name="cc", apply=True)
-	)
+	text = loop.run_until_complete(write_tools.rename(name="c", file_path="src/pkg/ff.py", new_name="cc", apply=True))
 	# then
 	assert "Applied as edit" in text
 	assert (project / "src/pkg/ff.py").read_text() == _FF_SOURCE.replace("def c()", "def cc()")
@@ -88,7 +86,7 @@ def test_rc_008_rename_in_bom_importer_line_one(tmp_path, monkeypatch, loop):
 		b"\xef\xbb\xbffrom pkg.bomdef import bomfn\n\n\ndef go() -> int:\n\treturn bomfn()\n"
 	)
 	# when
-	text = loop.run_until_complete(write_tools.rename_symbol(name="bomfn", new_name="bomfn2", apply=True))
+	text = loop.run_until_complete(write_tools.rename(name="bomfn", new_name="bomfn2", apply=True))
 	# then
 	assert "Applied as edit" in text
 	assert (project / "src/pkg/bomimp.py").read_bytes() == (
@@ -358,7 +356,7 @@ def test_rename_bom_does_not_trust_open_state_after_response(tmp_path, monkeypat
 		return result
 
 	monkeypatch.setattr(LspClient, "rename", race)
-	result = loop.run_until_complete(write_tools.rename_symbol(name="helper", new_name="assist", apply=True))
+	result = loop.run_until_complete(write_tools.rename(name="helper", new_name="assist", apply=True))
 	assert "Applied as edit" in result
 	assert importer.read_bytes() == b"\xef\xbb\xbffrom pkg.defn import assist\n"
 

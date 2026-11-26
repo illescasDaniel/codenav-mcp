@@ -6,7 +6,7 @@ import ast
 
 import pytest
 
-from codenav_mcp import symbol_tools, write_tools
+from codenav_mcp import edits_tools, symbol_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -222,7 +222,7 @@ def test_given_only_imports_remaining_when_safe_delete_then_symbol_and_import_re
 	assert (project / "src/pkg/cart.py").read_text().endswith("self.items.append(helper(price))\n")
 	_valid(project / "src/pkg/cart.py")
 	# and it is reversible
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	assert "def unused_thing" in (project / "src/pkg/cart.py").read_text()
 
 
@@ -255,7 +255,7 @@ def test_given_string_mention_when_safe_delete_then_held_as_preview(project, loo
 
 def test_given_missing_imports_when_quick_fix_then_placed_after_docstring_and_future_import(project, loop):
 	# when
-	text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", code="unresolved-reference", choice="pathlib"))
+	text = _run(loop, symbol_tools.fix("src/pkg/needs_import.py", code="unresolved-reference", choice="pathlib"))
 	# then — `os` has one preferred fix, `Path` needed `choice`; both addressed? only Path matches the choice
 	body = (project / "src/pkg/needs_import.py").read_text()
 	_valid(project / "src/pkg/needs_import.py")
@@ -268,7 +268,7 @@ def test_given_ambiguous_fix_when_quick_fix_without_choice_then_options_listed_a
 	# given
 	before = (project / "src/pkg/needs_import.py").read_text()
 	# when
-	text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=6))
+	text = _run(loop, symbol_tools.fix("src/pkg/needs_import.py", line=6))
 	# then
 	assert "Several fixes apply" in text and "import pathlib.Path" in text
 	assert (project / "src/pkg/needs_import.py").read_text() == before
@@ -276,15 +276,15 @@ def test_given_ambiguous_fix_when_quick_fix_without_choice_then_options_listed_a
 
 def test_given_import_fix_when_quick_fix_then_apply_or_select_ambiguous_choice(project, loop):
 	# when
-	text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=11))
+	text = _run(loop, symbol_tools.fix("src/pkg/needs_import.py", line=11))
 	if "Several fixes apply" in text:
 		assert "import os" in text
 		assert "import os" not in (project / "src/pkg/needs_import.py").read_text()
-		text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=11, choice="import os"))
+		text = _run(loop, symbol_tools.fix("src/pkg/needs_import.py", line=11, choice="import os"))
 	# then
 	assert "import os" in (project / "src/pkg/needs_import.py").read_text(), text
 	assert "Applied as edit" in text
 
 
 def test_given_clean_file_when_quick_fix_then_nothing_to_do(project, loop):
-	assert "No diagnostics to fix" in _run(loop, symbol_tools.quick_fix("src/pkg/empty_class.py"))
+	assert "No diagnostics to fix" in _run(loop, symbol_tools.fix("src/pkg/empty_class.py"))

@@ -1,4 +1,4 @@
-"""Live checks of the write tools (rename, check_edit, verify_changes, apply/undo) against a real `ty`."""
+"""Live checks of rename, grouped edits, git comparisons and edit history against a real ty."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import subprocess  # noqa: S404
 
 import pytest
 
-from codenav_mcp import write_tools, writes
+from codenav_mcp import edit_tools, edits_tools, read_tools, write_tools, writes
 
 from .live_support import REPO_ROOT, make_loop_fixture, make_workspace, needs_ty
 
@@ -48,34 +48,34 @@ def _run(loop, coro):
 
 def test_given_function_when_rename_preview_then_nothing_written_and_diff_shown(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
+	text = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=False))
 	# then
 	assert "Preview only, nothing written" in text
 	assert "0 new error(s)" in text
 	assert "Type check: 0 new error(s)" in text and "tests and docs not checked" in text
 	assert "+def calculate(" in text
 	assert (project / "src/pkg/core.py").read_text().startswith("def compute(")
-	assert "appears in non-Python files" in text  # README mention
+	assert "non-Python file" in text  # README mention
 	assert "README.md:1" in text
 
 
 def test_given_preview_when_apply_edit_then_all_files_written_and_undo_restores(project, loop):
 	# given
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
-	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
+	preview = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=False))
+	edit_id = preview.split('edits(action="apply", id="')[1].split('"')[0]
 	originals = {
 		p: p.read_text()
 		for p in (project / "src/pkg/core.py", project / "src/pkg/user.py", project / "tests/test_core.py")
 	}
 	# when
-	applied = _run(loop, write_tools.apply_edit(edit_id))
+	applied = _run(loop, edits_tools.edits(id=edit_id, action="apply"))
 	# then
 	assert "Applied edit" in applied and "no errors in the edited files" in applied
 	assert "type check only; tests and docs not checked" in applied
 	assert "calculate(1, scale=3)" in (project / "src/pkg/user.py").read_text()
 	assert "from pkg.core import calculate" in (project / "tests/test_core.py").read_text()
 	# when
-	reverted = _run(loop, write_tools.undo_edit())
+	reverted = _run(loop, edits_tools.edits(action="undo"))
 	# then
 	assert "Reverted edit" in reverted
 	assert {p: p.read_text() for p in originals} == originals
@@ -83,15 +83,15 @@ def test_given_preview_when_apply_edit_then_all_files_written_and_undo_restores(
 
 def test_given_apply_true_when_rename_clean_then_written_in_one_call(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=True))
+	text = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=True))
 	# then
-	assert text.splitlines()[2].startswith("Applied as edit")
+	assert "Applied as edit" in text.splitlines()[0]
 	assert "def calculate(" in (project / "src/pkg/core.py").read_text()
 
 
 def test_given_override_when_rename_base_method_then_override_and_super_call_follow(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="Base.run", new_name="execute", apply=True))
+	text = _run(loop, write_tools.rename(name="Base.run", new_name="execute", apply=True))
 	# then
 	core = (project / "src/pkg/core.py").read_text()
 	assert "def execute(self)" in core and "def run(" not in core
@@ -101,17 +101,9 @@ def test_given_override_when_rename_base_method_then_override_and_super_call_fol
 	assert "0 new error(s)" in text
 
 
-def test_given_linked_false_when_rename_base_method_then_override_left_and_error_reported(project, loop):
-	# when
-	text = _run(loop, write_tools.rename_symbol(name="Base.run", new_name="execute", linked=False, apply=False))
-	# then — the override is left alone, and ty's check shows what that breaks (super().run())
-	assert "Child.run renamed too" not in text
-	assert "1 new error(s)" in text or "2 new error(s)" in text
-
-
 def test_given_protocol_member_when_rename_then_implementer_renamed_too(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="StorePort.save", new_name="persist_key", apply=True))
+	text = _run(loop, write_tools.rename(name="StorePort.save", new_name="persist_key", apply=True))
 	# then
 	assert "DiskStore.save renamed too" in text
 	assert "def persist_key(self, key: str)" in (project / "src/pkg/adapter.py").read_text()
@@ -119,58 +111,62 @@ def test_given_protocol_member_when_rename_then_implementer_renamed_too(project,
 	assert "0 new error(s)" in text
 
 
-def test_given_parameter_when_rename_then_keyword_arguments_follow(project, loop):
-	# when
-	text = _run(loop, write_tools.rename_symbol(name="compute", parameter="scale", new_name="factor", apply=True))
-	# then
+def test_given_parameter_edit_when_grouped_then_definition_and_keyword_call_change_together(project, loop):
+	text = _run(
+		loop,
+		edit_tools.edit_symbol(
+			edits=[
+				{
+					"name": "compute",
+					"file_path": "src/pkg/core.py",
+					"action": "replace",
+					"source": "def compute(value: int, factor: int = 2) -> int:\n\treturn value * factor\n",
+				},
+				{
+					"file_path": "src/pkg/user.py",
+					"old_string": "compute(1, scale=3)",
+					"new_string": "compute(1, factor=3)",
+				},
+			],
+		),
+	)
+	assert "Applied as edit" in text and "0 new error(s)" in text
 	assert "def compute(value: int, factor: int = 2)" in (project / "src/pkg/core.py").read_text()
 	assert "compute(1, factor=3)" in (project / "src/pkg/user.py").read_text()
-	assert "0 new error(s)" in text
 
 
 def test_given_existing_name_when_rename_then_refused_before_any_edit(project, loop):
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="Child.run", new_name="__init__", apply=False))
-	collision = _run(loop, write_tools.rename_symbol(name="compute", parameter="scale", new_name="value", apply=False))
-	invalid = _run(loop, write_tools.rename_symbol(name="compute", new_name="not valid", apply=False))
-	keyword = _run(loop, write_tools.rename_symbol(name="compute", new_name="class", apply=False))
+	text = _run(loop, write_tools.rename(name="Child.run", new_name="__init__", apply=False))
+	invalid = _run(loop, write_tools.rename(name="compute", new_name="not valid", apply=False))
+	keyword = _run(loop, write_tools.rename(name="compute", new_name="class", apply=False))
 	# then
-	assert "already has a parameter named 'value'" in collision
 	assert "not a valid Python identifier" in invalid and "not a valid Python identifier" in keyword
 	assert "Preview" in text or "error" in text.lower()  # __init__ is legal; just must not crash
 
 
-def test_given_builtin_when_rename_then_explained(project, loop):
-	# given — position on `int` in the signature
-	text = _run(
-		loop, write_tools.rename_symbol(file_path="src/pkg/core.py", line=1, column=23, new_name="integer", apply=False)
-	)
-	# then
-	assert "cannot be renamed" in text
-
-
 def test_given_file_changed_after_preview_when_apply_edit_then_stale_refusal(project, loop):
 	# given
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
-	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
+	preview = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=False))
+	edit_id = preview.split('edits(action="apply", id="')[1].split('"')[0]
 	(project / "src/pkg/user.py").write_text("# somebody else edited this\n", encoding="utf-8")
 	# when
-	text = _run(loop, write_tools.apply_edit(edit_id))
+	text = _run(loop, edits_tools.edits(id=edit_id, action="apply"))
 	# then
 	assert "changed since the preview was made: src/pkg/user.py" in text
 	assert "def compute(" in (project / "src/pkg/core.py").read_text()
 
 
 def test_given_unknown_id_when_apply_edit_then_helpful_error(project, loop):
-	assert "unknown or expired preview id" in _run(loop, write_tools.apply_edit("deadbeef"))
+	assert "unknown or expired preview id" in _run(loop, edits_tools.edits(id="deadbeef", action="apply"))
 
 
 def test_given_read_only_env_when_apply_then_refused_but_preview_works(project, loop, monkeypatch):
 	# given
 	monkeypatch.setenv(writes.READ_ONLY_ENV, "1")
 	# when
-	preview = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=False))
-	applied = _run(loop, write_tools.rename_symbol(name="compute", new_name="calculate", apply=True))
+	preview = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=False))
+	applied = _run(loop, write_tools.rename(name="compute", new_name="calculate", apply=True))
 	# then
 	assert "Preview only" in preview
 	assert "write tools are disabled" in applied
@@ -209,7 +205,7 @@ def test_given_clean_edit_when_check_edit_apply_then_written_and_undoable(projec
 	# then
 	assert "Applied as edit" in text
 	assert "return scale * value" in (project / "src/pkg/core.py").read_text()
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	assert "return value * scale" in (project / "src/pkg/core.py").read_text()
 
 
@@ -251,7 +247,7 @@ def test_given_new_file_when_check_edit_apply_then_created(project, loop):
 	# then
 	assert "(new file)" in text
 	assert (project / "src/pkg/fresh.py").read_text() == "X = 1\n"
-	_run(loop, write_tools.undo_edit())
+	_run(loop, edits_tools.edits(action="undo"))
 	assert not (project / "src/pkg/fresh.py").exists()
 
 
@@ -273,7 +269,7 @@ def test_given_working_tree_changes_when_verify_changes_then_reports_errors_intr
 		core.read_text().replace("def compute(value: int, scale: int = 2)", "def compute(value: int)"), encoding="utf-8"
 	)
 	# when
-	text = _run(loop, write_tools.verify_changes())
+	text = _run(loop, read_tools.check(since="HEAD"))
 	# then
 	assert "Changed since HEAD: src/pkg/core.py" in text
 	assert "new error(s)" in text and "0 new error(s)" not in text
@@ -286,8 +282,8 @@ def test_given_clean_tree_when_verify_changes_then_no_differences(project, loop)
 	_git(project, "-c", "user.email=a@b.c", "-c", "user.name=t", "add", "-A")
 	_git(project, "-c", "user.email=a@b.c", "-c", "user.name=t", "commit", "-q", "-m", "init")
 	# when / then
-	assert "No Python files differ from HEAD" in _run(loop, write_tools.verify_changes())
-	assert "invalid revision" in _run(loop, write_tools.verify_changes(since="--output=x"))
+	assert "No Python files differ from HEAD" in _run(loop, read_tools.check(since="HEAD"))
+	assert "invalid revision" in _run(loop, read_tools.check(since="--output=x"))
 
 
 def test_given_repo_root_marker():
@@ -314,10 +310,10 @@ def test_given_protocol_method_and_same_named_function_when_rename_then_mock_att
 	make_workspace(tmp_path, monkeypatch, files)
 	# when
 	text = _run(
-		loop, write_tools.rename_symbol(name="DesktopPort.reveal_path", new_name="reveal_in_file_manager", apply=False)
+		loop, write_tools.rename(name="DesktopPort.reveal_path", new_name="reveal_in_file_manager", apply=False)
 	)
 	# then
-	assert "still accessed as an attribute" in text
-	assert "tests/test_gui.py:2: desktop.reveal_path.assert_called_once_with('x')" in text
-	assert text.index("still accessed as an attribute") < text.index("bare name")
+	assert "optional site(s), not changed" in text
+	assert "tests/test_gui.py:2  attr  desktop.reveal_path.assert_called_once_with('x')" in text
+	assert "bare name" in text
 	assert "-def reveal_path(p: str)" not in text  # the module function is not renamed

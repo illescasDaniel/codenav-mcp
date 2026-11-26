@@ -9,7 +9,7 @@ from mcp.client import Client
 
 from codenav_mcp import edit_tools, edits_tools, server, writes
 
-from .live_support import make_loop_fixture, make_workspace, needs_ty
+from .live_support import make_loop_fixture, make_workspace, needs_ty, required_match
 
 
 pytestmark = [pytest.mark.integration, needs_ty]
@@ -78,7 +78,7 @@ def test_given_three_matching_items_across_two_files_then_one_plan_is_applied_wi
 	assert "VALUE = 2" in _read(project, "src/pkg/other.py")
 	assert "parse('2')" in _read(project, "src/pkg/user.py")
 	assert "return 3" in _read(project, "src/pkg/core.py")
-	edit_id = re.search(r'edits\(action="undo", id="(\w+)"\)', text).group(1)
+	edit_id = required_match(r'edits\(action="undo", id="(\w+)"\)', text).group(1)
 	assert len(writes.write_state(project).journal.history()) == 1
 
 	undone = str(_run(loop, edits_tools.edits(action="undo", id=edit_id)))
@@ -144,7 +144,7 @@ def test_given_apply_false_then_it_previews_under_one_id_and_edits_apply_writes_
 		[_text_item("src/pkg/other.py", "VALUE = 1", "VALUE = 2"), _text_item("src/pkg/user.py", "'1'", "'7'")],
 		apply=False,
 	)
-	plan_id = re.search(r'edits\(action="apply", id="(\w+)"\)', preview).group(1)
+	plan_id = required_match(r'edits\(action="apply", id="(\w+)"\)', preview).group(1)
 	assert "Preview only, nothing written" in preview
 	assert _read(project, "src/pkg/other.py") == _FILES["src/pkg/other.py"]
 	writes.reset_state()  # a restart in between
@@ -324,7 +324,7 @@ def test_given_the_call_over_mcp_when_a_file_changes_then_the_stale_refusal_repe
 	args = {"edits": [_text_item("src/pkg/other.py", "VALUE = 1", "VALUE = 2")], "apply": False}
 	preview = _mcp(loop, "edit_symbol", args)
 	assert not preview.is_error, _text(preview)
-	plan_id = re.search(r'edits\(action="apply", id="(\w+)"\)', _text(preview)).group(1)
+	plan_id = required_match(r'edits\(action="apply", id="(\w+)"\)', _text(preview)).group(1)
 	(project / "src/pkg/other.py").write_text("VALUE = 1\nNAME = 'b'\n")
 	writes.reset_state()
 

@@ -1,31 +1,31 @@
 # Changelog
 
-## Unreleased
+## [2.0.0]
 
-### Fixed
+- Twelve name-first tools cover navigation, type checks and refactors. Discovery fits within 9,000 characters.
+- `lookup` groups typed calls to a Protocol and its implementations. `search` can find text mentions, and `unused` and `impact` expose dead-code candidates and change impact.
+- `rename` updates exact dotted patch targets and lets callers opt into uncertain sites by ID.
+- `change_signature` appends defaulted parameters as keyword-only unless a position or `keyword_only=false` is supplied. Known limit: signature changes do not yet offer optional site IDs.
+- `edit_symbol(edits=[...])` combines edits into one checked, undoable plan. `edits` stores previews and undo history across restarts.
+- Writes report the type check separately from tests and docs.
 
-- `change_signature` no longer writes a plan it knows is incomplete. A reorder that would change the evaluation order of effectful positional arguments (`f(args.query, args.path)`) now rewrites the call with keywords in the original order (`f(path=args.query, query=args.path)`) instead of leaving it as is; only calls that cannot take keywords (positional-only parameters, arguments captured by `*args`) stay manual. A plan with any call site left under `needs manual attention` (`*args` calls, uses as a value, import aliases, unrewritable calls) is held as a preview like a plan with new errors: `NOT applied: the plan is incomplete: ...`, and `apply_edit(id=...)` writes it anyway. Before, such plans were written when the type check found nothing, which a wrong argument order between two `str` parameters never does. `allow_large=true` also writes a held plan, as it does for `rename_symbol` and `move`.
-- `move(keep_reexport=true)` no longer breaks the re-export it keeps: the old module's `__all__` keeps the entry (it used to be replaced by a whitespace-only line, so `from old import *` lost the name), and the re-export import joins the module's import block instead of replacing the definition mid-file (it keeps the definition's place only when the destination imports names back from the old module). An `__all__` entry alone no longer counts as a use, so without `keep_reexport` the entry leaves with the code, removing its whole line (never a whitespace-only line). A new destination file gets two blank lines after its imports. Excluded directories (`.venv/`, `.pytest_cache/`, caches, installed packages) are no longer reported as importers that could not be parsed or read; they are skipped silently.
-- `references` lists every file whose hits are within `limit`; it used to stop at 25 files (`… and 5 more file(s)`) even with `limit=200` and fewer hits. `symbol_info`'s compact per-file references keep their 25-file summary, but the `… and N more file(s)` line now says `references(file_path="...", line=L, column=C, limit=<total>) lists every hit` (the exact position call).
+### Migrating from 1.x
 
-- `rename_symbol(include_unlinked_attrs=true)` no longer renames attribute accesses the type checker resolves to another symbol: each candidate `.name` is looked up with ty first, and only an access with no definition (an untyped object, a `Mock`) or one that points at the renamed member itself is renamed. `connection.execute` on a typed `sqlite3.Connection`, or a same-named method of an unrelated class, stays and is counted in a separate note (`left N attribute access(es) alone: ... resolves them to another symbol`) instead of the "probably the renamed member" list. A lookup that fails or runs past 300 accesses leaves the access alone (also counted). The mention scan (the notes of every rename, move and delete) no longer looks into directories whose name starts with a dot (`.agents/`, `.cursor/`, `.github/`), so tooling files are neither listed nor rewritten.
-- `edit_symbol(action="delete")` no longer holds a delete because of a bare-name or attribute use that ty resolves to a different definition (the other function with the same name in another module): those are dropped from the blockers and counted in a note (`N other use(s) of the name ... resolve to a different symbol and were ignored`). Uses with no definition, strings, and uses of the deleted symbol still hold the delete.
-- `change_signature`: adding a parameter with a `value` next to effectful positional arguments (`f(root / "a", "q", names=False)` becomes `f(root / "a", "q", exact=False, names=False)`) is written; it used to be held as "changing effectful arguments could change evaluation order". The check now looks at what really matters: whether an argument the call already had is dropped or moved relative to another effectful one; an argument the change adds does not count. When a plan is held because of call sites that `keyword_only=true` on the added parameters would let it rewrite (a positional-only function, positions that would shift), the reply says so.
-- `implementations` says which root it scanned and names `CODENAV_MCP_EXTRA_SOURCE_ROOTS` when a `tests/` directory outside it was left out (one line, only then), so test doubles are not silently missed.
-
-### Added
-
-- Argument aliases on every tool, direct and in `batch`: `symbol`, `symbol_name`, `qualified_name` for `name`; `file`, `filepath`, `path` for `file_path`; `col` for `column`; `line_number`, `lineno` for `line`; `old_str`, `new_str` for `old_string`, `new_string`. An alias applies only when the tool has no parameter of that name (`search_symbol` keeps its own `path`); an alias and its target with different values are refused. This replaces the 1.0.2 "no aliases" stance, for agents whose client defers tool schemas and guesses argument names.
-- `references` also takes `name` (dotted `Class.method` ok, `query` as an alias, `file_path` as a filter) like `callers`. `file_path`, `line` and `column` became optional; giving neither a name nor a full position is refused with an example. Positional calls keep working.
-- `rename_symbol(include_unlinked_attrs=true)` also renames attribute accesses after a dot that the type checker could not link (mocks, untyped objects) for a method or field, in the same plan (so `apply=false` previews them and the type check covers them). Default behaviour is unchanged; the note about those accesses now says how to include them (`undo_edit` then rerun when the rename was written).
-
-### Improved
-
-- Refusals for an unknown or missing argument end with the tool's example call (`Example: callers(name="create_user")`).
-- `symbol_info`, `callers`, `references` by name and `implementations` answer an ambiguous name with a normal reply, not an error: `N symbols are named 'x'. Retry with one of:` and one line per candidate with its kind, `file:line` and the exact retry call. The write tools still refuse an ambiguous name (and write nothing), but the refusal now ends with the exact retry calls too: `Nothing was changed. Retry with one of (other arguments unchanged):` and `edit_symbol(action="delete", name="x", file_path="src/a.py")`, `rename_symbol(new_name="y", name="x", file_path=...)`, `change_signature(name="x", file_path=...)`, `move(to_file="...", name="x", file_path=...)`.
-- The type-check result of every write says it is only that: `Type check: 0 new error(s), 0 fixed (21 file(s) checked, 0 unchanged) - tests and docs not checked`, and `After writing: no errors in the edited files (type check only; tests and docs not checked).` A green check says nothing about tests, generated docs or other repo invariants.
-- `callers` of a `Protocol` member now says implementations are not included and points to `implementations`; the result itself is unchanged.
-- The server instructions list the call shapes (`name=` tools and position tools), and the `edit` description says it is the built-in Edit plus a type check (one replacement per call; several edits go in one `batch`).
+| 1.x tool or argument | 2.0 call |
+|---|---|
+| `symbol_info(name="X")` | `lookup(name="X")` |
+| `hover(file_path="a.py", line=4, column=5)`, `definition(...)` | `lookup(file_path="a.py", line=4, column=5, show=["signature", "doc"])` |
+| `references(name="X")`, `callers(name="X")` | `lookup(name="X", show=["references"])` or `lookup(name="X", show=["callers"])` |
+| `implementations(port_name="Port")` | `lookup(name="Port", show=["implementations"])` |
+| `search_symbol(query="X", path="src")` | `search(query="X", path="src")` |
+| `diagnostics(file_path="a.py")` | `check(file_path="a.py")` |
+| `verify_changes(since="HEAD")`, `workspace()` | `check(since="HEAD")` or `check()` |
+| `rename_symbol(name="X", new_name="Y")` | `rename(name="X", new_name="Y")`. Use a name and optional file scope. For a parameter rename, group the definition and keyword-site edits explicitly. |
+| `rename_symbol(include_unlinked_attrs=true, ...)` | Preview with `rename(..., apply=false)`, then specify the selected `sites=["u1", ...]` in `rename` or `edits(action="apply", id=..., sites=[...])`. |
+| `edit(file_path="a.py", old_string="x = 1", new_string="x = 2")` | `edit_symbol(edits=[{"file_path":"a.py","old_string":"x = 1","new_string":"x = 2"}])`. Put `new_text`, `replace_all`, `old_str` and `new_str` inside the item. |
+| `quick_fix(file_path="a.py")` | `fix(file_path="a.py")` |
+| `apply_edit(id="ab12")`, `undo_edit(id="ab12")` | `edits(action="apply", id="ab12")` or `edits(action="undo", id="ab12")` |
+| `batch(calls=[...])` | Use `lookup(show=[...])` for sections of one symbol, `edit_symbol(edits=[...])` for grouped edits, or call independent tools individually. |
 
 ## [1.0.4] - 2026-11-26
 

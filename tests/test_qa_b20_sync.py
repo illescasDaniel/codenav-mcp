@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from typing import cast
+
+from mcp_nav_shared.lsp_client import LspClient
 
 
 def test_post_write_created_file_sync_failure_marks_all_files_unchecked(tmp_path):
@@ -19,6 +22,6 @@ def test_post_write_created_file_sync_failure_marks_all_files_unchecked(tmp_path
 		"create",
 		[FileChange(tmp_path / "existing.py", "x=1\n", "x=2\n"), FileChange(tmp_path / "new.py", None, "x=1\n")],
 	)
-	result = asyncio.run(errors_after_write(Client(), tmp_path, plan))
+	result = asyncio.run(errors_after_write(cast(LspClient, Client()), tmp_path, plan))
 	assert "Not checked" in result and "existing.py, new.py (2 files)" in result
 	assert "/hidden" not in result and str(tmp_path) not in result

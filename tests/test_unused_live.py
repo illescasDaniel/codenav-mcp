@@ -204,6 +204,7 @@ def test_unused_filters_and_paginates_across_edits(project, loop):
 	async def scenario():
 		async with Client(codenav_server.mcp, mode="legacy") as client:
 			tools = {t.name: t for t in (await client.list_tools()).tools}
+			assert tools["unused"].annotations is not None
 			assert tools["unused"].annotations.read_only_hint is True
 			args = {"path": "src/pkg/core.py", "kind": "function", "include_private": False, "limit": 1}
 			first = _text(await client.call_tool("unused", args))

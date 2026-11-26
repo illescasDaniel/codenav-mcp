@@ -24,7 +24,6 @@ from mcp_nav_shared.resolve import resolve_symbol
 
 from codenav_mcp import tool_base
 from codenav_mcp.ambiguity import ambiguity_listing
-from codenav_mcp.batch_tools import registered_tools
 from codenav_mcp.deps import module_names_for
 from codenav_mcp.linked import find_linked
 from codenav_mcp.mentions import Mention, find_mentions
@@ -312,21 +311,13 @@ class Data:
 	notes: list[str] = field(default_factory=list)
 
 
-def write_tool(*candidates: str) -> str:
-	"""The first of `candidates` that is a registered tool (the v2 names land with the other workstreams)."""
-	registered = set(registered_tools())
-	return next((c for c in candidates if c in registered), candidates[0])
-
-
 def write_calls(subject: Subject, change: str) -> list[str]:
 	"""The matching write call(s), as previews."""
 	args: dict[str, Any] = {"name": subject.name, "file_path": subject.file_path}
 	callable_ = subject.kind in ("function", "method", "class")
-	rename = call(write_tool("rename", "rename_symbol"), **args, new_name="<new_name>", apply=False)
+	rename = call("rename", **args, new_name="<new_name>", apply=False)
 	signature = call("change_signature", **args, add=[{"name": "<param>", "default": "None"}], apply=False)
-	delete = call(
-		write_tool("edit_symbol"), name=subject.name, file_path=subject.file_path, action="delete", apply=False
-	)
+	delete = call("edit_symbol", name=subject.name, file_path=subject.file_path, action="delete", apply=False)
 	if change == "rename":
 		return [rename]
 	if change == "delete":

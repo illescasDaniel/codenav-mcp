@@ -99,15 +99,12 @@ class CapturedPlan:
 plan_capture: contextvars.ContextVar[list[CapturedPlan] | None] = contextvars.ContextVar("plan_capture", default=None)
 
 
-def apply_call(preview_id: str, *, large: bool = False, edits_style: bool = False) -> str:
-	"""The exact call that writes a stored preview (`apply_edit` for the 1.x tools, `edits` for the v2 ones)."""
-	if edits_style:
-		return call("edits", action="apply", id=preview_id, allow_large=True if large else None)
-	return f'apply_edit(id="{preview_id}", allow_large=true)' if large else f'apply_edit(id="{preview_id}")'
+def apply_call(preview_id: str, *, large: bool = False) -> str:
+	return call("edits", action="apply", id=preview_id, allow_large=True if large else None)
 
 
-def undo_call(edit_id: str, *, edits_style: bool = False) -> str:
-	return call("edits", action="undo", id=edit_id) if edits_style else f'undo_edit(id="{edit_id}")'
+def undo_call(edit_id: str) -> str:
+	return call("edits", action="undo", id=edit_id)
 
 
 @dataclass
@@ -198,12 +195,11 @@ def _refuse_new_file_preview(
 	title: str,
 	diff_lines: int,
 	optional_sites: Sequence[OptionalSite] = (),
-	edits_style: bool = False,
 ) -> Outcome:
 	"""Refuse a preview that would create a file, and keep the plan for the existing approval flow.
 
 	Checking a new file needs it materialised in the workspace, which a crash (SIGKILL) could leave behind
-	(RC-091): a preview never creates files. The user approves the write through `apply_edit` (or `apply=true`).
+	(RC-091): a preview never creates files. The user approves the write through `edits(action="apply", ...)` (or `apply=true`).
 	"""
 	names = ", ".join(repr(relative_name(change.path, workspace)) for change in created)
 	preview_id = state.plans.add(CodenavPlan(plan, list(optional_sites)))
@@ -212,8 +208,8 @@ def _refuse_new_file_preview(
 		"",
 		f"Preview refused: the plan creates {_count_label(len(created), 'new file')} ({names}). Checking a new file "
 		"needs a temporary file in the workspace that a crash could leave behind; previews never create files.",
-		f"To approve the write: {apply_call(preview_id, edits_style=edits_style)} creates it "
-		f"({undo_call(preview_id, edits_style=edits_style)} reverts it), "
+		f"To approve the write: {apply_call(preview_id)} creates it "
+		f"({undo_call(preview_id)} reverts it), "
 		"or rerun the tool with apply=true to run the type check first.",
 		"",
 		"Files:",
@@ -238,13 +234,11 @@ async def finish_plan(
 	diff_lines: int = DEFAULT_DIFF_LINES,
 	hold_back: str = "",
 	optional_sites: Sequence[OptionalSite] = (),
-	edits_style: bool = False,
 ) -> Outcome:
 	"""Simulate `plan`, then preview it or apply it, and describe what happened.
 
 	`optional_sites` are the remaining uncertain edits kept for the agent to opt in to with
-	`edits(action="apply", id=..., sites=[...])`. `edits_style` words the
-	replies with `edits(...)` calls instead of `apply_edit` / `undo_edit`."""
+	`edits(action="apply", id=..., sites=[...])`."""
 	capture = plan_capture.get()
 	if capture is not None:
 		capture.append(CapturedPlan(plan, apply, title))
@@ -265,7 +259,7 @@ async def finish_plan(
 	created = [change for change in plan.changes if change.kind == "create"]
 	if created and not apply:
 		return _refuse_new_file_preview(
-			state, workspace, plan, created, title, diff_lines, optional_sites=optional_sites, edits_style=edits_style
+			state, workspace, plan, created, title, diff_lines, optional_sites=optional_sites
 		)
 	delta = await simulate_plan(client, workspace, roots, plan, include_dependents=include_dependents)
 	lines = [title, ""]
@@ -278,13 +272,12 @@ async def finish_plan(
 			"diagnostics could not be checked for all files; review the unchecked files or set max_new_errors=null."
 		)
 	elif max_new_errors is not None and len(delta.new_errors) > max_new_errors:
-		anyway = call("edits", action="apply") if edits_style else "apply_edit"
 		refusal = (
 			f"{_count_label(len(delta.new_errors), 'new error')} (allowed: {max_new_errors}). "
-			f"Review the diagnostics below; adjust and rerun, or write the plan anyway with {anyway}."
+			f"Review the diagnostics below; adjust and rerun, or write the plan anyway with edits."
 		)
 	# The file-count limit is checked when the write starts, after the plan was simulated; check it here too so
-	# that a refused plan is kept under an id (apply_edit(id, allow_large=true) writes it).
+	# that a refused plan is kept under an id (edits(action="apply", id=..., allow_large=true) writes it).
 	too_large = len(plan.changes) > state.guard.max_files and not allow_large
 	if too_large and not refusal:
 		refusal = (
@@ -304,11 +297,11 @@ async def finish_plan(
 			unchecked_count = status.splitlines()[0].rsplit(" (", 1)[-1].split()[0]
 			lines.append(f"Applied as edit {entry.id}. {unchecked_count} file(s) could not be checked for errors.")
 		else:
-			lines.append(f"Applied as edit {entry.id} ({undo_call(entry.id, edits_style=edits_style)} reverts it).")
+			lines.append(f"Applied as edit {entry.id} ({undo_call(entry.id)} reverts it).")
 		lines.append(status)
 	else:
 		preview_id = state.plans.add(CodenavPlan(plan, list(optional_sites)))
-		keep = apply_call(preview_id, large=too_large, edits_style=edits_style)
+		keep = apply_call(preview_id, large=too_large)
 		if blocked:
 			lines.append(blocked)
 			lines.append(f"The plan is kept: {keep} writes it anyway.")
@@ -317,7 +310,7 @@ async def finish_plan(
 			lines.append(f"The plan is kept: {keep} writes it anyway.")
 		else:
 			lines.append("Preview only, nothing written.")
-			lines.append(f"Write it with {apply_call(preview_id, edits_style=edits_style)} or rerun with apply=true.")
+			lines.append(f"Write it with {apply_call(preview_id)} or rerun with apply=true.")
 	if not include_dependents:
 		lines.append("Dependent files were not checked.")
 	lines += ["", "Files:", plan.summary(workspace)]

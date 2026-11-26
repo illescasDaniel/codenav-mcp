@@ -50,9 +50,7 @@ def resolve_ty_command(workspace_root: Path) -> list[str]:
 
 
 def ty_config_note(workspace_root: Path) -> str | None:
-	"""A one-line note when ty's configuration file cannot be parsed, so ty silently
-	runs with its defaults (RC-156). The file ty reads is `ty.toml` (or `.ty.toml`) when
-	present, else the `[tool.ty]` table of `pyproject.toml`."""
+	"""Explain why the workspace's ty configuration cannot be parsed (RC-156)."""
 	name = next((n for n in ("ty.toml", ".ty.toml") if (workspace_root / n).is_file()), "pyproject.toml")
 	path = workspace_root / name
 	if not path.is_file():
@@ -68,4 +66,4 @@ def ty_config_note(workspace_root: Path) -> str | None:
 		reason = exc.strerror or "unreadable"
 	else:
 		return None
-	return f"Note: {name} could not be parsed ({reason}); ty runs with its defaults."
+	return f"{name} could not be parsed ({reason})."

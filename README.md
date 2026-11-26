@@ -1,197 +1,61 @@
-[![version](https://img.shields.io/pypi/v/codenav-mcp)](https://pypi.org/project/codenav-mcp/)
-
 # codenav-mcp
 
-Give AI agents Python code navigation and refactoring through the Model Context Protocol. codenav-mcp uses [ty](https://github.com/astral-sh/ty)'s language server to resolve definitions, references and call sites, and checks proposed edits for type diagnostics before writing them.
+Python code navigation and type-checked refactoring over MCP, powered by Astral's ty.
+Use it to follow typed calls through imports and dependency injection, find structural
+Protocol implementations, and preview refactors that touch several files. Use grep
+for exact-name text lookups and Read for a known file or excerpt.
 
-![Infographic showing an MCP client requesting navigation or an edit, ty resolving code, and edits being checked before preview or application.](assets/workflow.svg)
+| I want to… | Tool |
+|---|---|
+| Find a definition, its signature, references, callers or implementations | `lookup(name="FileSearchPort.execute")` |
+| Discover symbols or find names in strings, comments and other text | `search(query="FileSearchPort", scope="mentions")` |
+| Map the definitions in a large file | `outline(file_path="src/app.py")` |
+| Check a file, workspace or change against git | `check(since="HEAD")` |
+| Find dead-code candidates | `unused(path="src")` |
+| Inspect what an API change touches | `impact(name="FileSearchPort.execute", change="signature")` |
+| Rename a symbol and its linked usages | `rename(name="FileSearchPort.execute", new_name="run", apply=false)` |
+| Change parameters and update callers | `change_signature(name="parse", add=[{"name":"strict","default":"False"}])` |
+| Move a module or definition and rewrite imports | `move(name="parse", to_file="src/parsing.py", apply=false)` |
+| Edit a definition or group several changes into one plan | `edit_symbol(name="old_parser", action="delete", apply=false)` |
+| Use a ty quick fix, such as adding a missing import | `fix(file_path="src/app.py", apply=false)` |
+| List, show, apply or undo stored changes | `edits(action="list")` |
 
-An MCP client sends a request to codenav-mcp. Navigation uses ty to resolve code; edits are simulated and checked before they are previewed or applied. Applied edits can be undone while the server retains its edit journal, if the files have not changed since.
-
-## Examples
-
-Real tool calls on a small sample project (`app/user_service.py` defines `UserService` with `create` and `save`; `app/main.py` and `tests/test_user_service.py` use it):
-
-<details>
-<summary>symbol_info(name: "UserService.create")</summary>
-
-> symbol_info(name: "UserService.create")
-
-```text
-create  [Method]  (app/user_service.py:14:6)
-
-def create(
-    self,
-    name: str
-) -> User
----------------------------------------------
-Create a user and save it.
-
-Definition:
-app/user_service.py:14:6
-   12 | 		self._next_id = 1
-   13 |
-   14 | 	def create(self, name: str) -> User:
-   15 | 		"""Create a user and save it."""
-   16 | 		user = User(id=self._next_id, name=name)
-
-References:
-3 reference(s) in 3 file(s):
-app/main.py: L4
-app/user_service.py: L14
-tests/test_user_service.py: L5
-```
-
-</details>
-
-<details>
-<summary>references(file_path: "app/user_service.py", line: 14, column: 6)</summary>
-
-> references(file_path: "app/user_service.py", line: 14, column: 6)
+Start with the name and add `file_path` when several symbols share it. For callers
+and structural implementations of a Protocol method, expand the relevant
+sections.
 
 ```text
-3 reference(s) in 3 file(s):
-app/main.py:4:16
-    2 |
-    3 | service = UserService()
-    4 | user = service.create("Ada")
-    5 | print(user.name)
-
-app/user_service.py:14:6
-   12 | 		self._next_id = 1
-   13 |
-   14 | 	def create(self, name: str) -> User:
-   15 | 		"""Create a user and save it."""
-   16 | 		user = User(id=self._next_id, name=name)
-
-tests/test_user_service.py:5:23
-    3 |
-    4 | def test_create_returns_user() -> None:
-    5 | 	user = UserService().create("Grace")
-    6 | 	assert user.name == "Grace"
+lookup(name="FileSearchPort.execute", show=["callers", "implementations"], limit=10)
 ```
 
-</details>
-
-<details>
-<summary>edit(file_path: "app/user_service.py", old_string: "...", new_string: "...", apply: false)</summary>
-
-> edit(file_path: "app/user_service.py", old_string: "...", new_string: "...", apply: false) — an edit that would introduce a bug is caught before anything is written:
-
-```text
-Edit app/user_service.py
-Replaced 1 occurrence(s).
-
-Preview only, nothing written. apply=true would be refused: 1 new error (allowed: 0). Review the diagnostics below; adjust and rerun, or write the plan anyway with apply_edit.
-The plan is kept: apply_edit(id="a59fa0ec") writes it anyway.
-
-Files:
-  app/user_service.py: +1 -1
-
-Diagnostics: 1 new error(s), 0 fixed (3 file(s) checked, 0 unchanged)
-New:
-  + app/user_service.py:16:15 error [unknown-argument]: Argument `active` does not match any known parameter
-
---- a/app/user_service.py
-+++ b/app/user_service.py
-@@ -14,5 +14,5 @@
- 	def create(self, name: str) -> User:
- 		"""Create a user and save it."""
--		user = User(id=self._next_id, name=name)
-+		user = User(active=True, id=self._next_id, name=name)
- 		self._next_id += 1
- 		self.save(user)
-```
-
-</details>
-
-<details>
-<summary>rename_symbol(name: "UserService.save", new_name: "persist", apply: false)</summary>
-
-> rename_symbol(name: "UserService.save", new_name: "persist", apply: false) — a type-checked rename, with call sites found through the language server:
-
-```text
-Rename save -> persist (UserService.save): 2 edit(s) in 1 file(s)
-
-Preview only, nothing written.
-Write it with apply_edit(id="9fd895aa") or rerun with apply=true.
-
-Files:
-  app/user_service.py: +2 -2
-
-Notes:
-  - `save` appears in strings (getattr/patch targets, __all__, messages): 1
-    app/user_service.py:15: """Create a user and save it."""
-
-Diagnostics: 0 new error(s), 0 fixed (3 file(s) checked, 0 unchanged)
-
---- a/app/user_service.py
-+++ b/app/user_service.py
-@@ -16,8 +16,8 @@
- 		user = User(id=self._next_id, name=name)
- 		self._next_id += 1
--		self.save(user)
-+		self.persist(user)
- 		return user
-
--	def save(self, user: User) -> None:
-+	def persist(self, user: User) -> None:
- 		self._users = getattr(self, "_users", {})
- 		self._users[user.id] = user
-```
-
-</details>
-
-All tools answer plain text like this; the full catalogue with parameters and safety rules is in the [tool reference](docs/tools.md).
+The reply groups Protocol calls and calls to concrete implementations. For
+cross-file changes, start with `apply=false`, inspect the preview, then apply
+its ID with `edits(action="apply", id="…")`. Preview and undo IDs persist across
+server restarts. The write gate checks types only. Run relevant tests and
+documentation checks after applying a change.
 
 ## Quick start
 
-Install [uv](https://docs.astral.sh/uv/), then register the server with your MCP host from the project root. The host starts it when needed.
-
-**Claude Code:**
+Install [uv](https://docs.astral.sh/uv/) and register the server with your MCP host.
 
 ```bash
 claude mcp add codenav -- uvx codenav-mcp
-```
-
-**Codex** (user configuration):
-
-```bash
 codex mcp add codenav -- uvx codenav-mcp
-```
-
-**OpenCode** (project configuration):
-
-```bash
 opencode mcp add codenav -- uvx codenav-mcp
 ```
 
-See [configuration](docs/configuration.md) for Claude Code and Cursor configuration, workspace selection and environment variables.
-
-## Requirements and limits
-
-- Python 3.11 or later; the package installs ty and its other dependencies.
-- Navigation and edits target Python (`.py` and `.pyi`). Positions are 1-indexed; columns use UTF-16 offsets.
-- Edit tools normally check type diagnostics and allow no new errors by default. Use `apply=false` to preview; `apply_edit` can explicitly apply a preview despite its diagnostic limit. Read-only mode disables writes. Checks are not a substitute for tests.
-- Batch calls run in order and are not atomic. Tool results are capped at 30,000 characters by default (`CODENAV_MCP_MAX_OUTPUT_CHARS`). See the [tool reference](docs/tools.md) for safety rules, output limits and [known limits](docs/tools.md#known-limits).
-
-## Environment
-
-See [configuration](docs/configuration.md#environment) for environment variables.
-
-## Tests
-
-From a checkout, run `uv sync --group dev` and `uv run pytest`. See [development](docs/development.md) for lint and package smoke-test commands. No evaluation score is reported here.
+Python 3.11 or later is required. ty installs with codenav, and a workspace's
+own ty takes priority when present. Python navigation and writes cover
+`.py` and `.pyi` files. Positions use 1-based lines and UTF-16 columns.
 
 ## Documentation
 
-- [Tool reference](docs/tools.md): navigation, edits, safety and batching.
-- [Configuration](docs/configuration.md): host setup, workspace and ty selection.
-- [Development](docs/development.md): local setup and tests.
-- [Documentation index](docs/INDEX.md).
-
-Related: [webnav-ts-mcp](https://www.npmjs.com/package/webnav-ts-mcp) provides navigation for JS/TS/HTML/CSS. [Design notes](https://github.com/illescasDaniel/SpaceMaker/blob/main/docs/agent-tooling.md) cover Protocol conformance, positioning and output formats.
+- [Tool reference](docs/tools.md)
+- [Migrating from 1.x](CHANGELOG.md#migrating-from-1x)
+- [Host setup, workspace selection and environment variables](docs/configuration.md)
+- [Local setup and tests](docs/development.md)
+- [Documentation index](docs/INDEX.md)
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)

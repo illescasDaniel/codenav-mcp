@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from mcp import Client, types
+from mcp.client.session import ClientRequestContext
 from mcp_nav_shared.workspace import WorkspaceSelector
 
 from codenav_mcp import server as codenav_server
@@ -43,12 +44,12 @@ def test_given_client_reports_worktree_root_when_tool_called_then_server_switche
 	monkeypatch.setattr(codenav_server, "SOURCE_ROOT", main)
 	monkeypatch.setattr(codenav_server, "_client", None)
 
-	async def _roots(_context: object) -> types.ListRootsResult:
+	async def _roots(context: ClientRequestContext) -> types.ListRootsResult:
 		return types.ListRootsResult(roots=[types.Root(uri=linked.as_uri())])
 
 	async def _ask() -> str:
 		async with Client(codenav_server.mcp, list_roots_callback=_roots, mode="legacy") as client:
-			result = await client.call_tool("workspace", {})
+			result = await client.call_tool("check", {})
 		return str(result.content[0].model_dump()["text"])
 
 	# when

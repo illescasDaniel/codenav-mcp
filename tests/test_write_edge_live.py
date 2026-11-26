@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from codenav_mcp import server as codenav_server, write_tools, writes
+from codenav_mcp import edits_tools, read_tools, write_tools, writes
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -41,7 +41,7 @@ def test_given_crlf_and_bom_files_when_rename_then_line_endings_and_bom_preserve
 		b"from pkg.lib import helper\r\n\r\n\r\ndef go() -> int:\r\n\treturn helper(1)\r\n"
 	)
 	# when
-	text = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=True))
+	text = _run(loop, write_tools.rename(name="helper", new_name="assist", apply=True))
 	# then
 	assert "Applied as edit" in text
 	assert (project / "src/pkg/lib.py").read_bytes() == b"\xef\xbb\xbfdef assist(x: int) -> int:\r\n\treturn x\r\n"
@@ -57,7 +57,7 @@ def test_given_non_bmp_characters_before_symbol_when_rename_then_edit_lands_on_t
 		encoding="utf-8",
 	)
 	# when
-	_run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=True))
+	_run(loop, write_tools.rename(name="helper", new_name="assist", apply=True))
 	# then
 	assert (project / "src/pkg/use.py").read_text(encoding="utf-8").endswith("+ assist(1)  # \U0001f600 helper\n")
 
@@ -66,11 +66,9 @@ def test_given_library_symbol_when_rename_then_refused_and_nothing_written(proje
 	# given — `Path` comes from the standard library
 	before = (project / "src/pkg/use.py").read_text()
 	# when
-	text = _run(
-		loop, write_tools.rename_symbol(file_path="src/pkg/use.py", line=1, column=21, new_name="MyPath", apply=True)
-	)
+	text = _run(loop, write_tools.rename(name="Path", file_path="src/pkg/use.py", new_name="MyPath", apply=True))
 	# then
-	assert "cannot be renamed" in text or "outside the workspace" in text or "never edit" in text
+	assert "No symbol found" in text or "outside the workspace" in text
 	assert (project / "src/pkg/use.py").read_text() == before
 
 
@@ -92,8 +90,13 @@ def test_given_too_many_files_when_apply_then_blocked_unless_allow_large(project
 	state.guard = dataclasses.replace(state.guard, max_files=1)
 	state.journal.guard = state.guard
 	# when
-	blocked = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=True))
-	allowed = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=True, allow_large=True))
+	blocked = _run(loop, write_tools.rename(name="helper", new_name="assist", apply=True))
+	allowed = _run(
+		loop,
+		edits_tools.edits(
+			action="apply", id=blocked.split('edits(action="apply", id="')[1].split('"')[0], allow_large=True
+		),
+	)
 	# then
 	assert "allow_large" in blocked
 	assert "Applied" in allowed
@@ -104,10 +107,10 @@ def test_given_concurrent_calls_when_preview_runs_then_other_tools_see_the_disk_
 	# given — a preview holds the simulation overlay while a read tool and another preview run at the same time
 	async def scenario():
 		results = await asyncio.gather(
-			write_tools.rename_symbol(name="helper", new_name="assist", apply=False),
-			codenav_server.diagnostics("src/pkg/use.py"),
+			write_tools.rename(name="helper", new_name="assist", apply=False),
+			read_tools.check("src/pkg/use.py"),
 			write_tools._edit_text("src/pkg/lib.py", old_string="return x", new_string="return x + 1"),
-			codenav_server.references("src/pkg/lib.py", 1, 5),
+			read_tools.lookup(file_path="src/pkg/lib.py", line=1, column=5, show=["references"]),
 		)
 		return results
 
@@ -135,8 +138,8 @@ def test_given_write_failure_midway_when_apply_edit_then_every_file_is_restored(
 	# given — a multi-file rename whose second write fails
 	from mcp_nav_shared import transaction
 
-	preview = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=False))
-	edit_id = preview.split('apply_edit(id="')[1].split('"')[0]
+	preview = _run(loop, write_tools.rename(name="helper", new_name="assist", apply=False))
+	edit_id = preview.split('edits(action="apply", id="')[1].split('"')[0]
 	originals = {p: p.read_bytes() for p in project.rglob("*.py")}
 	real = transaction._write_atomic
 	calls = {"n": 0}
@@ -149,7 +152,7 @@ def test_given_write_failure_midway_when_apply_edit_then_every_file_is_restored(
 
 	monkeypatch.setattr(transaction, "_write_atomic", flaky)
 	# when
-	text = _run(loop, write_tools.apply_edit(edit_id))
+	text = _run(loop, edits_tools.edits(id=edit_id, action="apply"))
 	# then
 	assert "could not write" in text and "disk full; nothing was changed" in text
 	monkeypatch.setattr(transaction, "_write_atomic", real)

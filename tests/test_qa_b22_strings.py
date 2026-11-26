@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mcp import Client
 
-from codenav_mcp import batch_tools, server
+from codenav_mcp import args, server
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -28,14 +28,19 @@ def test_optional_literal_strings_reach_edit_unchanged(tmp_path, monkeypatch, lo
 		async with Client(server.mcp, mode="legacy") as client:
 			results = [
 				await client.call_tool(
-					"edit", {"file_path": "src/a.py", "old_string": value, "new_string": "0", "apply": False}
+					"edit_symbol",
+					{"apply": False, "edits": [{"file_path": "src/a.py", "old_string": value, "new_string": "0"}]},
 				)
 				for value in ("{}", "[1]", "null")
 			]
 			results.append(
-				await client.call_tool("edit", {"file_path": "src/repeat.py", "old_string": "{}", "new_string": "0"})
+				await client.call_tool(
+					"edit_symbol", {"edits": [{"file_path": "src/repeat.py", "old_string": "{}", "new_string": "0"}]}
+				)
 			)
-			results.append(await client.call_tool("edit", {"file_path": "src/same.py", "new_text": "{}\n"}))
+			results.append(
+				await client.call_tool("edit_symbol", {"edits": [{"file_path": "src/same.py", "new_text": "{}\n"}]})
+			)
 			return results
 
 	results = loop.run_until_complete(run())
@@ -51,8 +56,9 @@ def test_optional_literal_strings_reach_edit_unchanged(tmp_path, monkeypatch, lo
 
 
 def test_literal_detection_does_not_bypass_normal_inputs():
-	fn = batch_tools.signature_of("edit")
-	assert server._needs_literal_string_dispatch(fn, {"old_string": "{}"})
-	assert server._needs_literal_string_dispatch(fn, {"new_text": "null"})
-	assert not server._needs_literal_string_dispatch(fn, {"new_text": None})
-	assert not server._needs_literal_string_dispatch(fn, {"new_text": "x = 1"})
+	fn = args.signature_of("edit_symbol")
+	assert fn is not None
+	assert server._needs_literal_string_dispatch(fn, {"source": "{}"})
+	assert server._needs_literal_string_dispatch(fn, {"source": "null"})
+	assert not server._needs_literal_string_dispatch(fn, {"source": None})
+	assert not server._needs_literal_string_dispatch(fn, {"source": "x = 1"})

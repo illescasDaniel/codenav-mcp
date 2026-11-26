@@ -34,6 +34,7 @@ from mcp_nav_shared.resolve import resolve_symbol
 
 from codenav_mcp import tool_base
 from codenav_mcp.ambiguity import write_refusal
+from codenav_mcp.args import example_call
 from codenav_mcp.deps import (
 	Skipped,
 	find_dependents_report,
@@ -57,9 +58,10 @@ from codenav_mcp.pysource import (
 	parse_python,
 	source_lines,
 )
+from codenav_mcp.reply import Reply, call, paginate
 from codenav_mcp.tidy import sort_failure, sort_imports
 from codenav_mcp.tool_base import Session, open_session
-from codenav_mcp.writes import finish_plan, require_workspace_file
+from codenav_mcp.writes import apply_call, finish_plan, require_workspace_file
 
 
 async def _locate(session: Session, name: str, file_path: str | None) -> tuple[Path, str, Definition]:
@@ -134,7 +136,7 @@ async def _replace_symbol(
 	symbol_info (`file_path` disambiguates).
 
 	The new code must be valid Python. By default the edit is written (undo
-	with `undo_edit`) and the response lists the diagnostics it caused in this
+	with `edits(action="undo")`) and the response lists the diagnostics it caused in this
 	file and its importers: a changed signature shows up as errors at call
 	sites. Pass `apply=false` to preview, or `max_new_errors` to refuse an edit
 	that adds more errors than that. To change a signature and update the call
@@ -151,7 +153,7 @@ async def _replace_symbol(
 		if new_node.name != old.name:
 			notes.append(
 				f"the definition is now called {new_node.name!r}; references to {old.name!r} are NOT updated "
-				"(use rename_symbol to rename)"
+				"(use rename to rename)"
 			)
 		if type(new_node) is not type(old.node) and isinstance(old.node, ast.ClassDef) != isinstance(
 			new_node, ast.ClassDef
@@ -388,8 +390,8 @@ async def _insert_symbol(
 				existing[inserted_name] = stmt.lineno
 
 		fitted = fit_snippet(source, indent=indent, file_text=text, match_eol=True)
-		if into is not None and _is_placeholder_body(container.node):
-			first = container.node.body[-1]
+		if into is not None and isinstance(scope_parent, ast.ClassDef) and _is_placeholder_body(scope_parent):
+			first = scope_parent.body[-1]
 			new_text = replace_lines(text, first.lineno, first.end_lineno or first.lineno, fitted)
 		elif text.strip() == "":
 			new_text = fitted
@@ -472,7 +474,7 @@ async def _safe_delete(
 	(`prune_imports`). Usages the type checker cannot see (strings such as
 	`getattr(x, "name")`, untyped attribute accesses, docs) are listed, and when
 	there are any the deletion is previewed rather than written, so you can
-	confirm with `apply_edit`.
+	confirm with `edits(action="apply")`.
 	"""
 	try:
 		session = await open_session(ctx)
@@ -591,8 +593,8 @@ async def _safe_delete(
 		return write_refusal(exc, "edit_symbol", name, fixed='action="delete", ')
 	if hold_back and outcome.preview_id:
 		return outcome.text.replace(
-			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with apply=true.',
-			f'Write it with apply_edit(id="{outcome.preview_id}") or rerun with force=true.',
+			f"Write it with {apply_call(outcome.preview_id)} or rerun with apply=true.",
+			f"Write it with {apply_call(outcome.preview_id)} or rerun with force=true.",
 		)
 	return outcome.text
 
@@ -689,7 +691,7 @@ def _is_suppression(action: dict[str, Any]) -> bool:
 	return any("ty: ignore" in e.new_text or "type: ignore" in e.new_text for es in edits.values() for e in es)
 
 
-def _import_insertion(edits: list[TextEdit]) -> tuple[str, list[str], bool] | None:
+def _import_insertion(edits: list[TextEdit]) -> tuple[str, list[str | tuple[str, str | None]], bool] | None:
 	"""(module, names, is_plain_import) when the edits are one bare import statement inserted at the file top."""
 	if len(edits) != 1:
 		return None
@@ -704,7 +706,7 @@ def _import_insertion(edits: list[TextEdit]) -> tuple[str, list[str], bool] | No
 	return match.group(1), [match.group(2)], False
 
 
-async def quick_fix(
+async def fix(
 	file_path: str,
 	line: int | None = None,
 	code: str | None = None,
@@ -714,17 +716,8 @@ async def quick_fix(
 	max_new_errors: int | None = 0,
 	ctx: Context | None = None,
 ) -> str:
-	"""Apply ty's own fixes for a file's diagnostics (today: add the missing import). Example: `quick_fix(file_path="src/app.py")`.
-
-	Looks at the file's diagnostics (narrow with `line` or a rule `code` such as
-	`unresolved-reference`), asks ty for the quick fixes, and applies them.
-	Imports are placed after the docstring and the existing imports, merged into
-	an existing `from x import ...` where there is one. When a diagnostic has
-	several equally good fixes (two modules that both export `Path`) nothing is
-	applied: the options are listed, and you repeat the call with `choice` set to
-	part of the title you want (`choice="pathlib"`) or a 1-based choice number. Fixes that only silence the
-	error (`# ty: ignore`) are skipped unless `allow_suppress=true`.
-	"""
+	"""Apply a ty diagnostic fix, such as a missing import. Example: `fix(file_path="src/app.py")`."""
+	retry = {"file_path": file_path, "line": line, "code": code, "apply": False if not apply else None}
 	try:
 		if line is not None and line < 1:
 			raise ToolInputError("line must be 1 or more")
@@ -760,19 +753,21 @@ async def quick_fix(
 					fixable.append(diagnostic)
 			lines = sorted({d["range"]["start"]["line"] + 1 for d in fixable})
 			codes = sorted({str(d["code"]) for d in fixable if d.get("code") is not None})
-			return (
+			answer = (
 				f"No diagnostics to fix in {rel}"
 				+ (f" at line {line}" if line else "")
 				+ "."
 				+ (f" Lines with fixes: {', '.join(map(str, lines))}." if lines else "")
 				+ (f" Available codes with fixes: {', '.join(codes)}." if codes else "")
 			)
+			return Reply(answer).render()
 		chosen: list[tuple[dict[str, Any], dict[str, Any]]] = []
 		ambiguous: list[str] = []
 		unfixable: list[str] = []
 		suppression_only = False
 		available_choices: list[str] = []
-		for diagnostic in wanted[:25]:
+		page = paginate(wanted, 25)
+		for diagnostic in page.items:
 			start, end = diagnostic["range"]["start"], diagnostic["range"]["end"]
 			actions = await session.client.code_actions(
 				str(path),
@@ -804,16 +799,24 @@ async def quick_fix(
 					f"{label}\n      Choices: " + " ".join(f"{i}. {a.get('title')}" for i, a in enumerate(usable, 1))
 				)
 		if ambiguous:
-			return FailedText(
-				'Several fixes apply; nothing was changed. Repeat with choice="<part of a title>":\n  '
-				+ "\n  ".join(ambiguous)
+			reply = Reply(
+				'Several fixes apply; nothing was changed. Repeat with choice="<part of a title>".', ambiguous
 			)
+			reply.items.append(f"Example: {call('fix', **retry, choice=1)}")
+			return FailedText(reply.render())
 		if not chosen:
 			if available_choices:
-				return FailedText("Choices: " + " ".join(available_choices))
-			if suppression_only:
-				return FailedText("Only suppression fixes are available; pass allow_suppress=true to apply one.")
-			return FailedText("ty offers no quick fix for: " + "; ".join(unfixable[:6]) + ".")
+				reply = Reply("Choices: " + " ".join(available_choices))
+				reply.items.append(f"Example: {call('fix', **retry, choice=1)}")
+			elif suppression_only:
+				reply = Reply("Only suppression fixes are available; pass allow_suppress=true to apply one.")
+				reply.items.append(f"Example: {call('fix', **retry, allow_suppress=True)}")
+			else:
+				reply = Reply("ty offers no quick fix for: " + "; ".join(unfixable[:6]) + ".")
+				reply.next_calls.append(call("check", file_path=rel))
+			if page.more:
+				reply.notes.append(f"{page.more} diagnostics beyond the first 25; use line or code to narrow.")
+			return FailedText(reply.render())
 		new_text = text
 		other_edits: dict[Path, list[TextEdit]] = {}
 		seen_imports: set[tuple[Path, str, str]] = set()
@@ -859,6 +862,8 @@ async def quick_fix(
 				notes.extend(_quick_fix_cycle_notes(session, change.path, change.old_text, change.new_text))
 		if unfixable:
 			notes.append("no fix offered for: " + "; ".join(unfixable[:5]))
+		if page.more:
+			notes.append(f"{page.more} diagnostics beyond the first 25; rerun fix or narrow by line or code.")
 		notes += sort_notes
 		plan = EditPlan(f"Quick fixes in {rel} ({len(chosen)})", changes, notes)
 		outcome = await finish_plan(
@@ -871,8 +876,11 @@ async def quick_fix(
 			max_new_errors=max_new_errors,
 		)
 	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
-	return outcome.text
+		return FailedText(Reply(str(format_tool_error(exc)), [f"Example: {example_call(fix)}"]).render())
+	answer, _, details = outcome.text.partition("\n")
+	reply = Reply(answer, details.splitlines())
+	rendered = reply.render()
+	return FailedText(rendered) if isinstance(outcome.text, FailedText) else rendered
 
 
 def _quick_fix_cycle_notes(session: Session, path: Path, before: str, after: str) -> list[str]:
@@ -928,5 +936,5 @@ def _with_sorted_imports(workspace: Path, change: FileChange, notes: list[str]) 
 
 
 TOOLS: list[tuple[Any, Any]] = [
-	(quick_fix, tool_base.WRITES),
+	(fix, tool_base.WRITES),
 ]

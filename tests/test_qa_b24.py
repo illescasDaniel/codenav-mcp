@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from codenav_mcp import edit_tools, refactor_tools, server, tidy
+from codenav_mcp import edit_tools, read_tools, refactor_tools, tidy
 from codenav_mcp.pysource import find_definition, source_lines
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
@@ -23,9 +23,14 @@ _needs_ruff = pytest.mark.skipif(tidy.find_ruff(Path.cwd()) is None, reason="ruf
 
 def test_rc_001_definitions_keep_editor_line_numbers_after_form_feed_and_unicode_separators():
 	# given / when / then — only \n, \r\n and \r end a line; FF, VT, FS, NEL and U+2028 stay inside it
-	lines = {n: find_definition(_FF, qualname=n).def_line for n in ("b", "c", "d")}
+	lines = {}
+	for name in ("b", "c", "d"):
+		definition = find_definition(_FF, qualname=name)
+		assert definition is not None
+		lines[name] = definition.def_line
 	assert lines == {"b": 8, "c": 12, "d": 17}
-	assert find_definition(_SEPS, qualname="g").def_line == 8
+	definition = find_definition(_SEPS, qualname="g")
+	assert definition is not None and definition.def_line == 8
 	assert len(source_lines(_SEPS)) == len(_SEPS.split("\n")) - 1
 
 
@@ -35,10 +40,10 @@ def test_rc_001_symbol_info_reports_ty_lines_after_a_form_feed(tmp_path, monkeyp
 	# given
 	make_workspace(tmp_path, monkeypatch, {"ff.py": _FF})
 	# when
-	text = loop.run_until_complete(server.symbol_info(name="c", file_path="ff.py"))
+	text = loop.run_until_complete(read_tools.lookup(name="c", file_path="ff.py"))
 	# then
-	assert "(ff.py:12:5)" in text, text
-	assert "12 | def c():" in text, text
+	assert "ff.py:12:5" in text, text
+	assert "def c()" in text, text
 
 
 @needs_ty
@@ -69,7 +74,8 @@ def test_rc_001_import_sort_does_not_drop_form_feed_lines(tmp_path):
 	# then
 	assert result.count("\x0c") == original.count("\x0c")
 	assert "from c import helper" in result
-	assert tidy.sort_failure() is not None and "form-feed" in tidy.sort_failure()
+	reason = tidy.sort_failure()
+	assert reason is not None and "form-feed" in reason
 
 
 @needs_ty

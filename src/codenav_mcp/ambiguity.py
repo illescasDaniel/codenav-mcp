@@ -92,7 +92,7 @@ def ambiguity_listing(exc: Exception, tool: str, query: str | None, *, fixed: st
 	head = f"{total} symbols are named {query!r}{more}. Retry with one of:"
 	if unselectable:
 		lines.append(
-			"  (a name used twice in one file cannot be chosen by name: use hover or references with "
+			"  (a name used twice in one file cannot be chosen by name: use lookup with "
 			"file_path, line and column from the listing.)"
 		)
 	return "\n".join([head, *lines])

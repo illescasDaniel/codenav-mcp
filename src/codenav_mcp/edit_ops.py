@@ -1,5 +1,4 @@
-"""Applying a stored preview and undoing an applied edit: the one implementation behind `edits` (v2) and
-`apply_edit` / `undo_edit` (1.x)."""
+"""Apply, inspect and undo plans in the persistent edit store."""
 
 from __future__ import annotations
 

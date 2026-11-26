@@ -12,12 +12,15 @@ import pytest
 from mcp import Client
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp import batch_tools, server, write_tools
+from codenav_mcp import args, read_tools, server, write_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
 
 _base_loop = make_loop_fixture()
+
+
+_test_loop: asyncio.AbstractEventLoop | None = None
 
 
 @pytest.fixture
@@ -45,6 +48,7 @@ def _call(tool: str, args: dict):
 		async with Client(server.mcp, mode="legacy") as client:
 			return await client.call_tool(tool, args)
 
+	assert _test_loop is not None
 	return _test_loop.run_until_complete(scenario())
 
 
@@ -70,9 +74,9 @@ def test_rc_b21_workspace_reply_hides_ty_home_path(tmp_path, monkeypatch, loop):
 	home_ty = REPO_ROOT / ".venv" / "bin" / "ty"  # lives under the home folder in this checkout
 	monkeypatch.setattr(server, "resolve_ty_command", lambda _root: [str(home_ty), "server"])
 
-	text = _text(asyncio.run(server.workspace()))
+	text = _text(asyncio.run(read_tools.check()))
 
-	ty_line = next(line for line in text.splitlines() if line.startswith("ty:"))
+	ty_line = next(line for line in text.splitlines() if line.strip().startswith("- ty:"))
 	assert str(Path.home()) not in ty_line
 	assert str(home_ty) not in text
 	assert "ty" in ty_line
@@ -85,8 +89,9 @@ def test_rc_b21_workspace_reply_uses_workspace_relative_venv_path(tmp_path, monk
 	venv_ty.parent.mkdir(parents=True)
 	venv_ty.write_text("#!/bin/sh\n", encoding="utf-8")
 	monkeypatch.setattr(server, "resolve_ty_command", lambda _root: [str(venv_ty), "server"])
+	monkeypatch.setattr(read_tools, "resolve_ty_command", lambda _root: [str(REPO_ROOT / ".venv/bin/ty"), "server"])
 
-	text = _text(asyncio.run(server.workspace()))
+	text = _text(asyncio.run(read_tools.check()))
 
 	assert "ty: .venv/bin/ty" in text
 	assert str(project / ".venv") not in text
@@ -97,20 +102,20 @@ def test_rc_b21_workspace_reply_uses_workspace_relative_venv_path(tmp_path, monk
 
 @pytest.mark.parametrize("bad", ["3", "3.0", "", True])
 def test_rc_b21_string_line_number_is_refused(bad):
-	problem = batch_tools.argument_problem("hover", server.hover, {"file_path": "a.py", "line": bad, "column": 1})
+	problem = args.argument_problem("lookup", read_tools.lookup, {"file_path": "a.py", "line": bad, "column": 1})
 
 	assert problem is not None
-	assert problem.startswith("hover: line must be a whole number")
+	assert problem.startswith("lookup: line must be a whole number")
 
 
 def test_rc_b21_whole_number_line_is_still_accepted():
-	assert batch_tools.argument_problem("hover", server.hover, {"file_path": "a.py", "line": 3, "column": 1}) is None
+	assert args.argument_problem("lookup", read_tools.lookup, {"file_path": "a.py", "line": 3, "column": 1}) is None
 
 
 def test_rc_b21_string_line_number_refused_by_direct_call(tmp_path, monkeypatch, loop):
 	make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 
-	result = _call("hover", {"file_path": "a.py", "line": "3", "column": 1})
+	result = _call("lookup", {"file_path": "a.py", "line": "3", "column": 1})
 
 	assert result.is_error
 	assert "whole number" in _text(result)
@@ -123,7 +128,7 @@ def test_rc_b21_string_line_number_refused_by_direct_call(tmp_path, monkeypatch,
 def test_rc_b21_search_path_outside_workspace_is_explained(tmp_path, monkeypatch, loop, path):
 	make_workspace(tmp_path, monkeypatch, {"a.py": "class Cart:\n    pass\n"})
 
-	text = _text(_call("search_symbol", {"query": "Cart", "path": path}))
+	text = _text(_call("search", {"query": "Cart", "path": path}))
 
 	assert "outside the workspace" in text
 
@@ -135,7 +140,7 @@ def test_rc_b21_verify_clean_tree_message_is_documented_wording(tmp_path, monkey
 	make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 	_git_init(tmp_path, commit=True)
 
-	text = _text(_call("verify_changes", {}))
+	text = _text(_call("check", {"since": "HEAD"}))
 
 	assert "No uncommitted Python changes." in text
 
@@ -144,7 +149,7 @@ def test_rc_b21_verify_unborn_head_has_friendly_message(tmp_path, monkeypatch, l
 	make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 	_git_init(tmp_path, commit=False)
 
-	result = _call("verify_changes", {})
+	result = _call("check", {"since": "HEAD"})
 	text = _text(result)
 
 	assert "git failed" not in text
@@ -165,7 +170,7 @@ def test_rc_b21_verify_without_dependents_says_so(tmp_path, monkeypatch, loop):
 	_git_init(project, commit=True)
 	(project / "src" / "a.py").write_text("def f(x: int, y: int) -> int:\n    return x + y\n", encoding="utf-8")
 
-	text = _text(_call("verify_changes", {"include_dependents": False}))
+	text = _text(_call("check", {"since": "HEAD", "include_dependents": False}))
 
 	assert "Dependent files were not checked" in text
 
@@ -173,11 +178,13 @@ def test_rc_b21_verify_without_dependents_says_so(tmp_path, monkeypatch, loop):
 @needs_ty
 def test_rc_b21_undo_twice_says_already_undone(tmp_path, monkeypatch, loop):
 	project = make_workspace(tmp_path, monkeypatch, {"src/a.py": "x = 1\n"})
-	applied = _text(_call("edit", {"file_path": "src/a.py", "old_string": "x = 1", "new_string": "x = 2"}))
-	edit_id = applied.split('undo_edit(id="')[1].split('"')[0]
+	applied = _text(
+		_call("edit_symbol", {"edits": [{"file_path": "src/a.py", "old_string": "x = 1", "new_string": "x = 2"}]})
+	)
+	edit_id = applied.split('edits(action="undo", id="')[1].split('"')[0]
 	assert (project / "src" / "a.py").read_text(encoding="utf-8") == "x = 2\n"
-	first = _text(_call("undo_edit", {"id": edit_id}))
-	second = _text(_call("undo_edit", {"id": edit_id}))
+	first = _text(_call("edits", {"action": "undo", "id": edit_id}))
+	second = _text(_call("edits", {"action": "undo", "id": edit_id}))
 
 	assert first.startswith("Reverted edit")
 	assert "already undone" in second
@@ -186,7 +193,7 @@ def test_rc_b21_undo_twice_says_already_undone(tmp_path, monkeypatch, loop):
 def test_rc_b21_undo_unknown_id_points_at_the_persistent_history(tmp_path, monkeypatch, loop):
 	make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 
-	text = _text(_call("undo_edit", {"id": "deadbeef"}))
+	text = _text(_call("edits", {"action": "undo", "id": "deadbeef"}))
 
 	assert "not in the undo history" in text
 	assert 'edits(action="list")' in text
@@ -218,7 +225,7 @@ def test_rc_b21_new_move_destination_preserves_private_permissions(tmp_path, mon
 def test_rc_b21_tilde_path_is_refused_not_written(tmp_path, monkeypatch, loop):
 	project = make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 
-	result = _call("edit", {"file_path": "~/x.py", "new_text": "x = 1\n"})
+	result = _call("edit_symbol", {"edits": [{"file_path": "~/x.py", "new_text": "x = 1\n"}]})
 
 	assert result.is_error
 	assert "~" in _text(result)
@@ -245,9 +252,7 @@ def test_rc_b21_pep695_type_parameter_refusal_has_reason(tmp_path, monkeypatch, 
 	with (tmp_path / "pyproject.toml").open("a", encoding="utf-8") as config:
 		config.write('python-version = "3.12"\n')
 
-	result = _call(
-		"rename_symbol", {"name": "T", "file_path": "src/pep695.py", "line": 1, "column": 11, "new_name": "U"}
-	)
+	result = _call("rename", {"name": "T", "file_path": "src/pep695.py", "new_name": "U"})
 	text = _text(result)
 
 	assert result.is_error

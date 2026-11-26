@@ -1,4 +1,4 @@
-"""rename_symbol: ty's rename, widened to the members that must change with it and checked afterwards."""
+"""rename: ty's rename, widened to the members that must change with it and checked afterwards."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from mcp_nav_shared.transaction import WriteGuard
 
 from codenav_mcp.deps import Skipped, SkipReason, find_dependents, format_skipped, module_names_for
 from codenav_mcp.linked import Conforms, classes_in_file, external_declaration, find_linked, locate_member_class
-from codenav_mcp.mentions import Mention, covered_positions, find_mentions, format_mentions
+from codenav_mcp.mentions import Mention
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import (
 	Definition,
@@ -362,11 +362,6 @@ def _declaration_at(text: str, target: Target) -> Definition | None:
 	return definition if definition is not None and target.parameter is None else None
 
 
-# Ends the note about unlinked attribute accesses (stored in the plan, so it reads right for a preview as it is);
-# `rename_symbol` swaps it for the undo-then-rerun wording when the rename was written.
-ATTR_HINT = "to rename these too, rerun with include_unlinked_attrs=true"
-
-
 def _is_unlinked_attr(mention: Mention) -> bool:
 	"""An attribute access after a dot (`mock.old`) on a code line; never an import (`from .old import x`)."""
 	return (
@@ -426,10 +421,8 @@ class RenamePlan(EditPlan):
 	"""A rename plan that also knows which importers it did not rewrite (excluded directories, nested repositories)."""
 
 	left_out: list[str] = field(default_factory=list)
-	# v2 `rename`: uncertain sites the agent can opt into (`sites=`), the ones this plan already includes,
-	# and how many certain extras (patch-target strings, keyword arguments) it writes.
+	# Uncertain sites the caller can opt into with sites=.
 	optional_sites: list[OptionalSite] = field(default_factory=list)
-	certain_extras: int = 0
 
 
 def _declaration_for(path: Path, line: int, name: str) -> Declaration:
@@ -449,14 +442,10 @@ async def plan_rename(
 	target: Target,
 	new_name: str,
 	*,
-	linked: bool,
 	conforms: Conforms | None,
 	roots: Sequence[Path] = (),
-	include_unlinked_attrs: bool = False,
-	v2_sites: bool = False,
 ) -> RenamePlan:
-	"""Plan a rename. With `v2_sites` (the `rename` tool) the sites ty cannot link are split into certain ones,
-	written with the plan, and optional ones (ids u1..uN, added by `sites=`) instead of notes."""
+	"""Plan a rename with linked declarations, certain extras and opt-in sites."""
 	text = read_source(target.path)[0]
 	prep = await client.prepare_rename(str(target.path), target.line, target.column)
 	if prep is None:
@@ -517,34 +506,32 @@ async def plan_rename(
 	main_edit = await client.rename(str(target.path), target.line, target.column, new_name)
 	merge_server_edits(main_edit)
 	notes: list[str] = []
-	related = None
-	if linked:
-		member_name = _function_name(text, target.member_line) if target.parameter else old_name
-		related = await find_linked(
-			client,
-			workspace,
-			origin_path=target.path,
-			member_line=target.member_line,
-			member_name=member_name,
-			new_name=new_name,
-			parameter=target.parameter,
-			conforms=conforms,
-		)
-		for site in related.sites:
-			try:
-				more = await client.rename(str(site.cls.path), site.line, site.column, new_name)
-			except TOOL_ERRORS as exc:
-				notes.append(f"could not rename {site.cls.name}.{old_name}: {exc}")
-				continue
-			merge_server_edits(more)
-		for path in related.super_edits:
-			resolved = path.resolve()
-			if resolved in conventions and conventions[resolved] is not False:
-				conventions[resolved] = None
-			else:
-				conventions[resolved] = False
-		_merge(edits, related.super_edits)
-		notes += related.notes
+	member_name = _function_name(text, target.member_line) if target.parameter else old_name
+	related = await find_linked(
+		client,
+		workspace,
+		origin_path=target.path,
+		member_line=target.member_line,
+		member_name=member_name,
+		new_name=new_name,
+		parameter=target.parameter,
+		conforms=conforms,
+	)
+	for site in related.sites:
+		try:
+			more = await client.rename(str(site.cls.path), site.line, site.column, new_name)
+		except TOOL_ERRORS as exc:
+			notes.append(f"could not rename {site.cls.name}.{old_name}: {exc}")
+			continue
+		merge_server_edits(more)
+	for path in related.super_edits:
+		resolved = path.resolve()
+		if resolved in conventions and conventions[resolved] is not False:
+			conventions[resolved] = None
+		else:
+			conventions[resolved] = False
+	_merge(edits, related.super_edits)
+	notes += related.notes
 	twin = _twin_of(target.path)
 	if twin is not None and declaration is not None:
 		# ty links a `.py` function to its stub only one way: rename the stub's declaration too (RC-003).
@@ -560,7 +547,6 @@ async def plan_rename(
 				notes.append(f"could not rename {declaration.qualname} in {twin.name}: {exc}")
 			else:
 				merge_server_edits(more)
-	synced_exports: set[tuple[str, int]] = set()
 	if target.parameter is None and locate_member_class(text, target.line, old_name) is None:
 		# A literal `__all__` that exports the old name follows the rename, in this module and in any
 		# re-exporting `__init__.py` the rename touches (D36).
@@ -568,88 +554,34 @@ async def plan_rename(
 			more_all = dunder_all_edits(read_source(export_file)[0], old_name, new_name)
 			if more_all:
 				merge_bom_free(export_file, more_all)
-				synced_exports.update((relative_name(export_file, workspace), e.start_line + 1) for e in more_all)
-	is_member = None if target.parameter else locate_member_class(text, target.line, old_name) is not None
-	# The `__all__` lines renamed above are not mentions the caller still has to review.
-	kept = (
-		[]
-		if v2_sites
-		else [
-			m
-			for m in find_mentions(workspace, old_name, covered_positions(edits))
-			if not _synced_export(m, synced_exports)
-		]
+	is_member = target.parameter is None and locate_member_class(text, target.line, old_name) is not None
+	declarations = [_declaration_for(target.path, target.line, old_name)] if target.parameter is None else []
+	if target.parameter is None:
+		declarations += [_declaration_for(site.cls.path, site.line, old_name) for site in related.sites]
+	sites = await plan_v2_sites(
+		client,
+		workspace,
+		roots or [workspace],
+		old_name=old_name,
+		new_name=new_name,
+		declarations=declarations,
+		is_member=is_member,
+		parameter=target.parameter is not None,
+		link_keywords=target.parameter is not None or declaration is None,
+		edits=edits,
+		split_attrs=_split_unlinked_attrs,
+		is_unlinked_attr=_is_unlinked_attr,
 	)
-	attr_hint = None
-	v2_plan = None
-	if v2_sites:
-		declarations = [_declaration_for(target.path, target.line, old_name)] if target.parameter is None else []
-		if related is not None and target.parameter is None:
-			declarations += [_declaration_for(site.cls.path, site.line, old_name) for site in related.sites]
-		v2_plan = await plan_v2_sites(
-			client,
-			workspace,
-			roots or [workspace],
-			old_name=old_name,
-			new_name=new_name,
-			declarations=declarations,
-			is_member=bool(is_member),
-			parameter=target.parameter is not None,
-			link_keywords=target.parameter is not None or declaration is None,
-			edits=edits,
-			split_attrs=_split_unlinked_attrs,
-			is_unlinked_attr=_is_unlinked_attr,
-		)
-		for path, extra in v2_plan.certain.items():
-			guard.check_path(path)
-			merge_bom_free(path, extra)
-		notes += v2_plan.notes
-	elif include_unlinked_attrs and not is_member:
-		notes.append(
-			"include_unlinked_attrs was ignored: it only applies to renaming a method or a field of a class "
-			"(a bare name, string or comment is never renamed this way)."
-		)
-	elif include_unlinked_attrs:
-		by_file: dict[Path, list[TextEdit]] = {}
-		renamed_attrs, other_attrs, unchecked = await _split_unlinked_attrs(
-			client, workspace, [m for m in kept if _is_unlinked_attr(m)], covered_positions(edits)
-		)
-		width = len(old_name.encode("utf-16-le")) // 2
-		for mention in renamed_attrs:
-			column = mention.column or 0
-			edit = TextEdit(mention.line - 1, column, mention.line - 1, column + width, new_name)
-			by_file.setdefault((workspace / mention.path).resolve(), []).append(edit)
-		for path, more_attrs in by_file.items():
-			guard.check_path(path)
-			merge_bom_free(path, more_attrs)
-		# What resolves to another symbol is neither renamed nor listed as "probably the renamed member".
-		gone = {id(m) for m in (*renamed_attrs, *other_attrs)}
-		kept = [m for m in kept if id(m) not in gone]
-		if other_attrs:
-			notes.append(
-				f"include_unlinked_attrs: left {len(other_attrs)} attribute access(es) alone: the type checker "
-				f"resolves them to another symbol (e.g. {other_attrs[0].path}:{other_attrs[0].line})."
-			)
-		if unchecked:
-			notes.append(
-				f"include_unlinked_attrs: {unchecked} attribute access(es) could not be checked and were not renamed."
-			)
-		if renamed_attrs:
-			files = sorted({m.path for m in renamed_attrs})
-			shown = ", ".join(files[:5]) + (f" and {len(files) - 5} more" if len(files) > 5 else "")
-			notes.append(
-				f"include_unlinked_attrs: also renamed {len(renamed_attrs)} attribute access(es) the type checker "
-				f"could not link (mocks, untyped objects) in {shown}; review them in the diff."
-			)
-	elif is_member and any(m.kind == "attr" for m in kept):
-		attr_hint = ATTR_HINT
+	for path, extra in sites.certain.items():
+		guard.check_path(path)
+		merge_bom_free(path, extra)
+	notes += sites.notes
 	for path in edits:
 		guard.check_path(path)
 	changes = changes_from_edits(
 		{path: sorted(set(es), key=lambda e: (e.start_line, e.start_character)) for path, es in edits.items()},
 		bom_in_positions=conventions,
 	)
-	notes += format_mentions(kept, old_name, member=is_member, attr_hint=attr_hint)
 	left: list[str] = []
 	if left_out:
 		counts: dict[tuple[str, SkipReason], int] = {}
@@ -661,11 +593,7 @@ async def plan_rename(
 		left = [f"{path} ({count} file{'s' if count != 1 else ''})" for (path, _), count in sorted(counts.items())]
 	total = sum(len(es) for es in edits.values())
 	title = f"Rename {old_name} -> {new_name} ({target.display}): {total} edit(s) in {len(changes)} file(s)"
-	plan = RenamePlan(title, changes, notes, left_out=left)
-	if v2_plan is not None:
-		plan.optional_sites = v2_plan.optional
-		plan.certain_extras = v2_plan.certain_count
-	return plan
+	return RenamePlan(title, changes, notes, left_out=left, optional_sites=sites.optional)
 
 
 def _unwritable_importer_group(path: Path, workspace: Path, exclude_prefix: str) -> Skipped | None:
@@ -682,11 +610,6 @@ def _unwritable_importer_group(path: Path, workspace: Path, exclude_prefix: str)
 	if nested is not None:
 		return Skipped(nested.relative_to(workspace.resolve()).as_posix() + "/", "nested repo", "")
 	return None
-
-
-def _synced_export(mention: Mention, synced: set[tuple[str, int]]) -> bool:
-	"""True for a string mention that is a `__all__` entry this rename has already renamed (D36)."""
-	return mention.kind == "string" and mention.snippet.startswith("__all__") and (mention.path, mention.line) in synced
 
 
 def _function_name(text: str, def_line: int) -> str:

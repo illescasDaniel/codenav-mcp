@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 from pathlib import Path
 
@@ -50,3 +51,9 @@ def make_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, files: dict[
 	monkeypatch.delenv(writes.READ_ONLY_ENV, raising=False)
 	writes.reset_state()
 	return tmp_path
+
+
+def required_match(pattern: str, text: str) -> re.Match[str]:
+	match = re.search(pattern, text)
+	assert match is not None, text
+	return match

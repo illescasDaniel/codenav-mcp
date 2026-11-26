@@ -48,7 +48,7 @@ def test_rc_129_failure(tmp_path, monkeypatch):
 
 
 def test_rc_134_type_comment_limit():
-	assert "type comments" in imports.module_imports.__doc__
+	assert "type comments" in (imports.module_imports.__doc__ or "")
 
 
 def test_rc_138_sorted():

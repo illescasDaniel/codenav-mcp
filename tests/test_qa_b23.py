@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
+from typing import cast
 
 import pytest
 from mcp_nav_shared.edits import EditPlan, FileChange
@@ -62,8 +63,8 @@ def test_rc_091_preview_of_a_new_file_is_refused_and_the_plan_is_kept(tmp_path):
 	assert isinstance(outcome.text, FailedText)
 	assert "Preview refused: the plan creates 1 new file ('new_mod.py')" in outcome.text
 	assert "previews never create files" in outcome.text
-	assert 'apply_edit(id="' in outcome.text
-	assert 'undo_edit(id="' in outcome.text
+	assert 'edits(action="apply", id="' in outcome.text
+	assert 'edits(action="undo", id="' in outcome.text
 	# and the plan is kept under the id in the message
 	assert outcome.preview_id is not None
 	assert writes.write_state(workspace).plans.get(outcome.preview_id) is not None
@@ -119,7 +120,7 @@ def test_rc_091_edit_of_an_existing_file_still_previews(tmp_path):
 	source.write_text("VALUE = 1\n", encoding="utf-8")
 	plan = EditPlan("Edit old.py", [FileChange(source, "VALUE = 1\n", "VALUE = 2\n", False, False)])
 	# when it is previewed (the stub answers every check with no diagnostics)
-	outcome = asyncio.run(_preview(workspace, plan, client=_StubClient()))
+	outcome = asyncio.run(_preview(workspace, plan, client=cast(LspClient, _StubClient())))
 	# then it is still a normal preview
 	assert not isinstance(outcome.text, FailedText)
 	assert "Preview only, nothing written." in outcome.text

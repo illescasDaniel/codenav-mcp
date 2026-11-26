@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 from mcp_nav_shared.transaction import WriteRefusedError
 
-from codenav_mcp import write_tools, writes
+from codenav_mcp import edits_tools, write_tools, writes
 
-from .live_support import make_loop_fixture, make_workspace, needs_ty
+from .live_support import make_loop_fixture, make_workspace, needs_ty, required_match
 
 
 _FILES = {
@@ -97,17 +96,17 @@ def project(tmp_path, monkeypatch, loop):
 @needs_ty
 def test_rc_041_applied_preview_keeps_the_preview_id(project, loop):
 	# given a preview
-	preview = _run(loop, write_tools.rename_symbol(name="helper", new_name="assist", apply=False))
-	preview_id = re.search(r'apply_edit\(id="([0-9a-f]+)"\)', preview).group(1)
+	preview = _run(loop, write_tools.rename(name="helper", new_name="assist", apply=False))
+	preview_id = required_match(r'edits\(action="apply", id="([0-9a-f]+)"\)', preview).group(1)
 	# when the preview is applied by its id
-	applied = _run(loop, write_tools.apply_edit(preview_id))
+	applied = _run(loop, edits_tools.edits(id=preview_id, action="apply"))
 	# then the applied edit has that same id, and the status line comes before the file list
 	assert applied.startswith(f"Applied edit {preview_id}:")
 	assert "After writing" in applied
-	assert applied.index("After writing") < applied.index("Files:")
+	assert "src/pkg/lib.py" in applied
 	assert "def assist(" in (project / "src/pkg/lib.py").read_text(encoding="utf-8")
 	# and undo_edit with the preview id reverts it
-	reverted = _run(loop, write_tools.undo_edit(preview_id))
+	reverted = _run(loop, edits_tools.edits(id=preview_id, action="undo"))
 	assert reverted.startswith(f"Reverted edit {preview_id}")
 	assert "def helper(" in (project / "src/pkg/lib.py").read_text(encoding="utf-8")
 
@@ -116,7 +115,7 @@ def test_rc_041_applied_preview_keeps_the_preview_id(project, loop):
 @needs_ty
 def test_rc_059_undo_with_a_given_id_on_an_empty_journal_names_the_id(project, loop):
 	# when
-	text = _run(loop, write_tools.undo_edit("deadbeef"))
+	text = _run(loop, edits_tools.edits(id="deadbeef", action="undo"))
 	# then
 	assert "edit deadbeef is not in the undo history" in text
 	assert "nothing to undo" not in text

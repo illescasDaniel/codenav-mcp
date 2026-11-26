@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 from mcp_nav_shared.diagnostics_delta import DiagnosticsDelta, format_delta
 from mcp_nav_shared.edits import EditPlan, FileChange
+from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp import simulate
 
@@ -36,7 +38,7 @@ def test_rc_002_edit_reports_excluded_importers_not_checked(tmp_path, monkeypatc
 		return DiagnosticsDelta()
 
 	monkeypatch.setattr(simulate, "diagnostics_delta", fake_diagnostics_delta)
-	delta = asyncio.run(simulate.simulate_plan(object(), tmp_path, [tmp_path], plan))
+	delta = asyncio.run(simulate.simulate_plan(cast(LspClient, object()), tmp_path, [tmp_path], plan))
 
 	assert checked["paths"] == ["target.py", "main.py"]
 	text = format_delta(delta)

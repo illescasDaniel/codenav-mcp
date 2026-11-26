@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import cast
 
 import pytest
 from mcp_nav_shared.edits import EditPlan, TextEdit
+from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 from codenav_mcp.pysource import definitions_in
-from codenav_mcp.rename import _is_unlinked_attr, _split_unlinked_attrs
+from codenav_mcp.rename import _is_unlinked_attr
 from codenav_mcp.rename_sites import (
 	Declaration,
 	UnknownSitesError,
@@ -204,7 +206,7 @@ def test_given_keywords_when_planned_then_ty_linked_ones_are_certain_and_the_res
 	# when
 	plan = asyncio.run(
 		plan_v2_sites(
-			client,  # type: ignore[arg-type]
+			cast(LspClient, client),
 			tmp_path,
 			[tmp_path, tmp_path / "src"],
 			old_name="label",
@@ -222,7 +224,6 @@ def test_given_keywords_when_planned_then_ty_linked_ones_are_certain_and_the_res
 	assert plan.certain_count == 1
 	assert _apply("a = Job(label='a')", plan.certain[use]) == "a = Job(title='a')"
 	assert [(site.id, site.kind, site.line) for site in plan.optional] == [("u1", "keyword", 4)]
-	assert _split_unlinked_attrs  # the real splitter is what the tool passes in
 
 
 def _signature(text: str, qualname: str):

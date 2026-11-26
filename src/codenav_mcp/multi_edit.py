@@ -16,6 +16,7 @@ from mcp.server.mcpserver import Context
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 
 from codenav_mcp import write_tools
+from codenav_mcp.args import resolve_aliases
 from codenav_mcp.plan_merge import merge_plans
 from codenav_mcp.pysource import check_syntax
 from codenav_mcp.reply import Reply
@@ -53,6 +54,9 @@ async def _plan_item(
 			None,
 			f"each item is an object like {{file_path, old_string, new_string}} or {{name, action, source}}, got {type(item).__name__}",
 		)
+	item, problem = resolve_aliases("edit item", _TEXT_KEYS | _SYMBOL_KEYS, item)
+	if problem is not None:
+		return None, problem
 	text_item = bool(_TEXT_MARKERS & item.keys())
 	allowed = _TEXT_KEYS if text_item else _SYMBOL_KEYS
 	unknown = sorted(set(item) - allowed)
@@ -157,7 +161,6 @@ async def run(
 		title=title,
 		apply=apply,
 		max_new_errors=max_new_errors,
-		edits_style=True,
 	)
 	return outcome.text
 

@@ -106,6 +106,7 @@ def test_given_one_plan_creating_a_file_another_touches_then_it_refuses(tmp_path
 def test_given_noop_changes_then_they_are_dropped(file):
 	merged = merge_plans([("item 1", _plan(file, BASE)), ("item 2", _plan(file, BASE.replace("e = 5", "e = 6")))], "x")
 
+	assert merged.changes[0].new_text is not None
 	assert merged.changes[0].new_text.endswith("e = 6\n")
 
 

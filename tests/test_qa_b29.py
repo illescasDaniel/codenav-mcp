@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp import server, write_tools
-from codenav_mcp.batch_tools import argument_problem
+from codenav_mcp import read_tools, server, write_tools
+from codenav_mcp.args import argument_problem
 from codenav_mcp.edit_tools import edit_symbol
 
 from .live_support import make_workspace, needs_ty
@@ -36,7 +36,7 @@ def _committed_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _verify() -> str:
 	async def run() -> str:
 		try:
-			return await write_tools.verify_changes()
+			return await read_tools.check(since="HEAD")
 		finally:
 			if server._client is not None:
 				await server._client.stop()
@@ -107,7 +107,7 @@ def test_rc_031_invalid_action_lists_the_valid_actions() -> None:
 	# then
 	assert problem == (
 		"edit_symbol: action must be one of 'replace', 'replace_body', 'insert', 'insert_after', 'insert_before', "
-		"'delete' (got 'update')"
+		"'delete' (got 'update'). Example: edit_symbol(name=\"parse\", action=\"delete\")"
 	)
 
 
@@ -124,7 +124,9 @@ def test_rc_031_other_enum_parameters_list_their_values() -> None:
 		{"action": "insert", "name": "f", "file_path": "bom.py", "source": "x", "position": "sideways"},
 	)
 	# then
-	assert problem == ("edit_symbol: position must be one of 'after', 'before', 'into', 'end' (got 'sideways')")
+	assert problem == (
+		"edit_symbol: position must be one of 'after', 'before', 'into', 'end' (got 'sideways'). Example: edit_symbol(name=\"parse\", action=\"delete\")"
+	)
 
 
 def test_rc_104_not_a_repository_gives_the_house_sentence_not_git_stderr(
@@ -137,4 +139,4 @@ def test_rc_104_not_a_repository_gives_the_house_sentence_not_git_stderr(
 	with pytest.raises(ToolInputError) as caught:
 		write_tools._git(tmp_path, "rev-parse", "--show-toplevel")
 	# then
-	assert str(caught.value) == "not a git repository: run verify_changes inside the project's git repository"
+	assert str(caught.value) == "not a git repository: run check(since=...) inside the project's git repository"

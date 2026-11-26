@@ -29,7 +29,7 @@ def test_given_version_flag_when_running_then_the_version_is_printed() -> None:
 	result = _run("--version")
 
 	assert result.returncode == 0
-	assert result.stdout.startswith("codenav-mcp ")
+	assert result.stdout.strip() == "codenav-mcp 2.0.0"
 
 
 def test_given_unknown_flag_when_running_then_it_is_rejected() -> None:

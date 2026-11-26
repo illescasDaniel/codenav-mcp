@@ -49,7 +49,21 @@ def main() -> int:
 		if not tools or "result" not in tools:
 			raise RuntimeError(f"{expected}: tools/list failed: {tools}")
 		names = sorted(tool["name"] for tool in tools["result"]["tools"])
-		if "symbol_info" not in names or "outline" not in names:
+		expected_tools = {
+			"change_signature",
+			"check",
+			"edit_symbol",
+			"edits",
+			"fix",
+			"impact",
+			"lookup",
+			"move",
+			"outline",
+			"rename",
+			"search",
+			"unused",
+		}
+		if set(names) != expected_tools:
 			raise RuntimeError(f"{expected}: unexpected tools {names}")
 		print(f"{expected}: initialize ok, {len(names)} tools ({', '.join(names)})")
 		return 0

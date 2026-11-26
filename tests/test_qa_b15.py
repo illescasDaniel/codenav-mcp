@@ -7,7 +7,7 @@ import subprocess
 import pytest
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp import write_tools
+from codenav_mcp import read_tools, write_tools
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -186,7 +186,7 @@ def test_rc_104_git_failure_is_reported_as_one_short_line(tmp_path):
 		write_tools._git(tmp_path, "rev-parse", "--show-toplevel")
 	message = str(caught.value)
 	# A folder outside any repository gets the house sentence (B29), not git's raw stderr.
-	assert message == "not a git repository: run verify_changes inside the project's git repository"
+	assert message == "not a git repository: run check(since=...) inside the project's git repository"
 	assert "\n" not in message
 
 
@@ -198,7 +198,7 @@ def test_rc_088_changed_config_file_is_reported_and_checked(project, loop):
 	pyproject = project / "pyproject.toml"
 	pyproject.write_text(pyproject.read_text(encoding="utf-8") + '\n[tool.ty.rules]\nunresolved-import = "error"\n')
 	# when
-	text = _run(loop, write_tools.verify_changes())
+	text = _run(loop, read_tools.check(since="HEAD"))
 	# then
 	assert "Config files changed: pyproject.toml (the type check below uses the new configuration)." in text
 	assert "No Python files differ from HEAD" not in text

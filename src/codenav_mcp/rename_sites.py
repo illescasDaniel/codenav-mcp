@@ -373,6 +373,8 @@ async def plan_v2_sites(
 			column = mention.column or 0
 			edit = TextEdit(mention.line - 1, column, mention.line - 1, column + width, new_name)
 			raws.append(_Raw((workspace / mention.path).resolve(), mention.line, column, "attr", mention.snippet, edit))
+		if other:
+			plan.notes.append(f"{len(other)} attribute access(es) resolve to another symbol and were left unchanged")
 		if unchecked:
 			plan.notes.append(
 				f"{unchecked} attribute access(es) of `{old_name}` could not be checked and are not listed"
@@ -388,7 +390,13 @@ async def plan_v2_sites(
 		counts: dict[str, int] = {}
 		for mention in rest:
 			counts[mention.kind] = counts.get(mention.kind, 0) + 1
-		labels = {"code": "bare name", "string": "string", "comment": "comment", "text": "non-Python file"}
+		labels = {
+			"code": "bare name",
+			"string": "string",
+			"comment": "comment",
+			"text": "non-Python file",
+			"attr": "attribute access",
+		}
 		parts = [
 			f"{count} {labels[kind]}{'s' if count != 1 and kind != 'text' else ''}" for kind, count in counts.items()
 		]

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 import pytest
-from mcp.types import CallToolResult
 from mcp_nav_shared.errors import ToolInputError, format_tool_error
-from mcp_nav_shared.lsp_client import LspRequestError
+from mcp_nav_shared.lsp_client import LspClient, LspRequestError
 
-from codenav_mcp import server as codenav_server
+from codenav_mcp import read_tools, server as codenav_server
 from codenav_mcp.server import _check_python_file, _protocol_class_names
 
 
@@ -65,7 +65,7 @@ def test_given_query_alias_when_symbol_info_then_resolves_name(monkeypatch):
 	# when
 	import asyncio
 
-	result = asyncio.run(codenav_server.symbol_info(query="start_convert", include_references=False))
+	result = asyncio.run(read_tools.lookup(name="start_convert", show=["signature"]))
 	# then
 	assert seen == ["start_convert"]
 	assert "start_convert" in result
@@ -87,21 +87,10 @@ def test_given_name_alias_when_search_symbol_then_uses_query(monkeypatch):
 	import asyncio
 
 	# when
-	result = asyncio.run(codenav_server.search_symbol(name="start_convert"))
+	result = asyncio.run(read_tools.search(query="start_convert"))
 	# then
 	assert seen == ["start_convert"]
-	assert "No symbols matching" in result
-
-
-def test_given_neither_when_implementations_then_actionable_error():
-	import asyncio
-
-	# when
-	result = asyncio.run(codenav_server.implementations())
-	# then
-	assert isinstance(result, CallToolResult) and result.is_error
-	assert "port_name" in result.content[0].text
-	assert "alias" in result.content[0].text.lower()
+	assert "0 symbols match" in result
 
 
 def test_given_plain_protocol_base_when_protocol_class_names_then_included():
@@ -279,30 +268,6 @@ def test_given_property_and_field_symbols_when_symbol_members_then_both_counted(
 	assert codenav_server._symbol_members(node) == {"prop", "field", "meth"}
 
 
-def test_given_file_path_when_implementations_then_passed_to_resolver(monkeypatch):
-	import asyncio
-
-	# given
-	seen: dict[str, object] = {}
-
-	async def _fake_client():
-		return object()
-
-	async def _fake_resolve(_client, _root, name, **kwargs):
-		seen["name"] = name
-		seen.update(kwargs)
-		raise ToolInputError("stop here")
-
-	monkeypatch.setattr(codenav_server, "get_client", _fake_client)
-	monkeypatch.setattr(codenav_server, "resolve_symbol", _fake_resolve)
-	# when
-	result = asyncio.run(codenav_server.implementations(port_name="Port", file_path="a/b.py"))
-	assert isinstance(result, CallToolResult) and result.is_error
-	assert "stop here" in result.content[0].text
-	# then
-	assert seen == {"name": "Port", "file_path": "a/b.py"}
-
-
 def test_given_dead_client_when_get_client_then_stale_one_is_stopped(monkeypatch):
 	import asyncio
 
@@ -327,7 +292,7 @@ def test_given_dead_client_when_get_client_then_stale_one_is_stopped(monkeypatch
 			pass
 
 	stale = _Stale()
-	codenav_server._probe_cache[("a", "b", "c", "d")] = (True, "old verdict")
+	codenav_server._probe_cache[("a", "b", "c", "d")] = "old verdict"
 	monkeypatch.setattr(codenav_server, "_client", stale)
 	monkeypatch.setattr(codenav_server, "LspClient", _Fresh)
 	monkeypatch.setattr(codenav_server, "resolve_ty_command", lambda _root: ["ty"])
@@ -362,7 +327,7 @@ def test_given_bare_type_when_enrich_then_location_header_and_docstring_added(tm
 	monkeypatch.setattr(codenav_server, "WORKSPACE_ROOT", tmp_path)
 	client = _TypeDefinitionClient([location])
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type("Widget", client, "x.py", 1, 1))
+	text = asyncio.run(codenav_server._enrich_bare_type("Widget", cast(LspClient, client), "x.py", 1, 1))
 	# then
 	assert text == 'Widget\nType defined at core.py:2:7\n  class Widget(Base):\n  """A thing."""'
 
@@ -372,7 +337,9 @@ def test_given_class_without_docstring_when_enrich_then_header_only(tmp_path, mo
 	location = _class_file(tmp_path, "import os\nclass Widget:\n\tx = 1\n")
 	monkeypatch.setattr(codenav_server, "WORKSPACE_ROOT", tmp_path)
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type("Widget", _TypeDefinitionClient([location]), "x.py", 1, 1))
+	text = asyncio.run(
+		codenav_server._enrich_bare_type("Widget", cast(LspClient, _TypeDefinitionClient([location])), "x.py", 1, 1)
+	)
 	# then
 	assert text == "Widget\nType defined at core.py:2:7\n  class Widget:"
 
@@ -384,7 +351,7 @@ def test_given_not_a_bare_type_when_enrich_then_unchanged_and_server_not_asked(h
 	# given
 	client = _TypeDefinitionClient([{"uri": "file:///x.py", "range": {}}])
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type(hover, client, "x.py", 1, 1))
+	text = asyncio.run(codenav_server._enrich_bare_type(hover, cast(LspClient, client), "x.py", 1, 1))
 	# then
 	assert text == hover
 	assert client.asked == 0
@@ -394,7 +361,7 @@ def test_given_builtin_type_without_definition_when_enrich_then_unchanged():
 	# given
 	client = _TypeDefinitionClient([])
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type("list[str] | None", client, "x.py", 1, 1))
+	text = asyncio.run(codenav_server._enrich_bare_type("list[str] | None", cast(LspClient, client), "x.py", 1, 1))
 	# then
 	assert text == "list[str] | None"
 	assert client.asked == 1
@@ -407,7 +374,9 @@ class _FailingTypeDefinitionClient:
 
 def test_given_type_definition_request_fails_when_enrich_then_plain_hover_kept():
 	# given / when
-	text = asyncio.run(codenav_server._enrich_bare_type("Widget", _FailingTypeDefinitionClient(), "x.py", 1, 1))
+	text = asyncio.run(
+		codenav_server._enrich_bare_type("Widget", cast(LspClient, _FailingTypeDefinitionClient()), "x.py", 1, 1)
+	)
 	# then
 	assert text == "Widget"
 
@@ -416,7 +385,7 @@ def test_given_builtin_type_when_enrich_then_typeshed_noise_skipped():
 	# given
 	client = _TypeDefinitionClient([{"uri": "file:///cache/stdlib/builtins.pyi", "range": {}}])
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type("str", client, "x.py", 1, 1))
+	text = asyncio.run(codenav_server._enrich_bare_type("str", cast(LspClient, client), "x.py", 1, 1))
 	# then
 	assert text == "str"
 
@@ -427,7 +396,7 @@ def test_given_union_of_two_types_when_enrich_then_every_definition_listed(tmp_p
 	monkeypatch.setattr(codenav_server, "WORKSPACE_ROOT", tmp_path)
 	client = _TypeDefinitionClient([location, location])
 	# when
-	text = asyncio.run(codenav_server._enrich_bare_type("Widget | Gadget", client, "x.py", 1, 1))
+	text = asyncio.run(codenav_server._enrich_bare_type("Widget | Gadget", cast(LspClient, client), "x.py", 1, 1))
 	# then
 	assert text.count("Type defined at core.py:2:7") == 2
 
@@ -436,6 +405,6 @@ def test_given_tools_when_listed_then_ctx_is_not_a_parameter_and_notices_wrap_ev
 	# given / when: the notice decorator must not hide the `Context` parameter from the framework
 	tools = asyncio.run(codenav_server.mcp.list_tools())
 	# then
-	assert {t.name for t in tools} >= {"hover", "symbol_info", "workspace", "implementations"}
+	assert {t.name for t in tools} >= {"lookup", "search", "check", "outline"}
 	for tool in tools:
 		assert "ctx" not in tool.input_schema.get("properties", {}), tool.name
