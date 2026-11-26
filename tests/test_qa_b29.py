@@ -105,17 +105,15 @@ def test_rc_031_invalid_action_lists_the_valid_actions() -> None:
 		"edit_symbol", edit_symbol, {"action": "update", "name": "f", "file_path": "bom.py", "source": "x"}
 	)
 	# then
-	assert problem == "edit_symbol: action must be one of 'replace', 'insert', 'delete' (got 'update')"
+	assert problem == (
+		"edit_symbol: action must be one of 'replace', 'replace_body', 'insert', 'insert_after', 'insert_before', "
+		"'delete' (got 'update')"
+	)
 
 
-def test_rc_031_missing_action_lists_the_valid_actions() -> None:
-	# when
-	problem = argument_problem("edit_symbol", edit_symbol, {"name": "f", "file_path": "bom.py", "source": "x"})
-	# then
-	assert problem is not None
-	assert "missing required 'action'" in problem
-	assert "allowed action: one of 'replace', 'insert', 'delete'" in problem
-	assert "Parameters: edit_symbol(action, " in problem
+def test_rc_031_missing_action_defaults_to_replace() -> None:
+	# v2: `action` is optional (replace is the default), so omitting it is not an argument problem
+	assert argument_problem("edit_symbol", edit_symbol, {"name": "f", "file_path": "bom.py", "source": "x"}) is None
 
 
 def test_rc_031_other_enum_parameters_list_their_values() -> None:

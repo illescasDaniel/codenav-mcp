@@ -189,6 +189,58 @@ async def _replace_symbol(
 	return outcome.text
 
 
+async def _replace_body(
+	name: str,
+	source: str,
+	file_path: str | None = None,
+	imports: list[str] | None = None,
+	apply: bool = True,
+	max_new_errors: int | None = None,
+	ctx: Context | None = None,
+) -> str:
+	"""Replace only the body of a function or method; the signature, decorators and comments above the first statement stay."""
+	try:
+		session = await open_session(ctx)
+		path, text, old = await _locate(session, name, file_path)
+		if old.is_class:
+			raise ToolInputError(f'{old.qualname} is a class; replace_body is for functions (use action="replace")')
+		node = old.node
+		if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+			raise ToolInputError(f"{old.qualname} is not a function or method")
+		first = node.body[0]
+		lines = source_lines(text)
+		if lines[first.lineno - 1][: first.col_offset].strip():
+			raise ToolInputError(
+				f'{old.qualname} has its body on the signature line; replace it whole with action="replace"'
+			)
+		body = _parse_snippet(source, "body")
+		fitted = fit_snippet(source, indent=old.indent + detect_indent_unit(text), file_text=text, match_eol=True)
+		new_text = replace_lines(text, first.lineno, old.last_line, fitted)
+		new_text = _apply_imports(new_text, imports)
+		rel = relative_name(path, session.workspace)
+		check_syntax(new_text, rel)
+		notes = []
+		old_doc = ast.get_docstring(node, clean=False)
+		new_doc = (
+			body[0].value.value if isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) else None
+		)
+		if old_doc is not None and not isinstance(new_doc, str):
+			notes.append("the old docstring was part of the body and is gone; start the new body with one to keep it")
+		plan = EditPlan(f"Replace the body of {old.qualname} in {rel}", [FileChange(path, text, new_text)], notes)
+		outcome = await finish_plan(
+			session.client,
+			workspace=session.workspace,
+			roots=session.roots,
+			plan=plan,
+			title=plan.description,
+			apply=apply,
+			max_new_errors=max_new_errors,
+		)
+	except TOOL_ERRORS as exc:
+		return write_refusal(exc, "edit_symbol", name, fixed='action="replace_body", ')
+	return outcome.text
+
+
 def _blank_lines_for(indent: str) -> int:
 	return 2 if not indent else 1
 
