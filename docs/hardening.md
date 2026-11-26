@@ -1,24 +1,29 @@
 ---
 id: DOC-004
 title: Hardening checks
-summary: Property, state-machine, fuzz, CrossHair and mutation checks (h3): invariants, run commands, runtimes
+summary: Automated checks that look for codenav bugs (properties, state machine, refactor fuzzer, differential, CrossHair, mutation): invariants, commands, runtimes
 type: how-to
 status: current
 updated: 2026-11-26
 verified:
-covers: [tests/property/**, pyproject.toml, hardening/FINDINGS-h3.md]
-related: []
+covers: [hardening/**, tests/property/**, tests/test_fuzz_refactors.py, tests/test_fuzz_support.py, pyproject.toml]
+related: [DOC-003]
 supersedes:
 superseded_by:
 ---
 
-# Hardening checks (h3)
+# Hardening checks
 
-Automated checks that find bugs without a manual QA session. They live in `tests/property/`. The fast ones run
-in the default `uv run pytest -q` (about 7 s for the whole directory); the slow ones sit behind pytest markers
-registered in `pyproject.toml` and deselected by default (`addopts` has
-`-m "not fuzz and not differential and not crosshair and not mutation"`). A later `-m` on the command line
-replaces that one, so each command below passes its own.
+Checks that find bugs without a manual QA session. Fast properties run by default; slow checks each sit behind a pytest marker registered in
+`pyproject.toml` and deselected by default (`addopts` has `-m "not fuzz and not differential and not crosshair and
+not mutation"`), so `uv run pytest -q` stays fast. Passing `-m <marker>` on the command line overrides the default.
+When a check finds a product bug it is written up in `hardening/FINDINGS-<workstream>.md` and kept as a strict
+`xfail` test, so fixing the bug flips the test.
+
+## Property tests, state machine, CrossHair and mutation (h3)
+
+They live in `tests/property/`. The fast ones run in the default `uv run pytest -q` (about 7 s for the whole
+directory); the slow ones need their marker, and each command below passes its own `-m`.
 
 Product bugs the checks found are in `hardening/FINDINGS-h3.md`. Each is pinned by a test marked
 `@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #N")`: fixing the bug turns the test into an error
@@ -33,7 +38,7 @@ Hypothesis profiles are in `tests/property/conftest.py`: `default` (40 examples,
 never flakes) and `fuzz` (1500 examples, random seed; select it with `HYPOTHESIS_PROFILE=fuzz`). Long runs need
 `--timeout=0` (the suite's default 60 s test timeout would stop them).
 
-## Default (fast) properties
+### Default (fast) properties
 
 - **Invariants**
   - `signature.py` call rewriting, checked by executing the old call on the old definition and the rewritten call
@@ -55,7 +60,7 @@ never flakes) and `fuzz` (1500 examples, random seed; select it with `HYPOTHESIS
 - **Run**: `uv run pytest tests/property -q`
 - **Runtime**: about 7 s (164 passed, 15 xfailed, with the 13 slow tests deselected).
 
-## Fuzz
+### Fuzz
 
 The same properties with 1500 random examples each (the state machine with 400 runs of up to 45 steps), without the
 fixed seed.
@@ -65,7 +70,7 @@ fixed seed.
 - Failing examples are printed with a `Falsifying example`; reproduce with the `@reproduce_failure` line Hypothesis
   prints, then narrow the property with `assume` plus a deterministic xfail test as done for the existing findings.
 
-### Source transforms on generated Python (hypothesmith)
+#### Source transforms on generated Python (hypothesmith)
 
 `tests/property/test_source_transforms_fuzz.py` generates modules (hypothesmith `from_node` / `from_grammar`, built
 inside the tests, never at import time) and checks that:
@@ -82,7 +87,7 @@ inside the tests, never at import time) and checks that:
 - **Runtime**: about 11 minutes (150 examples per test; hypothesmith is slow at building code, `tidy` calls ruff per example).
 - The generators produce code that compiles with warnings (such as "int object is not callable"); `-W ignore::SyntaxWarning` hides them.
 
-## CrossHair (symbolic execution)
+### CrossHair (symbolic execution)
 
 `tests/property/test_crosshair.py` runs the core pure properties with Hypothesis' CrossHair backend
 (`settings(backend="crosshair")`): `reply.paginate` (slice, `more` count, pages partition the list),
@@ -96,7 +101,7 @@ inside the tests, never at import time) and checks that:
 - **Run**: `uv run pytest -m crosshair tests/property/test_crosshair.py --timeout=0 -q`
 - **Runtime**: about 28 s (5 passed in 27.5 s; call rewriting is most of it).
 
-## Mutation testing (mutmut)
+### Mutation testing (mutmut)
 
 Mutates `signature.py`, `plan_merge.py`, `args.py` and `reply.py` (1636 mutants) and runs the unit tests for them
 (`tests/property/`, `tests/test_signature.py`, `tests/test_plan_merge.py`, `tests/test_args.py`) against each
@@ -113,6 +118,46 @@ mutant. Configuration is in `[tool.mutmut]` in `pyproject.toml`. Not a gate: the
   messages and hints, `autojunk=` arguments of `difflib` (only matter above 200 lines, a performance heuristic),
   `strict=` of `zip` calls where the lengths always agree, and equivalent mutants.
 
-## Not run by default: `differential`
+## Refactor fuzzer (`fuzz`)
 
-The `differential` marker is registered for comparisons against other tools (jedi, rope); h3 adds no such checks.
+**What it checks.** Picks symbols at random (seeded, reproducible) in real projects, applies a refactor through the
+codenav MCP server (a fresh stdio server per case), and judges the result with the project's own test suite and
+`ty check`, compared with a baseline taken before. Refactors: `rename` (default sites, and `sites=["all"]`),
+`change_signature` adding a defaulted parameter, `move` of a top-level function to a new module with
+`keep_reexport`, and `edit_symbol(action="delete")` of symbols `unused` labels `unused`. Symbols: functions, methods
+(Protocol/ABC members flagged), classes, module constants, dataclass fields.
+
+| invariant | statement |
+|---|---|
+| I1 | every new test failure or ty error after a default refactor traces to a site the reply listed as optional (u-ids), a held plan, or "needs manual attention"; a count such as "N attribute accesses could not be checked and are not listed" is not "listed". With `sites=["all"]`, failures in files the opted-in sites rewrote are reported separately as over-rename damage, not as I1 |
+| I2 | rename X -> Y then Y -> X leaves `git status --porcelain` empty (default sites and `sites=["all"]`) |
+| I3 | edits only touch `.py` files under the source/test roots (no dot-directories; other files only when `sites=["all"]` listed them); a held or refused call writes nothing |
+| I4 | deleting an `unused`-labelled symbol never adds a ty error or a test failure |
+| I5 | replies obey the v2 format: answer line first, `next:`/retry lines parse as calls of existing tools with known keywords and literal values, error replies carry a corrected call or `Example:` |
+
+The ty comparison ignores file and line (refactors shift them) and compares the multiset of (rule, message), with
+the new name mapped back to the old one so pre-existing errors that quote a renamed symbol do not count as new.
+Tests: failing testcase ids from `--junitxml`; the baseline runs twice and flaky tests are excluded.
+
+**Corpus.** `hardening/corpus.toml` pins name, commit, source/test roots and the test command of each project:
+`srxy` (private sandbox clone), `click`, `tomlkit`, optional `python-dotenv`. `uv run python -m hardening.fuzz_refactors
+--setup` clones and prepares the OSS ones (own uv venv each). Sandboxes are reset between cases
+(`git checkout -- . && git clean -fd`) and left clean.
+
+**How to run.**
+
+```bash
+# the report: >= 60 refactors across the corpus, writes results-seed<N>.jsonl + summary-seed<N>.md to --out
+uv run python -m hardening.fuzz_refactors --seed 1 --count 80 --out /tmp/cnav-h1-out
+# only some projects / operations
+uv run python -m hardening.fuzz_refactors --seed 2 --count 20 --projects tomlkit --ops rename,move
+# the small fixed-seed pytest entry (tomlkit, 8 cases)
+uv run pytest -m fuzz tests/test_fuzz_refactors.py
+```
+
+**Runtime.** About 2.5 s per case on tomlkit, about 4 s on click, about 12 s on srxy (server start, the refactor,
+`ty check`, the test suite, the reverse rename). The 80-case run takes about 7-10 minutes; the pytest entry about 35 s.
+The pure helpers (`hardening/fuzz_checks.py`) are unit-tested in the default suite (`tests/test_fuzz_support.py`).
+
+Every failing case in `results-seed<N>.jsonl` carries the project, commit, symbol, exact call, the replies and the
+failing tests, which is the minimal repro for a finding.

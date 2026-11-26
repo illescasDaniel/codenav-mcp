@@ -63,7 +63,7 @@ default-groups = ["dev"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "."]
 
 [tool.ruff.format]
 indent-style = "tab"
@@ -79,6 +79,8 @@ lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S603", "ANN"]
+"hardening/**" = ["S101", "S108", "S311", "S314", "S602", "S603", "S607"]
+"tests/test_fuzz_support.py" = ["S311"]
 
 [tool.taskipy.tasks]
 sync-uploader = { cmd = "uv sync --group dev --group uploader", help = "dev + uploader (twine) groups, needed by upload" }
@@ -112,8 +114,8 @@ timeout = 60
 timeout_method = "thread"
 markers = [
 	"integration: live language-server smoke test",
-	"fuzz: slow property/fuzz checks, deselected by default (see docs/hardening.md)",
-	"differential: slow differential checks against other tools, deselected by default",
-	"crosshair: symbolic-execution variants of the properties (CrossHair backend), deselected by default",
-	"mutation: mutation testing runs, deselected by default",
+	"fuzz: slow fuzz checks (refactor fuzzer on a real-project corpus, Hypothesis fuzz profile); see docs/hardening.md",
+	"differential: differential checks against jedi and rope; see docs/hardening.md",
+	"crosshair: CrossHair symbolic-execution variants of the properties; see docs/hardening.md",
+	"mutation: mutation testing (mutmut); see docs/hardening.md",
 ]
