@@ -160,3 +160,62 @@ def test_given_field_rename_then_keyword_arguments_linked_by_ty_are_written(tmp_
 	assert "Job(title='a', size=1)" in (root / "src/pkg/use.py").read_text()
 	assert "Mock(label='x')" in (root / "tests/test_job.py").read_text()  # a mock keyword is optional
 	assert " keyword " in text
+
+
+_FUNCTION = {
+	"src/pkg/__init__.py": "",
+	"src/pkg/mod.py": "def helper() -> int:\n\treturn 1\n",
+	"src/pkg/use.py": "from pkg.mod import helper\n\n\ndef go() -> int:\n\treturn helper()\n",
+	"src/pkg/aliased.py": "from pkg.mod import helper as h\n\n\ndef go2() -> int:\n\treturn h()\n",
+	"tests/__init__.py": "",
+	"tests/test_use.py": (
+		"def test_it(monkeypatch) -> None:\n"
+		"\tmonkeypatch.setattr('pkg.use.helper', lambda: 2)\n"
+		"\tmonkeypatch.setattr('pkg.mod.helper', lambda: 3)\n"
+		"\tmonkeypatch.setattr('pkg.aliased.helper', lambda: 4)\n"
+		"\tmonkeypatch.setattr('sqlite3.helper', lambda: 5)\n"
+	),
+}
+
+
+def _function_project(tmp_path, monkeypatch):
+	root = make_workspace(tmp_path, monkeypatch, _FUNCTION)
+	monkeypatch.setenv("CODENAV_MCP_WORKSPACE", str(root))
+	monkeypatch.setattr(server, "_selector", server.WorkspaceSelector("CODENAV_MCP_WORKSPACE"))
+	return root
+
+
+def test_given_function_rename_then_patch_targets_in_the_defining_module_and_in_importers_follow(
+	tmp_path, monkeypatch, loop
+):
+	root = _function_project(tmp_path, monkeypatch)
+	text = loop.run_until_complete(write_tools.rename(name="helper", new_name="assist", file_path="src/pkg/mod.py"))
+	assert "Applied as edit" in text
+	body = (root / "tests/test_use.py").read_text()
+	assert "'pkg.mod.assist'" in body  # the defining module's copy
+	assert "'pkg.use.assist'" in body  # the importer rebinds the new name, so the patch target follows
+	assert "from pkg.mod import assist\n" in (root / "src/pkg/use.py").read_text()
+	assert "'sqlite3.helper'" in body  # not a workspace module: never touched
+	# an aliased import keeps the old name: its patch target is an optional site, not written
+	assert "'pkg.aliased.helper'" in body
+	assert " string " in text and "tests/test_use.py:4" in text
+
+
+def test_given_preview_then_the_site_list_comes_before_the_diff_and_notes_are_not_repeated(project, loop):
+	text = _rename(loop, apply=False)
+	assert text.count("Notes:") == 1
+	assert text.index("optional site(s), not changed") < text.index("\n--- a/")
+	assert text.index("next: rename(") < text.index("\n--- a/")
+
+
+def test_given_null_file_path_over_mcp_then_it_is_accepted(project, loop):
+	from mcp import Client
+
+	async def scenario():
+		async with Client(server.mcp, mode="legacy") as client:
+			return await client.call_tool(
+				"rename", {"name": "RunnerPort.execute", "new_name": "run", "file_path": None, "apply": False}
+			)
+
+	result = loop.run_until_complete(scenario())
+	assert not result.is_error, result

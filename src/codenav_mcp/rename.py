@@ -596,6 +596,7 @@ async def plan_rename(
 			declarations=declarations,
 			is_member=bool(is_member),
 			parameter=target.parameter is not None,
+			link_keywords=target.parameter is not None or declaration is None,
 			edits=edits,
 			split_attrs=_split_unlinked_attrs,
 			is_unlinked_attr=_is_unlinked_attr,

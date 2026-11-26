@@ -169,22 +169,22 @@ _NOTES_SHOWN = 5
 async def rename(
 	name: str,
 	new_name: str,
-	file_path: str = "",
+	file_path: str | None = None,
 	apply: bool = True,
 	sites: list[str] | None = None,
 	ctx: Context | None = None,
 ) -> str:
-	"""Rename a symbol everywhere (references, overrides, patch strings), type-checked; use instead of grep+Edit.
-	Uncertain sites (mocks, comments) are listed as u1..: add them with sites=["all"].
+	"""Rename a symbol everywhere (refs, overrides, patch strings), type-checked; beats grep+Edit.
+	Uncertain sites (mocks, comments) get ids u1..: add with sites=["all"].
 	Example: `rename(name="Port.run", new_name="go")`"""
-	retry = {"name": name, "new_name": new_name, "file_path": file_path or None}
+	retry = {"name": name, "new_name": new_name, "file_path": file_path}
 	try:
 		session = await open_session(ctx)
 		target = await resolve_target(
 			session.client,
 			session.workspace,
 			name=name,
-			file_path=file_path or None,
+			file_path=file_path,
 			line=None,
 			column=None,
 			parameter=None,
@@ -218,7 +218,8 @@ async def rename(
 		)
 		plan_id = outcome.applied_id or outcome.preview_id
 		if plan_id:
-			store_plan(str(session.workspace), plan_id, CodenavPlan(plan, plan.optional_sites))
+			left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
+			store_plan(str(session.workspace), plan_id, CodenavPlan(plan, left))
 	except UnknownSitesError as exc:
 		return format_tool_error(f"{exc}\nExample: {call('rename', **retry, sites=['all'])}")
 	except TOOL_ERRORS as exc:
@@ -229,32 +230,39 @@ async def rename(
 def _rename_reply(
 	plan: RenamePlan, outcome: Any, retry: dict[str, Any], *, apply: bool, sites: list[str] | None
 ) -> str:
-	"""The v2 reply: what happened in one line, the optional sites still open, the type-check line, the next calls."""
+	"""The v2 reply: what happened in one line, the optional sites still open, the type-check line, the next calls.
+
+	A preview or refused plan keeps finish_plan's text (files, notes, type check, diff); the site list goes before the diff."""
 	left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
+	reply = Reply(f"{plan.description}. Applied as edit {outcome.applied_id}." if outcome.applied_id else "")
 	if outcome.applied_id:
 		blocks = str(outcome.text).split("\n\n")
-		status = blocks[1].splitlines()[1:] if len(blocks) > 1 else []
-		reply = Reply(f"{plan.description}. Applied as edit {outcome.applied_id}.")
-		reply.items.extend(status)
-	else:
-		reply = Reply(str(outcome.text))
-	if plan.chosen_sites:
-		reply.notes.append(f"{len(plan.chosen_sites)} optional site(s) included (sites={json.dumps(sites)})")
-	notes = [note for note in plan.notes if "\n" not in note]
-	reply.notes.extend(notes[:_NOTES_SHOWN])
-	if len(notes) > _NOTES_SHOWN:
-		reply.notes.append(f"... {len(notes) - _NOTES_SHOWN} more notes")
-	if outcome.applied_id:
+		reply.items.extend(blocks[1].splitlines()[1:] if len(blocks) > 1 else [])
+		notes = [note for note in plan.notes if "\n" not in note]
+		reply.notes.extend(notes[:_NOTES_SHOWN])
+		if len(notes) > _NOTES_SHOWN:
+			reply.notes.append(f"... {len(notes) - _NOTES_SHOWN} more notes")
 		reply.notes.append(type_check_line(outcome))
+	if plan.chosen_sites:
+		reply.notes.insert(0, f"{len(plan.chosen_sites)} optional site(s) included (sites={json.dumps(sites)})")
+	site_lines: list[str] = []
 	if left:
-		reply.items.append(f"{len(left)} optional site(s), not changed (add with sites):")
-		reply.items.extend(f"  {format_site(site)}" for site in left[:_SITES_SHOWN])
+		site_lines.append(f"{len(left)} optional site(s), not changed (add with sites):")
+		site_lines.extend(f"  {format_site(site)}" for site in left[:_SITES_SHOWN])
 		if len(left) > _SITES_SHOWN:
-			reply.items.append(f"  ... {len(left) - _SITES_SHOWN} more")
+			site_lines.append(f"  ... {len(left) - _SITES_SHOWN} more")
 		if outcome.applied_id:
 			reply.next_calls.append(f'undo_edit(id="{outcome.applied_id}")')
 		reply.next_calls.append(call("rename", **retry, sites=["all"] if len(left) > 1 else [left[0].id]))
-	text = reply.render()
+	if outcome.applied_id:
+		reply.items.extend(site_lines)
+		text = reply.render()
+	else:
+		whole = str(outcome.text)
+		cut = whole.find("\n--- a/")
+		head, diff = (whole[:cut], whole[cut:]) if cut != -1 else (whole, "")
+		extra = Reply("", [*site_lines], list(reply.notes), list(reply.next_calls)).render().lstrip("\n")
+		text = "\n".join(part for part in (head, extra) if part) + diff
 	return FailedText(text) if isinstance(outcome.text, FailedText) else text
 
 

@@ -32,6 +32,7 @@ from codenav_mcp.mentions import Mention, covered_positions, find_mentions
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import (
 	PythonSyntaxError,
+	byte_to_utf16_column,
 	definition_name_position,
 	iter_definitions,
 	node_position,
@@ -47,6 +48,7 @@ MOCK_FACTORIES = frozenset(
 	{"Mock", "MagicMock", "AsyncMock", "NonCallableMock", "NonCallableMagicMock", "PropertyMock", "SimpleNamespace"}
 )
 _TEST_DIRS = frozenset({"tests", "test", "testing"})
+_DOTTED = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
 # Most keyword arguments one rename asks the type checker about (sequential requests; the rest stay as they are).
 _MAX_KEYWORD_LOOKUPS = 300
 SnippetWidth = 90
@@ -105,6 +107,29 @@ def dotted_targets(declarations: Sequence[Declaration], roots: Sequence[Path]) -
 	return names
 
 
+def importer_declarations(edits: dict[Path, list[TextEdit]], old: str, workspace: Path) -> list[Declaration]:
+	"""Importers whose `from pkg.mod import old` the rename rewrote: they bind the new name now, so the
+	dotted path `importer.old` (a patch target) is renamed too. Aliased imports keep their name and are not listed."""
+	found: list[Declaration] = []
+	for path, file_edits in edits.items():
+		starts = {(e.start_line, e.start_character) for e in file_edits}
+		try:
+			text = decode_source(path.read_bytes())[0]
+			tree = parse_python(text, path.name)
+		except (OSError, UnicodeDecodeError, PythonSyntaxError, ValueError, SystemError):
+			continue
+		lines = source_lines(text)
+		for stmt in tree.body:
+			if not isinstance(stmt, ast.ImportFrom):
+				continue
+			for alias in stmt.names:
+				if alias.name == old and alias.asname is None:
+					row = lines[alias.lineno - 1]
+					if (alias.lineno - 1, byte_to_utf16_column(row, alias.col_offset)) in starts:
+						found.append(Declaration(path, alias.lineno, old))
+	return found
+
+
 def _in_hidden_dir(rel: str) -> bool:
 	return any(part.startswith(".") for part in rel.split("/")[:-1])
 
@@ -147,6 +172,8 @@ def _scan_python(
 	covered: set[tuple[int, int]],
 	*,
 	test_file: bool,
+	strings: bool = True,
+	module_exists: Callable[[str], bool] = lambda _module: False,
 ) -> _FileScan:
 	scan = _FileScan()
 	try:
@@ -173,19 +200,19 @@ def _scan_python(
 	try:
 		for token in tokenize.generate_tokens(io.StringIO("\n".join(rows)).readline):
 			row_number, col = token.start
-			if token.type == tokenize.STRING and dotted:
+			if token.type == tokenize.STRING and strings:
 				raw = token.string
 				if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
 					content = raw[1:-1]
-					if content in dotted and raw[-1] == raw[0]:
-						index = col + 1 + len(content) - len(old)
+					if raw[-1] == raw[0] and content.endswith(f".{old}") and _DOTTED.fullmatch(content):
 						row = rows[row_number - 1]
-						start = utf16_column(row, index)
-						scan.patch.append(
-							TextEdit(
-								row_number - 1, start, row_number - 1, start + len(old.encode("utf-16-le")) // 2, new
-							)
-						)
+						start = utf16_column(row, col + 1 + len(content) - len(old))
+						width = len(old.encode("utf-16-le")) // 2
+						edit = TextEdit(row_number - 1, start, row_number - 1, start + width, new)
+						if content in dotted:
+							scan.patch.append(edit)
+						elif module_exists(content.rsplit(".", 1)[0]):
+							scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
 			elif token.type == tokenize.COMMENT and old in token.string:
 				row = rows[row_number - 1]
 				for start, end in _code_like_spans(row, old, col):
@@ -264,6 +291,7 @@ async def plan_v2_sites(
 	declarations: Sequence[Declaration],
 	is_member: bool,
 	parameter: bool,
+	link_keywords: bool = True,
 	edits: dict[Path, list[TextEdit]],
 	split_attrs: SplitAttrs,
 	is_unlinked_attr: Callable[[Mention], bool],
@@ -273,8 +301,22 @@ async def plan_v2_sites(
 	`edits` are the edits already planned (ty's rename plus linked members): their positions are never planned twice."""
 	covered = covered_positions(edits)
 	plan = SitePlan()
+	if not parameter and not is_member:
+		# `from pkg.mod import old` becomes `import new` in an importer: patch targets naming the importer's
+		# copy (`patch("pkg.use.old")`) must follow.
+		declarations = [*declarations, *importer_declarations(edits, old_name, workspace)]
 	dotted = set() if parameter else dotted_targets(declarations, roots)
 	raws: list[_Raw] = []
+
+	def module_exists(dotted_prefix: str) -> bool:
+		parts = dotted_prefix.split(".")
+		return any(
+			(root / Path(*parts[:end])).with_suffix(".py").is_file()
+			or (root / Path(*parts[:end]) / "__init__.py").is_file()
+			for root in roots
+			for end in range(len(parts), 0, -1)
+		)
+
 	keyword_candidates: list[tuple[Path, int, int]] = []
 	width = len(old_name.encode("utf-16-le")) // 2
 	for path in iter_python_files(workspace):
@@ -290,6 +332,8 @@ async def plan_v2_sites(
 			dotted,
 			covered.get(resolved, set()),
 			test_file=is_test_path(rel) and is_member,
+			strings=not parameter,
+			module_exists=module_exists,
 		)
 		if scan.patch:
 			plan.certain.setdefault(resolved, []).extend(scan.patch)
@@ -304,7 +348,7 @@ async def plan_v2_sites(
 				keyword_candidates.append((resolved, line, column))
 	# Keyword arguments: certain when ty links them to a renamed declaration, otherwise left alone.
 	checked = 0
-	for path, line, column in keyword_candidates:
+	for path, line, column in keyword_candidates if link_keywords else []:
 		if checked >= _MAX_KEYWORD_LOOKUPS:
 			plan.notes.append(
 				f"{len(keyword_candidates) - checked} keyword argument(s) named `{old_name}` were not checked"
@@ -348,7 +392,10 @@ async def plan_v2_sites(
 		parts = [
 			f"{count} {labels[kind]}{'s' if count != 1 and kind != 'text' else ''}" for kind, count in counts.items()
 		]
-		plan.notes.append(f"`{old_name}` also appears in {', '.join(parts)} (not listed: plain words, other symbols)")
+		examples = ", ".join(f"{m.path}:{m.line}" for m in rest[:3])
+		plan.notes.append(
+			f"`{old_name}` also appears in {', '.join(parts)} (not listed: plain words, other symbols), e.g. {examples}"
+		)
 	unique: dict[tuple[Path, int, int, str], _Raw] = {}
 	for raw in raws:
 		unique.setdefault((raw.path, raw.line, raw.column, raw.kind), raw)
