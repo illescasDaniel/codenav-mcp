@@ -65,10 +65,13 @@ async def _plan_item(
 		if text_item:
 			if not isinstance(item.get("file_path"), str):
 				return None, "a text edit needs `file_path`"
+			old_string = item.get("old_string")
+			if isinstance(old_string, str) and old_string == item.get("new_string"):
+				return None, "`old_string` and `new_string` are identical"
 			result = await write_tools._edit_text(
 				item["file_path"],
 				new_text=item.get("new_text"),
-				old_string=item.get("old_string"),
+				old_string=old_string,
 				new_string=item.get("new_string"),
 				replace_all=bool(item.get("replace_all", False)),
 				apply=True,

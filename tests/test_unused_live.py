@@ -127,6 +127,32 @@ def _text(result):
 	return "\n".join(block.text for block in result.content if hasattr(block, "text"))
 
 
+def test_unused_labels_methods_on_test_doubles_with_linked_class_uses(project, loop):
+	write_files(
+		project,
+		{
+			"tests/test_double.py": dedent("""
+				class InMemoryQueue:
+					def pull(self) -> int: return 1
+
+				class UnusedQueue:
+					def pull(self) -> int: return 2
+
+				def test_with_double(monkeypatch) -> None:
+					monkeypatch.setattr("pkg.core.make_queue", InMemoryQueue)
+			"""),
+		},
+	)
+
+	async def scenario():
+		async with Client(codenav_server.mcp, mode="legacy") as client:
+			return _text(await client.call_tool("unused", {"path": "tests/test_double.py", "kind": "method"}))
+
+	output = loop.run_until_complete(scenario())
+	assert "InMemoryQueue.pull (method, only in tests)" in output
+	assert "UnusedQueue.pull (method, unused)" in output
+
+
 def test_unused_distinguishes_linked_references_and_runtime_hooks(project, loop):
 	async def scenario():
 		async with Client(codenav_server.mcp, mode="legacy") as client:

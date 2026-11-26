@@ -89,6 +89,21 @@ def test_given_three_matching_items_across_two_files_then_one_plan_is_applied_wi
 	assert _read(project, "src/pkg/core.py") == _CORE
 
 
+def test_identical_replacement_fails_the_batch_without_writing_any_item(project, loop):
+	text = _multi(
+		loop,
+		[
+			_text_item("src/pkg/other.py", "VALUE = 1", "VALUE = 2"),
+			_text_item("src/pkg/user.py", "parse('1')", "parse('1')"),
+		],
+	)
+
+	assert "item 2" in text and "identical" in text
+	assert _read(project, "src/pkg/other.py") == _FILES["src/pkg/other.py"]
+	assert _read(project, "src/pkg/user.py") == _USER
+	assert writes.write_state(project).journal.history() == []
+
+
 def test_given_the_third_item_does_not_match_then_nothing_is_written_and_no_preview_is_stored(project, loop):
 	text = _multi(
 		loop,

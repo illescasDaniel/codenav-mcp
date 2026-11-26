@@ -430,6 +430,22 @@ class ClassUses:
 		self._ancestors: dict[ClassRef, tuple[set[str], set[ClassRef]]] = {}
 		self._conformance: dict[tuple[ClassRef, ClassRef], bool] = {}
 		self._external_members: dict[tuple[Path, int], frozenset[str] | None] = {}
+		self._used_test_classes: dict[ClassRef, bool] = {}
+
+	async def is_used_test_class(self, owner: ClassRef) -> bool:
+		"""A test class with linked uses may supply methods through injection or monkeypatching."""
+		if owner not in self._used_test_classes:
+			client = self.session.client
+			locations = await client.references(
+				str(owner.path), *self.classes[owner].position, include_declaration=False
+			)
+			self._used_test_classes[owner] = any(
+				_is_test_path(path.relative_to(self.session.workspace).as_posix())
+				for loc in locations
+				if (uri := loc.get("uri", "")).startswith("file:")
+				and (path := uri_to_path(uri)).is_relative_to(self.session.workspace)
+			)
+		return self._used_test_classes[owner]
 
 	def _effective_members(self, info: ClassInfo) -> tuple[set[str], set[ClassRef]]:
 		"""Cheap nominal name prefilter. ty verifies the actual structural match."""
@@ -573,6 +589,7 @@ async def find_unused(
 	classes = ClassUses(session, scans)
 	failures: list[Candidate] = []
 	findings: list[Finding] = []
+	possible_test_doubles = 0
 	for scan in scans:
 		path = session.workspace / scan.path
 		if not path.is_relative_to(scope):
@@ -595,6 +612,11 @@ async def find_unused(
 			twins = twin_scan.declarations.get((candidate.kind, candidate.qualname), []) if twin_scan else []
 			if path.suffix == ".pyi" and twins and (session.workspace / twins[0].path).is_relative_to(scope):
 				continue  # report the implementation when both versions are in scope
+			has_string_ref = (
+				candidate.name in reflective
+				or (textual and candidate.name in actions)
+				or any(f"{module}.{candidate.qualname}" in dotted for module in modules)
+			)
 			try:
 				locations = []
 				if counts[candidate.name] > 1:
@@ -609,14 +631,18 @@ async def find_unused(
 					and await classes.keeps_method(candidate.owner, candidate.name)
 				):
 					continue
+				if (
+					confidence == "unused"
+					and not has_string_ref
+					and candidate.owner is not None
+					and _is_test_path(candidate.path)
+					and await classes.is_used_test_class(candidate.owner)
+				):
+					confidence = "only in tests"
+					possible_test_doubles += 1
 			except TOOL_ERRORS:
 				failures.append(candidate)
 				continue
-			has_string_ref = (
-				candidate.name in reflective
-				or (textual and candidate.name in actions)
-				or any(f"{module}.{candidate.qualname}" in dotted for module in modules)
-			)
 			if confidence == "unused" and has_string_ref:
 				confidence = "only in strings"
 			elif confidence == "only in tests" and textual and candidate.name in actions:
@@ -626,6 +652,10 @@ async def find_unused(
 	order = {"unused": 0, "only in tests": 1, "only in strings": 2, "exported": 3}
 	findings.sort(key=lambda row: (order[row.confidence], row.candidate.path, row.candidate.position))
 	notes = []
+	if possible_test_doubles:
+		notes.append(
+			"Methods on test classes used by tests are marked only in tests when dynamic dispatch may use them."
+		)
 	if skipped:
 		notes.append(f"Could not scan {len(skipped)} Python file(s), including {', '.join(skipped[:3])}.")
 	if failures:
