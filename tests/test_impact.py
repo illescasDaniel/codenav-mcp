@@ -262,3 +262,70 @@ def test_given_ambiguous_name_then_reply_lists_exact_retries(project, loop):
 	text = _impact(loop, name="deliver")
 	assert text.startswith("3 symbols are named 'deliver'") or "Retry with one of" in text
 	assert 'impact(name="Mail.deliver")' in text
+
+
+# -- transitive callers (fake call hierarchy) ----------------------------------------------
+
+
+class _FakeHierarchy:
+	"""`callers_of` maps a function name to the (name, path) callers it has."""
+
+	def __init__(self, tmp_path, callers_of):
+		self.callers_of = callers_of
+		self.tmp_path = tmp_path
+		self.requests = 0
+
+	def _item(self, name, path):
+		return {
+			"name": name,
+			"uri": (self.tmp_path / path).as_uri(),
+			"selectionRange": {"start": {"line": 0, "character": 0}},
+		}
+
+	async def prepare_call_hierarchy(self, *_args):
+		return [self._item("target", "src/t.py")]
+
+	async def incoming_calls(self, item):
+		self.requests += 1
+		return [{"from": self._item(name, path)} for name, path in self.callers_of.get(item["name"], [])]
+
+
+def _session(tmp_path, client):
+	from types import SimpleNamespace
+
+	return SimpleNamespace(client=client)
+
+
+def test_given_many_test_callers_then_tests_are_leaves_and_level_two_is_still_found(tmp_path):
+	import asyncio
+
+	from codenav_mcp import impact
+
+	callers = {
+		"target": [("prod", "src/p.py"), *((f"test_{i}", f"tests/test_{i}.py") for i in range(100))],
+		"prod": [("main", "src/main.py")],
+	}
+	client = _FakeHierarchy(tmp_path, callers)
+	rows, stopped = asyncio.run(impact._transitive(_session(tmp_path, client), "src/t.py", 1, 1, 2, tmp_path))
+	assert not stopped
+	assert [(level, where) for level, where, _ in rows] == [(2, "src/main.py:1 main")]
+	assert client.requests == 2  # target + prod; the 100 test functions were not expanded
+
+
+def test_given_a_cap_then_the_walk_says_it_stopped(tmp_path, monkeypatch):
+	import asyncio
+
+	from codenav_mcp import impact
+
+	monkeypatch.setattr(impact, "MAX_REQUESTS", 3)
+	callers = {"target": [(f"f{i}", f"src/f{i}.py") for i in range(10)]}
+	client = _FakeHierarchy(tmp_path, callers)
+	rows, stopped = asyncio.run(impact._transitive(_session(tmp_path, client), "src/t.py", 1, 1, 2, tmp_path))
+	assert stopped and client.requests == 3
+	data = _data(transitive=rows)
+	assert "no callers" not in render_report(data, "signature", 2, 30).render()
+
+
+def test_given_annotations_then_the_answer_line_counts_them():
+	sites = [Site("src/a.py", 3, 0, "annotation", "x: P"), Site("tests/t.py", 3, 0, "annotation", "x: P")]
+	assert "2 type annotations" in render_report(_data("class", sites=sites), "any", 1, 30).render().splitlines()[0]

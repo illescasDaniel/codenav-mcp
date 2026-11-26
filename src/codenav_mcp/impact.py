@@ -46,6 +46,7 @@ from codenav_mcp.writes import require_workspace_file
 CHANGES = ("any", "signature", "rename", "delete", "type")
 MAX_DEPTH = 3
 MAX_TRANSITIVE = 80
+MAX_REQUESTS = 60
 GATE = "type check only; tests and docs not checked"
 
 
@@ -412,6 +413,9 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 		f"{len(values)} used as value",
 		f"{sum(1 for s in data.sites if s.kind == 'import')} import{'s' if sum(1 for s in data.sites if s.kind == 'import') != 1 else ''}",
 	]
+	annotated = [s for s in data.sites if s.kind == "annotation"]
+	if annotated:
+		counts.append(f"{len(annotated)} type annotation{'s' if len(annotated) != 1 else ''}")
 	if subclasses:
 		counts.append(f"{len(subclasses)} subclass{'es' if len(subclasses) != 1 else ''}")
 	if data.overrides:
@@ -549,18 +553,27 @@ def _location_start(loc: dict[str, Any]) -> tuple[Path, int, int]:
 
 async def _transitive(
 	session: Session, rel: str, line: int, column: int, depth: int, workspace: Path
-) -> list[tuple[int, str, str]]:
-	"""Callers of the callers, `depth - 1` more levels (sequential requests, at most MAX_TRANSITIVE functions)."""
+) -> tuple[list[tuple[int, str, str]], bool]:
+	"""Callers of the callers (levels 2..depth) as (level, `path:line name`, callee), and whether a cap stopped the walk.
+
+	Sequential requests (ty answers "content modified" to concurrent ones). A test function is a leaf: it is
+	listed but never expanded, so a widely tested function costs one request per production caller, not one
+	per test. At most MAX_REQUESTS expansions and MAX_TRANSITIVE listed functions.
+	"""
 	client = session.client
 	items = await client.prepare_call_hierarchy(rel, line, column)
 	if not items:
-		return []
+		return [], False
 	found: list[tuple[int, str, str]] = []
 	seen: set[tuple[str, int]] = set()
+	requests = 0
 	frontier = [(items[0], str(items[0].get("name", "?")))]
 	for level in range(1, depth + 1):
-		next_frontier = []
+		next_frontier: list[tuple[dict[str, Any], str]] = []
 		for item, label in frontier:
+			if requests >= MAX_REQUESTS or len(found) >= MAX_TRANSITIVE:
+				return found, True
+			requests += 1
 			for incoming in await client.incoming_calls(item):
 				caller = incoming.get("from") or {}
 				uri = str(caller.get("uri", ""))
@@ -570,21 +583,18 @@ async def _transitive(
 					path = uri_to_path(uri).resolve().relative_to(workspace.resolve()).as_posix()
 				except ValueError:
 					continue
-				row = (
-					int(((caller.get("selectionRange") or caller.get("range") or {}).get("start") or {}).get("line", 0))
-					+ 1
-				)
-				key = (path, row)
-				if key in seen:
+				start = (caller.get("selectionRange") or caller.get("range") or {}).get("start") or {}
+				row = int(start.get("line", 0)) + 1
+				if (path, row) in seen:
 					continue
-				seen.add(key)
+				seen.add((path, row))
+				name = str(caller.get("name", "?"))
 				if level > 1:
-					found.append((level, f"{path}:{row} {caller.get('name', '?')}", label))
-				next_frontier.append((caller, str(caller.get("name", "?"))))
-				if len(seen) >= MAX_TRANSITIVE:
-					return found
+					found.append((level, f"{path}:{row} {name}", label))
+				if not is_test_path(path):
+					next_frontier.append((caller, name))
 		frontier = next_frontier
-	return found
+	return found, False
 
 
 def _class_for_init(text: str, rel: str, definition: Definition) -> Definition | None:
@@ -697,11 +707,13 @@ async def gather(session: Session, name: str, file_path: str | None, change: str
 
 	data.mentions = group_mentions(raw, mention_name, qualified, read_rel)
 	if depth > 1 and kind in ("function", "method", "class"):
-		data.transitive = await _transitive(session, rel, ref_line, ref_col, depth, workspace)
-		if len(data.transitive) >= MAX_TRANSITIVE - 1:
-			data.notes.append(f"transitive callers stopped after {MAX_TRANSITIVE} functions")
-	if depth > 1 and not data.transitive and kind in ("function", "method", "class"):
-		data.notes.append("no callers found at depth 2+")
+		data.transitive, stopped = await _transitive(session, rel, ref_line, ref_col, depth, workspace)
+		if stopped:
+			data.notes.append(
+				f"transitive callers incomplete: stopped after {MAX_REQUESTS} lookups or {MAX_TRANSITIVE} functions"
+			)
+		elif not data.transitive:
+			data.notes.append(f"the callers of {name} have no callers of their own in the project")
 	data.notes.append(
 		"static analysis: calls through getattr/dynamic dispatch and non-Python consumers are not visible"
 	)
