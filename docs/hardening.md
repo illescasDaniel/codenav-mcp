@@ -53,7 +53,7 @@ never flakes) and `fuzz` (1500 examples, random seed; select it with `HYPOTHESIS
     stay consistent through apply, undo, follow-ups, eviction at 50 entries, server restarts, and files reset or
     deleted outside the tool (those must not look cleanly applied).
 - **Run**: `uv run pytest tests/property -q`
-- **Runtime**: about 7 s (146 passed, 14 xfailed, with the 13 slow tests deselected).
+- **Runtime**: about 7 s (146 passed, 15 xfailed, with the 13 slow tests deselected).
 
 ## Fuzz
 
@@ -61,7 +61,7 @@ The same properties with 1500 random examples each (the state machine with 400 r
 fixed seed.
 
 - **Run**: `HYPOTHESIS_PROFILE=fuzz uv run pytest tests/property -m "not crosshair and not mutation and not fuzz" --timeout=0 -q`
-- **Runtime**: about 3 min 20 s (the state machine alone about 2 min 45 s).
+- **Runtime**: about 3 to 4 min (189 s and 235 s in two runs; the state machine alone about 2 min 45 s).
 - Failing examples are printed with a `Falsifying example`; reproduce with the `@reproduce_failure` line Hypothesis
   prints, then narrow the property with `assume` plus a deterministic xfail test as done for the existing findings.
 
@@ -94,7 +94,7 @@ inside the tests, never at import time) and checks that:
 - **What it cannot**: anything that parses text or touches files (`ast`, `tokenize`, `exec`, the language server)
   concretizes the symbolic values, so the call-rewriting test is guided sampling rather than proof (20 examples).
 - **Run**: `uv run pytest -m crosshair tests/property/test_crosshair.py --timeout=0 -q`
-- **Runtime**: about 35 s (pagination about 5 s, offset edits about 4 s, aliases about 4 s, call rewriting about 20 s).
+- **Runtime**: about 28 s (5 passed in 27.5 s; call rewriting is most of it).
 
 ## Mutation testing (mutmut)
 
@@ -109,7 +109,7 @@ mutant. Configuration is in `[tool.mutmut]` in `pyproject.toml`. Not a gate: the
 - **Result**: first run 1231 killed / 355 survived / 47 not covered / 3 timeouts; after the added example tests in
   `tests/property/test_mutation_killers.py`: 1431 killed / 196 survived / 8 not covered / 1 timeout. Not-killed per
   module, first run to last: `signature` 206 to 100, `plan_merge` 100 to 36, `args` 88 to 66, `reply` 11 to 3.
-- **Survivors left** (see "Mutation survivors" in `hardening/FINDINGS-h3.md`): mostly the wording of refusal
+- **Survivors left** (grouped in the "Mutation survivors" section of `hardening/FINDINGS-h3.md`): mostly the wording of refusal
   messages and hints, `autojunk=` arguments of `difflib` (only matter above 200 lines, a performance heuristic),
   `strict=` of `zip` calls where the lengths always agree, and equivalent mutants.
 

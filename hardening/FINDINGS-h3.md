@@ -21,6 +21,7 @@ generator option next to a comment `FINDINGS-h3 #N`, so a fix lets the property 
 | 9 | `move` (`__future__`) | medium | `from __future__ import annotations` is inserted above a shebang or an encoding line | `test_all_entry_props.py::test_given_a_shebang_then_adding_the_future_import_keeps_the_shebang_on_the_first_line`, `...test_given_an_encoding_line_then_adding_the_future_import_keeps_it_within_the_first_two_lines` |
 | 10 | `move` (`__all__` editing) | medium | Dropping the first of two entries of a tuple `__all__` leaves `("b")`, a plain string | `test_all_entry_props.py::test_given_a_two_entry_tuple_all_then_dropping_the_first_entry_leaves_a_tuple_not_a_string` |
 | 11 | `pysource` indentation helpers | low | A form feed at the start of an indented line makes `indent_block` produce invalid Python | `test_all_entry_props.py::test_given_a_form_feed_in_an_indented_line_then_indenting_the_block_keeps_it_valid_python` |
+| 12 | `multi_edit` merge | high | Two single-line edits in a file with repeated blocks: one edit lands on the wrong line, silently | `test_plan_merge_props.py::test_given_two_single_line_edits_in_a_file_with_repeated_blocks_then_each_lands_on_its_own_line` |
 
 No violation was found by the edit-state state machine (see "Checked and clean" at the end).
 
@@ -123,6 +124,20 @@ No violation was found by the edit-state state machine (see "Checked and clean" 
 - **Expected**: still valid.
 - **Impact**: very unlikely in real code; found by the hypothesmith fuzz and excluded from it (`usable()`).
 
+## #12 An edit lands on the wrong line (repeated blocks)
+
+- **Input**: base lines `pass, x = 1, x = 1, pass, x = 1, x = 1`; item 1 replaces line 1 with `FIRST`; item 2 replaces
+  line 3 with `SECOND`. Found by the fuzz profile (not by the default seed) in
+  `test_given_repetitive_lines_then_two_plans_on_disjoint_places_still_give_a_valid_merge`.
+- **Actual**: `pass\nx = 1\nSECOND\nFIRST\nx = 1\nx = 1\n` (`FIRST` is written where the second `pass` was; the first
+  `pass` stays).
+- **Expected**: `FIRST\nx = 1\nSECOND\npass\nx = 1\nx = 1\n`.
+- **Cause**: same as #5/#6: `difflib` aligns the repeated lines differently from the intended edit, and the hunks do
+  not overlap, so nothing is refused. Third symptom after the false refusal (#5) and the extra line (#6); a fix for
+  one is likely to fix all three (diff each plan against the base with the edits' own line numbers, or refuse when a
+  plan's diff is not the edits it was built from).
+- **Invariant**: merging item edits equals applying each intended edit to the base.
+
 ---
 
 ## Observations that are not pinned (layout only; the result is valid and binds the same)
@@ -146,7 +161,55 @@ outside the tool must not look cleanly applied) did **not** reproduce: an extern
 `[changed since:` in the list and `undo` refuses. Scenarios covered: journal and plan eviction at 50 entries, follow-up
 plans, child edits, stale previews, restarts, external resets and deletes.
 
-## Mutation testing
+## Mutation survivors
 
-See the "Mutation testing" section of `docs/hardening.md` for the run and the numbers. The survivors worth a test were
-turned into tests in `tests/property/test_mutation_killers.py`; the rest are listed at the end of that section.
+`uv run mutmut run --max-children 12` over `signature.py`, `plan_merge.py`, `args.py`, `reply.py` (1636 mutants; run
+and config in `docs/hardening.md`). First run: 1231 killed, 355 survived, 47 not covered, 3 timeouts. After the killer
+tests: **1431 killed, 196 survived, 8 not covered, 1 timeout** (`uv run mutmut results` lists them).
+
+| Module | Mutants | Not killed, first run | Not killed, final |
+|--------|--------:|----------------------:|------------------:|
+| `signature.py` | 798 | 206 | 100 |
+| `plan_merge.py` | 487 | 100 | 36 |
+| `args.py` | 297 | 88 | 66 |
+| `reply.py` | 54 | 11 | 3 |
+
+### Survivors that were worth a test (now killed)
+
+Pinned as example tests in `tests/property/test_mutation_killers.py` (117 tests): `apply_offset_edits` ordering,
+touching and overlapping spans; `SourceMap` offsets and `lsp_end` with non-BMP text; `paren_span` with nested
+brackets; `render_params`; added keyword-only placement; `new_params` (annotations, unknown key, position range,
+reorder listing, group placement); `rebind_call` / `_keyword_call` / `call_edit` (effectful reorder, positionals turned
+into keywords, positional-only refusal, removal, comments, multi-line removal); `reply.call` / `add_page` / `paginate`
+errors; `resolve_aliases` conflicts; `merge_plans` (notes, hashes, BOM, modes, labels, sort order);
+`_line_matches` 140-char cutoff; `add_sites` and `site_followup` (BOM, mode, baselines, truncation, carry on a changed
+line); `track_optional_files`; `read_call_args`; the wording of the refusals users see.
+
+### Survivors left, and why no test was added
+
+- **Message wording** (about 90): `XX...XX` / UPPERCASE mutants of hints and refusal text, in `args._allowed_values`
+  (18), `args.argument_problem` (15), `args._type_phrase` (14), `args.unknown_tool_message` (7), `signature.tokenize_source`
+  (14), `read_signature`, `parse_checked`, `_signature_hint`, `_short_repr`, `example_call`. These texts are not
+  pinned on purpose: pinning every sentence would make rewording a test failure. Noise.
+- **Equivalent mutants**: `difflib` `autojunk=` (only changes the result above 200 lines, a speed heuristic),
+  `strict=` on `zip` where both sides always have the same length, `_default_insert_index` dead branch (a
+  parameter kind that cannot reach it, `mutmut_6`), `SourceMap.end` / `offset` boundary mutants. Noise.
+- **Layout of added arguments in `call_edit`** (about 16): separator and indent when an argument is appended to a
+  multi-line call; the result is valid and binds the same (see the layout observations above). Not pinned because the
+  layout is the thing a fix for #1/#2 would change.
+- **Real gaps, not yet covered** (a test could kill them; none reveals a product bug so far, they only show the oracle
+  does not look there):
+  - `rebind_call` `mutmut_98` (`a is not e` in the effectful-argument detection) and `mutmut_61` (`broken = None`):
+    only exercised through combinations of effectful arguments with a removed one; the execution oracle in
+    `test_signature_props.py` should reach it with more effectful values.
+  - `new_params` `mutmut_107` / `mutmut_121` (the anchor for an added keyword-only parameter after existing
+    keyword-only ones, `_default_insert_index(rest, None)`).
+  - `call_edit` `mutmut_22` (a comment starting exactly at the span end counted as inside), `mutmut_35`
+    (`common += 1` vs `= 1`, matters with two or more common leading arguments), `mutmut_51` (the empty-span
+    start/end for a pure insert).
+  - `plan_merge` `_carry` (6), `_site_change` (5), `_merge_file` (5), `_carry_on_changed_line` (5), `add_sites` (8):
+    follow-up carrying across several edited lines; the property tests keep the follow-up single-line.
+  - `reply.paginate` (2) and `args.apply_aliases` / `register` (4).
+  Closing these is the next step if the oracle is to be trusted for effectful calls; they are listed here so they can
+  be chosen deliberately.
+

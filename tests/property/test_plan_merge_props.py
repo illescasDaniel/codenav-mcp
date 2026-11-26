@@ -192,6 +192,21 @@ def test_given_two_edits_whose_diffs_share_an_incidental_hunk_then_the_merge_is_
 	assert [c.new_text for c in merged.changes] == ["FIRST\nx = 1\nSECOND\nx = 1\n"]
 
 
+@pytest.mark.xfail(strict=True, reason="FINDINGS-h3 #12")
+def test_given_two_single_line_edits_in_a_file_with_repeated_blocks_then_each_lands_on_its_own_line():
+	base = ["pass\n", "x = 1\n", "x = 1\n", "pass\n", "x = 1\n", "x = 1\n"]
+	one = ["FIRST\n", *base[1:]]
+	two = [*base[:2], "SECOND\n", *base[3:]]
+	merged = merge_plans(
+		[
+			("item 1", EditPlan("p", [FileChange(FILE, "".join(base), "".join(one))])),
+			("item 2", EditPlan("p", [FileChange(FILE, "".join(base), "".join(two))])),
+		],
+		"m",
+	)
+	assert [c.new_text for c in merged.changes] == ["FIRST\nx = 1\nSECOND\npass\nx = 1\nx = 1\n"]
+
+
 @given(st.lists(st.sampled_from(["x = 1\n", "y = 2\n", "pass\n", "\n"]), min_size=2, max_size=12), st.data())
 def test_given_repetitive_lines_then_two_plans_on_disjoint_places_still_give_a_valid_merge(base, data):
 	"""With repeated lines difflib may align differently from the intent; the merge must still be the base with
@@ -207,6 +222,10 @@ def test_given_repetitive_lines_then_two_plans_on_disjoint_places_still_give_a_v
 		(a, b, tuple(c)) for a, b, c in _hunks("".join(base), "".join(two))
 	}
 	assume(not shared)
+	# FINDINGS-h3 #12: with repeated lines difflib may report a plan's single edit at another place than intended;
+	# only plans whose diff is exactly the intended single-line replacement are merged here.
+	for edited, at, text in ((one, first, "FIRST\n"), (two, second, "SECOND\n")):
+		assume([(a, b, tuple(c)) for a, b, c in _hunks("".join(base), "".join(edited))] == [(at, at + 1, (text,))])
 	try:
 		merged = merge_plans(
 			[
