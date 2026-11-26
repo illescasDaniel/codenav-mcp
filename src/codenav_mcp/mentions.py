@@ -7,10 +7,12 @@ must look at: attribute accesses on untyped objects, names in strings (`getattr`
 
 from __future__ import annotations
 
+import ast
 import io
 import os
 import re
 import tokenize
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,6 +36,7 @@ class Mention:
 	kind: str  # "attr" | "code" | "string" | "comment" | "text"
 	snippet: str
 	column: int | None = None  # 0-based UTF-16 column of an "attr" / "code" name; None for the other kinds
+	value: str | None = None  # a dotted string literal, when present
 
 
 def _lines(text: str) -> list[str]:
@@ -57,9 +60,9 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 	found: list[Mention] = []
 
-	def add(row: int, kind: str, column: int | None = None) -> None:
+	def add(row: int, kind: str, column: int | None = None, value: str | None = None) -> None:
 		snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
-		found.append(Mention(rel, row, kind, snippet[:140], column))
+		found.append(Mention(rel, row, kind, snippet[:140], column, value))
 
 	try:
 		previous: tokenize.TokenInfo | None = None
@@ -72,8 +75,12 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 					add(row, "attr" if after_dot else "code", utf16_column(line, col))
 			elif token.type == tokenize.COMMENT and word.search(token.string):
 				add(row, "comment")
-			elif (token.type == tokenize.STRING or token.type == _FSTRING_MIDDLE) and word.search(token.string):
-				add(row, "string")
+			elif token.type == tokenize.STRING or token.type == _FSTRING_MIDDLE:
+				rows = {row + token.string.count("\n", 0, match.start()) for match in word.finditer(token.string)}
+				if rows:
+					value = _dotted_literal(token)
+					for match_row in sorted(rows):
+						add(match_row, "string", value=value)
 			if token.type not in (tokenize.NL, tokenize.COMMENT):
 				previous = token
 	except (tokenize.TokenError, IndentationError, SyntaxError):
@@ -81,7 +88,18 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 	return found
 
 
-def _text_files(workspace: Path) -> list[Path]:
+def _dotted_literal(token: tokenize.TokenInfo) -> str | None:
+	if token.type == tokenize.STRING:
+		try:
+			value = ast.literal_eval(token.string)
+		except (SyntaxError, ValueError):
+			return None
+		if isinstance(value, str) and "." in value and all(part.isidentifier() for part in value.split(".")):
+			return value
+	return None
+
+
+def _text_files(workspace: Path, limit: int | None) -> list[Path]:
 	files: list[Path] = []
 	skip = excluded_names(ENV_PREFIX)
 	for directory, dirs, names in os.walk(workspace):
@@ -92,7 +110,7 @@ def _text_files(workspace: Path) -> list[Path]:
 		for filename in sorted(names):
 			if Path(filename).suffix.lower() in _TEXT_SUFFIXES:
 				files.append(Path(directory) / filename)
-				if len(files) >= _MAX_TEXT_FILES:
+				if limit is not None and len(files) >= limit:
 					return files
 	return files
 
@@ -102,23 +120,36 @@ def _in_hidden_dir(rel: str) -> bool:
 	return any(part.startswith(".") for part in rel.split("/")[:-1])
 
 
-def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int, int]]]) -> list[Mention]:
+def find_mentions(
+	workspace: Path,
+	name: str,
+	covered: dict[Path, set[tuple[int, int]]],
+	*,
+	path_matches: Callable[[str], bool] | None = None,
+	include_text: bool = True,
+	text_file_limit: int | None = _MAX_TEXT_FILES,
+) -> list[Mention]:
 	"""Occurrences of `name` the rename did not touch, Python code first. Dot-directories are not scanned."""
 	found: list[Mention] = []
 	for path in iter_python_files(workspace):
-		if _in_hidden_dir(relative_name(path, workspace)):
+		rel = relative_name(path, workspace)
+		if _in_hidden_dir(rel) or (path_matches is not None and not path_matches(rel)):
 			continue
-		found += _python_mentions(path, relative_name(path, workspace), name, covered.get(path.resolve(), set()))
+		if path.is_symlink() or not path.is_file():
+			continue
+		found += _python_mentions(path, rel, name, covered.get(path.resolve(), set()))
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
-	for path in _text_files(workspace):
+	for path in _text_files(workspace, text_file_limit) if include_text else ():
+		rel = relative_name(path, workspace)
+		if _in_hidden_dir(rel) or (path_matches is not None and not path_matches(rel)):
+			continue
+		if path.is_symlink() or not path.is_file():
+			continue
 		try:
 			if path.stat().st_size > _MAX_TEXT_BYTES:
 				continue
 			lines = _lines(decode_source(path.read_bytes())[0])
 		except (OSError, UnicodeDecodeError):
-			continue
-		rel = relative_name(path, workspace)
-		if _in_hidden_dir(rel):
 			continue
 		found += [
 			Mention(rel, number, "text", line.strip()[:140])

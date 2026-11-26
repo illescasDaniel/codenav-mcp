@@ -383,6 +383,8 @@ async def _split_unlinked_attrs(
 	workspace: Path,
 	candidates: list[Mention],
 	renamed_at: dict[Path, set[tuple[int, int]]],
+	*,
+	limit: int | None = _MAX_ATTR_LOOKUPS,
 ) -> tuple[list[Mention], list[Mention], int]:
 	"""(accesses to rename, accesses that resolve to another symbol, accesses not checked).
 
@@ -391,7 +393,7 @@ async def _split_unlinked_attrs(
 	method and must stay. A lookup that fails or runs past the cap leaves the access alone (counted, not renamed)."""
 	rename, other, unchecked = [], [], 0
 	for index, mention in enumerate(candidates):
-		if index >= _MAX_ATTR_LOOKUPS:
+		if limit is not None and index >= limit:
 			unchecked += len(candidates) - index
 			break
 		try:

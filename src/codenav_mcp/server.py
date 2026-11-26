@@ -39,7 +39,7 @@ from urllib.parse import urlparse
 
 import mcp_nav_shared
 from mcp.server.mcpserver import Context, MCPServer
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, Tool
 from mcp_nav_shared.edits import split_lines
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.exclude import excluded_names, is_excluded, is_inside_nested_repo
@@ -118,7 +118,24 @@ _POSITION_NOTE = (
 	"character, so after a single tab the next character starts at column 2."
 )
 
-mcp = MCPServer(
+
+class _CodenavMCPServer(MCPServer):
+	async def list_tools(self) -> list[Tool]:
+		tools = await super().list_tools()
+		for tool in tools:
+			if tool.name in {"lookup", "search"}:
+				# Pydantic titles repeat the tool and parameter names; nullable arguments already imply a null default.
+				schema = dict(tool.input_schema)
+				schema.pop("title", None)
+				schema["properties"] = {
+					key: {k: v for k, v in prop.items() if k != "title" and (k != "default" or v is not None)}
+					for key, prop in schema["properties"].items()
+				}
+				tool.input_schema = schema
+		return tools
+
+
+mcp = _CodenavMCPServer(
 	name="codenav",
 	instructions=(
 		"Code navigation for this Python codebase, backed by ty (Astral's type "
@@ -911,11 +928,24 @@ async def search_symbol(
 		client = await get_client()
 		# ty matches names literally, so the query is NFKC-normalised first (`ﬁ` finds `fi`).
 		qualifier, leaf = _split_dotted(_nfkc(query))
-		symbols = await client.workspace_symbol(leaf)
+		inside, outside, skipped = await _search_symbols(client, qualifier, leaf)
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)
-	if not symbols:
-		return f"No symbols matching {query!r}."
+	if not inside:
+		return _with_search_notes(f"No symbols matching {query!r}.", outside, skipped)
+	matching = filter_symbols_by_kind_and_path(inside, WORKSPACE_ROOT, kinds=kinds, path=path)
+	if not matching:
+		filters = ", ".join(f"{k}={v!r}" for k, v in (("kind", kind), ("path", path)) if v)
+		return _with_search_notes(
+			f"No symbols matching {query!r} with {filters} ({len(inside)} without the filters).", outside, skipped
+		)
+	return _with_search_notes(
+		format_workspace_symbols(matching, WORKSPACE_ROOT, query=leaf, fuzzy=fuzzy), outside, skipped
+	)
+
+
+async def _search_symbols(client: LspClient, qualifier: str, leaf: str) -> tuple[list[dict[str, Any]], int, list[str]]:
+	symbols = await client.workspace_symbol(leaf)
 	inside, outside = split_inside_workspace(symbols, WORKSPACE_ROOT, _symbol_uri)
 	# SRCH-028 / ENV-018: a nested git checkout (vendored repo, linked worktree) is another project, not part of this scan.
 	kept = [sym for sym in inside if not _in_nested_repo(sym)]
@@ -928,17 +958,7 @@ async def search_symbol(
 	skipped = [d for d in excluded_dirs if d is not None]
 	if qualifier:
 		inside = await _owned_by(client, inside, qualifier)
-	if not inside:
-		return _with_search_notes(f"No symbols matching {query!r}.", outside, skipped)
-	matching = filter_symbols_by_kind_and_path(inside, WORKSPACE_ROOT, kinds=kinds, path=path)
-	if not matching:
-		filters = ", ".join(f"{k}={v!r}" for k, v in (("kind", kind), ("path", path)) if v)
-		return _with_search_notes(
-			f"No symbols matching {query!r} with {filters} ({len(inside)} without the filters).", outside, skipped
-		)
-	return _with_search_notes(
-		format_workspace_symbols(matching, WORKSPACE_ROOT, query=leaf, fuzzy=fuzzy), outside, skipped
-	)
+	return inside, outside, skipped
 
 
 def _check_search_path(path: str) -> None:
@@ -973,7 +993,12 @@ def _excluded_dir_of(sym: dict[str, Any]) -> str | None:
 
 
 def _with_search_notes(text: str, outside: int, skipped_dirs: list[str]) -> str:
-	"""The reply plus the notes for results dropped as outside the workspace and as in excluded directories."""
+	notes = _search_notes(outside, skipped_dirs)
+	return "\n".join([text, *notes]) if notes else text
+
+
+def _search_notes(outside: int, skipped_dirs: list[str]) -> list[str]:
+	"""Notes for results dropped as outside the workspace or in excluded directories."""
 	notes = [outside_workspace_note(outside)] if outside > 0 else []
 	if skipped_dirs:
 		counts: dict[str, int] = {}
@@ -985,7 +1010,7 @@ def _with_search_notes(text: str, outside: int, skipped_dirs: list[str]) -> str:
 			f"Symbols in excluded directories were not shown: {groups}. "
 			f"Pass {ENV_PREFIX}_INCLUDE_DIRS={names} to include them."
 		)
-	return "\n".join([text, *notes]) if notes else text
+	return notes
 
 
 def _nfkc(text: str) -> str:
@@ -1038,6 +1063,18 @@ async def diagnostics(file_path: str, ctx: Context | None = None) -> str:
 	return _scrub_text(format_diagnostics(items, path=_workspace_display_path(file_path)))
 
 
+async def _resolve_read_symbol(client: LspClient, name: str, file_path: str | None) -> ResolvedSymbol:
+	# A same-named module-level symbol elsewhere must not hide a local.
+	if _local_only_in_file(name, file_path):
+		raise ToolInputError(_local_hint(name))
+	try:
+		return await resolve_symbol(client, WORKSPACE_ROOT, name, file_path=file_path)
+	except SymbolNotFoundError as exc:
+		if _bound_in_function(name, file_path):
+			raise ToolInputError(_local_hint(name)) from exc
+		raise
+
+
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def symbol_info(
@@ -1066,16 +1103,8 @@ async def symbol_info(
 	await _use_workspace(ctx)
 	try:
 		name = resolve_name_query(preferred="name", example="UserService.create_user", name=name, query=query)
-		if _local_only_in_file(name, file_path):
-			# Checked before the lookup: a same-named module-level symbol elsewhere must not hide the local.
-			raise ToolInputError(_local_hint(name))
 		client = await get_client()
-		try:
-			resolved = await resolve_symbol(client, WORKSPACE_ROOT, name, file_path=file_path)
-		except SymbolNotFoundError as exc:
-			if _bound_in_function(name, file_path):
-				raise ToolInputError(_local_hint(name)) from exc
-			raise
+		resolved = await _resolve_read_symbol(client, name, file_path)
 		rel_path = uri_to_relative(resolved.uri, WORKSPACE_ROOT)
 		line, column = resolved.line + 1, resolved.column + 1
 		hover_result = await client.hover(rel_path, line, column)
@@ -1124,6 +1153,16 @@ async def outline(file_path: str, depth: int | None = None, ctx: Context | None 
 	return f"{warning}\n{body}" if warning else body
 
 
+async def _incoming_calls(
+	client: LspClient, file_path: str, line: int, column: int
+) -> tuple[list[dict[str, Any]] | None, int]:
+	items = await client.prepare_call_hierarchy(file_path, line, column)
+	if not items:
+		return None, 0
+	incoming = await client.incoming_calls(items[0])
+	return split_inside_workspace(incoming, WORKSPACE_ROOT, _caller_uri)
+
+
 @mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def callers(
@@ -1153,11 +1192,9 @@ async def callers(
 		client = await get_client()
 		resolved = await resolve_symbol(client, WORKSPACE_ROOT, name, file_path=file_path)
 		rel_path = uri_to_relative(resolved.uri, WORKSPACE_ROOT)
-		items = await client.prepare_call_hierarchy(rel_path, resolved.line + 1, resolved.column + 1)
-		if not items:
+		inside, outside = await _incoming_calls(client, rel_path, resolved.line + 1, resolved.column + 1)
+		if inside is None:
 			return f"{resolved.name} has no call hierarchy entry at that position (it may not be a callable)."
-		incoming = await client.incoming_calls(items[0])
-		inside, outside = split_inside_workspace(incoming, WORKSPACE_ROOT, _caller_uri)
 		value_only = False
 		if not inside:
 			uses = await client.references(rel_path, resolved.line + 1, resolved.column + 1, include_declaration=False)
@@ -1370,8 +1407,8 @@ def _probe_source(port_module: str, port_name: str, candidate_module: str, candi
 # the whole cache is keyed to one (path, mtime_ns, size) signature of every
 # candidate file plus the dependency environment (see `_environment_paths`)
 # and dropped wholesale when it differs. Verdicts are keyed by
-# (port module, port name, candidate module, class name) -> (verified?, line).
-_probe_cache: dict[tuple[str, str, str, str], tuple[bool, str]] = {}
+# (port module, port name, candidate module, class name) -> rejection reason (None means verified).
+_probe_cache: dict[tuple[str, str, str, str], str | None] = {}
 _probe_cache_signature: tuple[tuple[str, int, int], ...] = ()
 _probe_lock = asyncio.Lock()
 
@@ -1448,15 +1485,42 @@ async def implementations(
 		)
 		client = await get_client()
 		port = await resolve_symbol(client, WORKSPACE_ROOT, port_name, file_path=file_path)
-		port_rel_path = uri_to_relative(port.uri, WORKSPACE_ROOT)
-		port_symbols = await client.document_symbol(port_rel_path)
-		port_source = (WORKSPACE_ROOT / port_rel_path).read_text(encoding="utf-8")
+		matches = await _protocol_matches(client, port)
 	except SymbolNotFoundError as exc:
 		return FailedText(f"{exc} Check the name with symbol_info or hover first.")
 	except TOOL_ERRORS as exc:
 		return _read_error(exc, "implementations", port_name)
+	return _format_protocol_matches(port.name, matches)
+
+
+@dataclass(frozen=True)
+class ProtocolImplementation:
+	path: Path
+	name: str
+	line: int
+	extra: bool
+
+	def listing(self) -> str:
+		rel = uri_to_relative(self.path.as_uri(), WORKSPACE_ROOT)
+		stub = ", stub" if self.path.suffix == ".pyi" else ""
+		return f"{self.name}  ({rel}{stub})"
+
+
+@dataclass
+class _ProtocolMatches:
+	verified: list[ProtocolImplementation]
+	rejected: list[tuple[ProtocolImplementation, str]]
+	not_probed: int
+	unreadable: int
+	no_match_members: set[str] | None = None
+
+
+async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _ProtocolMatches:
+	port_rel_path = uri_to_relative(port.uri, WORKSPACE_ROOT)
+	port_symbols = await client.document_symbol(port_rel_path)
+	port_source = (WORKSPACE_ROOT / port_rel_path).read_text(encoding="utf-8")
 	if port.name not in _protocol_class_names(port_source):
-		return FailedText(
+		raise ToolInputError(
 			f"{port.name!r} is not a Protocol; implementations only finds structural "
 			"implementers of Protocol ports (use symbol_info/references for explicit subclasses)."
 		)
@@ -1465,21 +1529,18 @@ async def implementations(
 		None,
 	)
 	if port_class is None:
-		return FailedText(f"{port_name!r} did not resolve to a class in {port_rel_path}.")
+		raise ToolInputError(f"{port.name!r} did not resolve to a class in {port_rel_path}.")
 	port_own = _symbol_members(port_class)
 	for info in _class_infos(port_source):
 		if info.name == port.name:
 			port_own |= info.members
 	if not port_own:
-		return FailedText(f"{port.name} has no members to match candidates against.")
+		raise ToolInputError(f"{port.name} has no members to match candidates against.")
 
 	port_abs = WORKSPACE_ROOT / port_rel_path
 	# A port in an extra root (e.g. tests/) is imported relative to the workspace, as its candidates are.
 	port_in_extra = not _is_under(port_abs, SOURCE_ROOT) and any(_is_under(port_abs, r) for r in EXTRA_SOURCE_ROOTS)
-	try:
-		port_module = _module_path(port_abs, WORKSPACE_ROOT if port_in_extra else None)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+	port_module = _module_path(port_abs, WORKSPACE_ROOT if port_in_extra else None)
 
 	# Vendored/generated/virtualenv trees are never this project's own source
 	# and can be enormous (a `.venv` alone can dwarf the real codebase) — skip
@@ -1524,7 +1585,7 @@ async def implementations(
 			infos_by_name.setdefault(info.name, []).append(info)
 	port_required = _effective_members(port.name, port_own, infos_by_name)
 
-	name_matches: list[tuple[Path, str, str, bool]] = []  # (path, class name, module path, from extra root)
+	name_matches: list[tuple[ProtocolImplementation, str]] = []
 	not_probed = 0  # matches whose module has no import path (outside the source root): cannot be verified
 	for path, symbols in zip(candidate_files, symbol_lists, strict=True):
 		if path not in infos_by_path:
@@ -1545,21 +1606,18 @@ async def implementations(
 				except ToolInputError:
 					not_probed += 1  # outside SOURCE_ROOT's import-path derivation; can't probe it
 					continue
-				name_matches.append((path, cls_node["name"], candidate_module, path in extra_set))
+				candidate = ProtocolImplementation(
+					path, cls_node["name"], cls_node["start_line"] + 1, path in extra_set
+				)
+				name_matches.append((candidate, candidate_module))
 
-	skipped_note = f" ({len(unreadable)} file(s) under {_shown(SOURCE_ROOT)} skipped: unreadable)" if unreadable else ""
+	matches = _ProtocolMatches([], [], not_probed, len(unreadable))
 	if not name_matches:
-		return (
-			f"No classes under {_shown(SOURCE_ROOT)} cover {port.name}'s methods: "
-			f"{', '.join(sorted(port_required))}.{skipped_note}{_unscanned_note()}"
-		)
+		matches.no_match_members = port_required
+		return matches
 
 	global _probe_cache_signature
 	probe_uri = (WORKSPACE_ROOT / _PROBE_RELATIVE_PATH).as_uri()
-	verified: list[str] = []
-	unverified: list[str] = []
-	verified_extra: list[str] = []
-	unverified_extra: list[str] = []
 	opened = False
 	# All calls share one scratch document, so concurrent runs would overwrite
 	# each other's probe (and close it under one another): serialize them.
@@ -1569,17 +1627,16 @@ async def implementations(
 		if signature != _probe_cache_signature:
 			_probe_cache.clear()
 			_probe_cache_signature = signature
-		for path, cls_name, candidate_module, is_extra in name_matches:
-			cache_key = (port_module, port.name, candidate_module, cls_name)
-			rel = uri_to_relative(path.as_uri(), WORKSPACE_ROOT)
-			if path.suffix == ".pyi":
-				rel = f"{rel}, stub"  # declarations only: the class is not type-checked here
-			ok_bucket, bad_bucket = (verified_extra, unverified_extra) if is_extra else (verified, unverified)
-			cached = _probe_cache.get(cache_key)
-			if cached is not None:
-				(ok_bucket if cached[0] else bad_bucket).append(cached[1])
+		for candidate, candidate_module in name_matches:
+			cache_key = (port_module, port.name, candidate_module, candidate.name)
+			if cache_key in _probe_cache:
+				reason = _probe_cache[cache_key]
+				if reason is None:
+					matches.verified.append(candidate)
+				else:
+					matches.rejected.append((candidate, reason))
 				continue
-			code = _probe_source(port_module, port.name, candidate_module, cls_name)
+			code = _probe_source(port_module, port.name, candidate_module, candidate.name)
 			if not opened:
 				await client.open_scratch_document(probe_uri, code)
 				opened = True
@@ -1595,18 +1652,16 @@ async def implementations(
 			# narrower check that case was silently counted as verified even
 			# though ty never actually checked the assignment.
 			if not items:
-				line, is_verified = f"{cls_name}  ({rel})", True
+				reason = None
+				matches.verified.append(candidate)
 			elif any(item.get("code") == "invalid-return-type" for item in items):
-				line = f"{cls_name}  ({rel})  — method names match but ty rejects the assignment"
-				is_verified = False
+				reason = "method names match but ty rejects the assignment"
+				matches.rejected.append((candidate, reason))
 			else:
 				reasons = "; ".join(str(item.get("message", "")).splitlines()[0] for item in items[:3])
-				line = f"{cls_name}  ({rel})  — could not verify: {reasons}"
-				is_verified = False
-			_probe_cache[cache_key] = (is_verified, line)
-			(ok_bucket if is_verified else bad_bucket).append(line)
-	except TOOL_ERRORS as exc:
-		return format_tool_error(exc)
+				reason = f"could not verify: {reasons}"
+				matches.rejected.append((candidate, reason))
+			_probe_cache[cache_key] = reason
 	finally:
 		try:
 			if opened:
@@ -1614,25 +1669,38 @@ async def implementations(
 		finally:
 			_probe_lock.release()
 
-	verified_files = {line.rsplit("  (", 1)[-1] for line in verified}
+	return matches
+
+
+def _format_protocol_matches(name: str, matches: _ProtocolMatches) -> str:
+	skipped = (
+		f" ({matches.unreadable} file(s) under {_shown(SOURCE_ROOT)} skipped: unreadable)" if matches.unreadable else ""
+	)
+	if matches.no_match_members is not None:
+		return (
+			f"No classes under {_shown(SOURCE_ROOT)} cover {name}'s methods: "
+			f"{', '.join(sorted(matches.no_match_members))}.{skipped}{_unscanned_note()}"
+		)
+	verified = [candidate for candidate in matches.verified if not candidate.extra]
+	extra = [candidate for candidate in matches.verified if candidate.extra]
 	lines = [
-		f"{len(verified)} implementation(s) of {port.name} in {len(verified_files)} file(s) (type-verified):{skipped_note}"
+		f"{len(verified)} implementation(s) of {name} in {len({c.path for c in verified})} file(s) (type-verified):{skipped}"
 	]
-	lines += verified or ["(none)"]
+	lines += [candidate.listing() for candidate in verified] or ["(none)"]
 	if EXTRA_SOURCE_ROOTS:
 		roots = ", ".join(
 			str(r.relative_to(WORKSPACE_ROOT)) if r.is_relative_to(WORKSPACE_ROOT) else str(r)
 			for r in EXTRA_SOURCE_ROOTS
 		)
-		lines += ["", f"{len(verified_extra)} more in extra roots ({roots}), e.g. test doubles (type-verified):"]
-		lines += verified_extra or ["(none)"]
-	not_verified = len(unverified) + len(unverified_extra) + not_probed
+		lines += ["", f"{len(extra)} more in extra roots ({roots}), e.g. test doubles (type-verified):"]
+		lines += [candidate.listing() for candidate in extra] or ["(none)"]
+	not_verified = len(matches.rejected) + matches.not_probed
 	if not_verified:
 		lines += ["", f"Method-name matches not verified as the port ({not_verified}):"]
-		lines += [*unverified, *unverified_extra]
-		if not_probed:
+		lines += [f"{candidate.listing()}  — {reason}" for candidate, reason in matches.rejected]
+		if matches.not_probed:
 			lines.append(
-				f"{not_probed} more could not be probed: their module has no import path under the source root."
+				f"{matches.not_probed} more could not be probed: their module has no import path under the source root."
 			)
 	if note := _unscanned_note():
 		lines += ["", note.strip()]
