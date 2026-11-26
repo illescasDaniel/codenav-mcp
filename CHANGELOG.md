@@ -1,12 +1,10 @@
 # Changelog
 
-## [1.0.3] - 2026-11-26
+## Unreleased
 
 ### Fixed
 
 - Shorten the package and MCP Registry descriptions to meet the registry schema limit.
-- Preserve MCP context injection on Python 3.14 and label standard-library paths on Windows without exposing full paths.
-- Correct cross-platform test fixtures and verify CI on Linux, macOS and Windows.
 
 ## 1.0.2
 
