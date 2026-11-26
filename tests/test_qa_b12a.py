@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sysconfig
 
 import pytest
 from mcp_nav_shared.errors import ToolInputError
@@ -62,6 +63,19 @@ def test_rc_038_library_definition_is_labelled_not_absolute(project, loop):
 	assert "<stdlib>/json/" in text
 	assert "/usr/" not in text
 	assert "file://" not in text
+
+
+def test_stdlib_path_uses_a_portable_label(tmp_path, monkeypatch):
+	stdlib = tmp_path / "Lib"
+	monkeypatch.setattr(sysconfig, "get_path", lambda key: str(stdlib) if key == "stdlib" else None)
+	assert (
+		codenav_server._display_path((stdlib / "json" / "__init__.py").as_uri(), tmp_path / "project")
+		== "<stdlib>/json/__init__.py"
+	)
+	assert (
+		codenav_server._display_path((stdlib / "site-packages" / "private.py").as_uri(), tmp_path / "project")
+		== "<site-packages>/private.py"
+	)
 
 
 def test_rc_039_hover_text_drops_the_workspace_root_and_library_paths(tmp_path, monkeypatch):

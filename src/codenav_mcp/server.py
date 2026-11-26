@@ -29,6 +29,7 @@ import logging
 import os
 import re
 import sys
+import sysconfig
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -363,6 +364,15 @@ def _display_path(uri: str, workspace_root: Path | None = None) -> str:
 		return path.relative_to(workspace_root or WORKSPACE_ROOT).as_posix()
 	except ValueError:
 		pass
+	# Windows installs the standard library under Lib rather than lib/pythonX.Y.
+	stdlib = sysconfig.get_path("stdlib")
+	if stdlib:
+		try:
+			relative = path.resolve().relative_to(Path(stdlib).resolve())
+			if "site-packages" not in relative.parts:
+				return f"<stdlib>/{relative.as_posix()}"
+		except ValueError:
+			pass
 	label = _scrub_library(path.as_posix())
 	return label if label != path.as_posix() else f"<outside workspace>/{path.name}"
 

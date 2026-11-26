@@ -196,6 +196,7 @@ def test_rc_b21_undo_unknown_id_says_history_is_in_memory(tmp_path, monkeypatch,
 
 
 @needs_ty
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not support POSIX umask permissions")
 def test_rc_b21_new_move_destination_preserves_private_permissions(tmp_path, monkeypatch, loop):
 	project = make_workspace(
 		tmp_path, monkeypatch, {"src/real.py": "def helper():\n    return 1\n\n\ndef other():\n    return 2\n"}

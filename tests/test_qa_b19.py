@@ -165,6 +165,7 @@ def test_rc_b19_first_line_dunder_all_rename_in_bom_crlf_file_is_applied(tmp_pat
 
 
 @needs_ty
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not support POSIX executable mode bits")
 def test_rc_b19_moved_module_keeps_mode_and_undo_restores_it(tmp_path, monkeypatch, loop):
 	project = make_workspace(
 		tmp_path, monkeypatch, {"src/pkg/__init__.py": "", "src/pkg/tool.py": "def main() -> int:\n\treturn 0\n"}

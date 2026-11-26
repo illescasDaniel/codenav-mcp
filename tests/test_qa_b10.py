@@ -215,7 +215,7 @@ def test_rc_032_subdirectory_path_is_kept_relative(workspace):
 	result = _call("hover", {"file_path": "src/nope.py", "line": 1, "column": 1})
 
 	assert result.is_error
-	assert "File not found: src/nope.py" in _text(result)
+	assert "File not found: src/nope.py" in _text(result).replace("\\", "/")
 	assert str(workspace) not in _text(result)
 
 
