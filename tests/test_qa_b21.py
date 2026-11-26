@@ -183,13 +183,14 @@ def test_rc_b21_undo_twice_says_already_undone(tmp_path, monkeypatch, loop):
 	assert "already undone" in second
 
 
-def test_rc_b21_undo_unknown_id_says_history_is_in_memory(tmp_path, monkeypatch, loop):
+def test_rc_b21_undo_unknown_id_points_at_the_persistent_history(tmp_path, monkeypatch, loop):
 	make_workspace(tmp_path, monkeypatch, {"a.py": "x = 1\n"})
 
 	text = _text(_call("undo_edit", {"id": "deadbeef"}))
 
-	assert "in memory" in text
-	assert "this server session" in text
+	assert "not in the undo history" in text
+	assert 'edits(action="list")' in text
+	assert "in memory" not in text
 
 
 # (8) WRX-011: a symbol move must not broaden permissions on private source code.
