@@ -106,7 +106,10 @@ def _list(state: WriteState, limit: int) -> str:
 	if pending:
 		reply.next_calls.append(call("edits", action="apply", id=pending[0].id))
 	if history:
-		reply.next_calls.append(call("edits", action="undo", id=history[0].id))
+		newest = history[0]
+		# An undo of an entry whose files changed afterwards is refused: point at `show` instead.
+		verb = "show" if _entry_changed(newest, state) else "undo"
+		reply.next_calls.append(call("edits", action=verb, id=newest.id))
 	if more_calls:
 		reply.next_calls.append(more_calls[0])
 	return reply.render()

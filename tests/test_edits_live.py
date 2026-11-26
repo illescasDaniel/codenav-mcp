@@ -97,7 +97,10 @@ def test_given_a_file_changed_by_hand_after_apply_when_undo_then_it_refuses_and_
 	assert "# my note" in user.read_text()
 	assert "def calculate(" in (project / "src/pkg/core.py").read_text()  # nothing was reverted
 	assert f'edits(action="show", id="{preview_id}")' in text
-	assert "[changed since: src/pkg/user.py]" in _edits(loop)
+	listing = _edits(loop)
+	assert "[changed since: src/pkg/user.py]" in listing
+	assert f'next: edits(action="show", id="{preview_id}")' in listing  # not an undo that would be refused
+	assert 'action="undo"' not in listing
 
 
 def test_given_a_stale_preview_when_apply_then_it_refuses_with_the_exact_rerun_call(project, loop):
