@@ -264,6 +264,12 @@ def test_given_ambiguous_name_then_reply_lists_exact_retries(project, loop):
 	assert 'impact(name="Mail.deliver")' in text
 
 
+@live
+def test_given_ambiguous_name_when_change_and_depth_given_then_the_retries_keep_them(project, loop):
+	text = _impact(loop, name="deliver", change="signature", depth=2)
+	assert 'impact(change="signature", depth=2, name="Mail.deliver")' in text
+
+
 # -- transitive callers (fake call hierarchy) ----------------------------------------------
 
 

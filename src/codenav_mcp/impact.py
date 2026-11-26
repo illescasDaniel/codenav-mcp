@@ -10,6 +10,7 @@ subclasses, annotations and uses as a value. Overrides/implementations of a meth
 from __future__ import annotations
 
 import ast
+import json
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -730,4 +731,12 @@ async def impact_reply(ctx: Any, name: str, file_path: str | None, change: str, 
 		session = await tool_base.open_session(ctx)
 		return await impact_text(session, name, file_path, change, depth, limit)
 	except TOOL_ERRORS as exc:
-		return ambiguity_listing(exc, "impact", name) or format_tool_error(exc)
+		# The retry keeps the arguments that shape the answer (the read tool has no "other arguments unchanged").
+		kept = [
+			f"{key}={json.dumps(value)}"
+			for key, value, default in (("change", change, "any"), ("depth", depth, 1), ("limit", limit, 30))
+			if value != default
+		]
+		return ambiguity_listing(exc, "impact", name, fixed="".join(f"{part}, " for part in kept)) or format_tool_error(
+			exc
+		)
