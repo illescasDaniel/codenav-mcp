@@ -278,7 +278,7 @@ def test_given_single_fix_when_quick_fix_then_import_added_without_choice(projec
 	# when
 	text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=11))
 	# then
-	assert "import os" in (project / "src/pkg/needs_import.py").read_text()
+	assert "import os" in (project / "src/pkg/needs_import.py").read_text(), text
 	assert "Applied as edit" in text
 
 

@@ -369,8 +369,10 @@ def _display_path(uri: str, workspace_root: Path | None = None) -> str:
 	if stdlib:
 		try:
 			relative = path.resolve().relative_to(Path(stdlib).resolve())
-			if "site-packages" not in relative.parts:
-				return f"<stdlib>/{relative.as_posix()}"
+			if "site-packages" in relative.parts:
+				index = relative.parts.index("site-packages")
+				return "<site-packages>/" + "/".join(relative.parts[index + 1 :])
+			return f"<stdlib>/{relative.as_posix()}"
 		except ValueError:
 			pass
 	label = _scrub_library(path.as_posix())
