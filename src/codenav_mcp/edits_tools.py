@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp.server.mcpserver import Context
-from mcp_nav_shared.edits import EditPlan, relative_name
+from mcp_nav_shared.edits import relative_name
 from mcp_nav_shared.errors import TOOL_ERRORS, ToolInputError, format_tool_error
 
 from codenav_mcp import edit_ops, tool_base
@@ -152,9 +152,8 @@ async def _apply(ctx: Context | None, plan_id: str | None, sites: list[str] | No
 	reply.notes += result.plan.notes[:8]
 	if result.left:
 		ids = ", ".join(f"{site.id} ({site.path}:{site.line})" for site in result.left[:6])
-		reply.notes.append(
-			f"{_count(len(result.left), 'optional site')} not applied: {ids}; redo the edit to see them again"
-		)
+		reply.notes.append(f"{_count(len(result.left), 'optional site')} not applied: {ids}")
+		reply.next_calls.append(call("edits", action="show", id=result.entry.id))
 	reply.notes += _unsaved_note(state)
 	reply.next_calls.append(call("edits", action="undo", id=result.entry.id))
 	return reply.render()
@@ -183,10 +182,13 @@ def _show(state: WriteState, workspace: Any, plan_id: str | None) -> str:
 			raise ToolInputError(f"no previews or applied edits to show. Example: {call('edits', action='list')}")
 	stored = next((item for item in pending if item.id == plan_id), None)
 	entry = next((item for item in history if item.id == plan_id), None)
-	if stored is None and entry is None:
+	if stored is not None:
+		plan = stored.plan.plan
+	elif entry is not None:
+		plan = entry.plan
+	else:
 		state.plans.get_stored(plan_id)  # raises the "unknown / already applied" refusal with the next step
 		raise ToolInputError(f"no preview or applied edit {plan_id!r}")
-	plan: EditPlan = stored.plan.plan if stored is not None else entry.plan  # ty: ignore[possibly-unresolved-reference]
 	reply = Reply("")
 	files = _count(len(plan.changes), "file")
 	if stored is not None:
@@ -210,6 +212,16 @@ def _show(state: WriteState, workspace: Any, plan_id: str | None) -> str:
 	else:
 		reply.answer = f"Applied edit {plan_id}: {plan.description} - {files}"
 		reply.items += plan.summary(workspace).splitlines()
+		if followup := state.journal.followup(plan_id):
+			reply.items.append("Optional sites (opt in by id):")
+			reply.items += [
+				f"  {site.id}  {site.path}:{site.line}  [{site.kind}]  {site.text}" for site in followup.optional_sites
+			]
+			stale = changed_files(followup.plan, state.root)
+			if stale:
+				reply.notes.append(f"changed since the edit was applied: {', '.join(stale[:5])}")
+			else:
+				reply.next_calls.append(call("edits", action="apply", id=plan_id, sites=["all"]))
 		reply.next_calls.append(call("edits", action="undo", id=plan_id))
 	reply.notes += plan.notes[:8]
 	diff = plan.diff(workspace, max_lines=_DIFF_LINES).rstrip()

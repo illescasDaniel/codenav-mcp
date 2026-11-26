@@ -7,7 +7,7 @@ import re
 import pytest
 from mcp_nav_shared.errors import FailedText
 
-from codenav_mcp import plan_sites, server, write_tools
+from codenav_mcp import edits_tools, server, write_tools, writes
 
 from .live_support import make_loop_fixture, make_workspace, needs_ty
 
@@ -86,8 +86,9 @@ def test_given_rename_without_sites_then_certain_sites_are_written_and_uncertain
 	assert {"attr", "keyword", "def", "comment"} <= kinds
 	assert "tests/test_run.py:13  attr  runtime.execute('a')" in text
 	assert "execute the statements in order" not in "\n".join(sites.values())  # prose is not a site
-	assert 'rename(name="RunnerPort.execute", new_name="run", sites=["all"])' in text
-	assert "undo_edit(id=" in text
+	edit_id = re.search(r"Applied as edit (\w+)", text).group(1)
+	assert f'edits(action="apply", id="{edit_id}", sites=["all"])' in text
+	assert f'edits(action="undo", id="{edit_id}")' in text
 	# then: receivers ty resolves elsewhere are not candidates, nor are dot-directories
 	assert "connection.execute" not in text and "other.execute" not in text
 	assert (project / "src/pkg/db.py").read_text() == _FILES["src/pkg/db.py"]
@@ -134,11 +135,57 @@ def test_given_unknown_site_id_then_the_reply_lists_the_valid_ids_and_an_exact_r
 	assert (project / "tests/test_run.py").read_text() == _FILES["tests/test_run.py"]
 
 
-def test_given_applied_rename_then_optional_sites_are_stored_under_the_edit_id(project, loop):
+@pytest.mark.parametrize("preview", [False, True])
+def test_given_rename_then_its_sites_can_be_applied_after_reloading_state(project, loop, preview):
+	text = _rename(loop, apply=not preview)
+	edit_id = re.search(r'edits\(action="apply", id="(\w+)"', text).group(1)
+	writes.reset_state()
+	shown = loop.run_until_complete(edits_tools.edits(action="show", id=edit_id))
+	assert list(_site_lines(shown)) == list(_site_lines(text))
+
+	result = loop.run_until_complete(edits_tools.edits(action="apply", id=edit_id, sites=["all"]))
+	followup_id = re.search(r"Applied edit (\w+)", result).group(1)
+	assert (followup_id == edit_id) is preview
+	assert "runtime.run('a')" in (project / "tests/test_run.py").read_text()
+	assert "def run(self, sql: str)" in (project / "src/pkg/runner.py").read_text()
+	if not preview:
+		writes.reset_state()
+		loop.run_until_complete(edits_tools.edits(action="undo", id=followup_id))
+		assert "runtime.execute('a')" in (project / "tests/test_run.py").read_text()
+		assert "def run(self, sql: str)" in (project / "src/pkg/runner.py").read_text()
+
+
+def test_applied_rename_refuses_stale_optional_only_file(project, loop):
+	path = project / "tests/test_optional.py"
+	path.write_text("from unittest.mock import Mock\n\nruntime = Mock()\nruntime.execute('a')\n")
 	text = _rename(loop)
 	edit_id = re.search(r"Applied as edit (\w+)", text).group(1)
-	stored = plan_sites.load_optional_sites(str(project.resolve()), edit_id)
-	assert [site.id for site in stored] == list(_site_lines(text))
+	assert "tests/test_optional.py:4" in text
+	path.write_text(path.read_text() + "\n# changed after rename\n")
+	writes.reset_state()
+
+	result = loop.run_until_complete(edits_tools.edits(action="apply", id=edit_id, sites=["all"]))
+
+	assert "changed since edit" in result
+	assert "runtime.execute('a')" in (project / "tests/test_run.py").read_text()
+
+
+def test_given_a_partial_followup_then_other_sites_move_to_its_id_and_undo_is_ordered(project, loop):
+	path = project / "tests/test_optional.py"
+	path.write_text("from unittest.mock import Mock\n\nruntime = Mock()\nruntime.execute('a')\n")
+	parent = _rename(loop)
+	parent_id = re.search(r"Applied as edit (\w+)", parent).group(1)
+	site_id = next(site_id for site_id, line in _site_lines(parent).items() if "tests/test_optional.py:4" in line)
+
+	child = loop.run_until_complete(edits_tools.edits(action="apply", id=parent_id, sites=[site_id]))
+	child_id = re.search(r"Applied edit (\w+)", child).group(1)
+	writes.reset_state()
+	shown = loop.run_until_complete(edits_tools.edits(action="show", id=child_id))
+	assert site_id not in _site_lines(shown)
+	assert f'edits(action="apply", id="{child_id}", sites=["all"])' in shown
+	blocked = loop.run_until_complete(edits_tools.edits(action="undo", id=parent_id))
+	assert f"undo {child_id} first" in blocked
+	assert "runtime.run('a')" in path.read_text()
 
 
 _DATACLASS = {
@@ -205,7 +252,7 @@ def test_given_preview_then_the_site_list_comes_before_the_diff_and_notes_are_no
 	text = _rename(loop, apply=False)
 	assert text.count("Notes:") == 1
 	assert text.index("optional site(s), not changed") < text.index("\n--- a/")
-	assert text.index("next: rename(") < text.index("\n--- a/")
+	assert text.index("next: edits(") < text.index("\n--- a/")
 
 
 def test_given_null_file_path_over_mcp_then_it_is_accepted(project, loop):

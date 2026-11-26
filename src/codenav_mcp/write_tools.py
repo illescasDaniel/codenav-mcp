@@ -34,15 +34,17 @@ from codenav_mcp import edit_ops, tool_base
 from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import Skipped, format_skipped, primary_module_name
 from codenav_mcp.linked import ClassRef
-from codenav_mcp.plan_sites import CodenavPlan, store_plan
+from codenav_mcp.plan_merge import add_sites, track_optional_files
+from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import check_syntax
-from codenav_mcp.rename import ATTR_HINT, RenamePlan, plan_rename, resolve_target
-from codenav_mcp.rename_sites import UnknownSitesError, format_site
+from codenav_mcp.rename import ATTR_HINT, plan_rename, resolve_target
+from codenav_mcp.rename_sites import UnknownSitesError, format_site, select_sites
 from codenav_mcp.reply import Reply, call
 from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
 from codenav_mcp.writes import (
 	PYTHON_SUFFIXES,
+	Outcome,
 	finish_plan,
 	require_workspace_file,
 	type_check_report,
@@ -188,7 +190,7 @@ async def rename(
 			column=None,
 			parameter=None,
 		)
-		plan = await plan_rename(
+		rename_plan = await plan_rename(
 			session.client,
 			session.workspace,
 			session.state.guard,
@@ -198,8 +200,11 @@ async def rename(
 			conforms=conforms_probe(session),
 			roots=session.roots,
 			v2_sites=True,
-			sites=sites,
 		)
+		chosen = select_sites(rename_plan.optional_sites, sites)
+		left = [site for site in rename_plan.optional_sites if site not in chosen]
+		base = track_optional_files(rename_plan, rename_plan.optional_sites, session.workspace)
+		plan = add_sites(base, chosen, session.workspace)
 		outcome = await finish_plan(
 			session.client,
 			workspace=session.workspace,
@@ -208,31 +213,28 @@ async def rename(
 			title=plan.description,
 			apply=apply,
 			max_new_errors=0,
+			optional_sites=left,
+			edits_style=True,
 			hold_back=(
-				f"importers that cannot be rewritten would be left broken ({'; '.join(plan.left_out)}); "
+				f"importers that cannot be rewritten would be left broken ({'; '.join(rename_plan.left_out)}); "
 				"fix or include them first."
 			)
-			if plan.left_out
+			if rename_plan.left_out
 			else "",
 		)
-		plan_id = outcome.applied_id or outcome.preview_id
-		if plan_id:
-			left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
-			store_plan(str(session.workspace), plan_id, CodenavPlan(plan, left))
 	except UnknownSitesError as exc:
-		return format_tool_error(f"{exc}\nExample: {call('rename', **retry, sites=['all'])}")
+		return format_tool_error(ToolInputError(f"{exc}\nExample: {call('rename', **retry, sites=['all'])}"))
 	except TOOL_ERRORS as exc:
 		return write_refusal(exc, "rename", name, fixed=f"new_name={json.dumps(new_name)}, ")
-	return _rename_reply(plan, outcome, retry, apply=apply, sites=sites)
+	return _rename_reply(plan, outcome, left, chosen)
 
 
-def _rename_reply(
-	plan: RenamePlan, outcome: Any, retry: dict[str, Any], *, apply: bool, sites: list[str] | None
-) -> str:
+def _rename_reply(plan: EditPlan, outcome: Outcome, left: list[OptionalSite], chosen: list[OptionalSite]) -> str:
 	"""The v2 reply: what happened in one line, the optional sites still open, the type-check line, the next calls.
 
 	A preview or refused plan keeps finish_plan's text (files, notes, type check, diff); the site list goes before the diff."""
-	left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
+	if outcome.followup is not None:
+		left = outcome.followup.optional_sites
 	reply = Reply(f"{plan.description}. Applied as edit {outcome.applied_id}." if outcome.applied_id else "")
 	if outcome.applied_id:
 		blocks = str(outcome.text).split("\n\n")
@@ -242,17 +244,23 @@ def _rename_reply(
 		if len(notes) > _NOTES_SHOWN:
 			reply.notes.append(f"... {len(notes) - _NOTES_SHOWN} more notes")
 		reply.notes.append(type_check_line(outcome))
-	if plan.chosen_sites:
-		reply.notes.insert(0, f"{len(plan.chosen_sites)} optional site(s) included (sites={json.dumps(sites)})")
+	if chosen:
+		reply.notes.insert(0, f"{len(chosen)} optional site(s) included")
 	site_lines: list[str] = []
 	if left:
 		site_lines.append(f"{len(left)} optional site(s), not changed (add with sites):")
 		site_lines.extend(f"  {format_site(site)}" for site in left[:_SITES_SHOWN])
 		if len(left) > _SITES_SHOWN:
 			site_lines.append(f"  ... {len(left) - _SITES_SHOWN} more")
-		if outcome.applied_id:
-			reply.next_calls.append(f'undo_edit(id="{outcome.applied_id}")')
-		reply.next_calls.append(call("rename", **retry, sites=["all"] if len(left) > 1 else [left[0].id]))
+		plan_id = outcome.applied_id or outcome.preview_id
+		if plan_id:
+			if len(left) > _SITES_SHOWN:
+				reply.next_calls.append(call("edits", action="show", id=plan_id))
+			reply.next_calls.append(
+				call("edits", action="apply", id=plan_id, sites=["all"] if len(left) > 1 else [left[0].id])
+			)
+	if outcome.applied_id and len(reply.next_calls) < 2:
+		reply.next_calls.append(call("edits", action="undo", id=outcome.applied_id))
 	if outcome.applied_id:
 		reply.items.extend(site_lines)
 		text = reply.render()

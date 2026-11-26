@@ -134,12 +134,22 @@ def test_given_a_site_in_a_file_the_plan_edits_then_it_is_carried_over_the_plan_
 	assert result.description == "p (+1 optional site)"
 
 
-def test_given_a_site_on_a_line_the_plan_changed_then_it_is_refused(tmp_path, file):
-	plan = _plan(file, BASE.replace("d = 4", "d = 40"))
+def test_given_a_site_overlapping_a_plan_edit_then_it_is_refused(tmp_path, file):
+	plan = _plan(file, BASE.replace("d = 4", "x = 4"))
 	site = _site("u2", 4, "d = 4", TextEdit(3, 0, 3, 1, "dd"))
 
-	with pytest.raises(ToolInputError, match=r"u2 \(m\.py:4\) is on a line the plan itself changes"):
+	with pytest.raises(ToolInputError, match=r"u2 \(m\.py:4\) overlaps a change"):
 		add_sites(plan, [site], tmp_path)
+
+
+def test_given_a_certain_edit_preceding_a_site_on_the_same_line_then_its_utf16_range_moves(tmp_path, file):
+	old = "old()  # 🐍 old()\n"
+	plan = EditPlan("p", [FileChange(file, old, old.replace("old", "new_name", 1))])
+	site = _site("u1", 1, old.strip(), TextEdit(0, 12, 0, 15, "new_name"))
+
+	result = add_sites(plan, [site], tmp_path)
+
+	assert result.changes[0].new_text == "new_name()  # 🐍 new_name()\n"
 
 
 def test_given_a_site_whose_line_changed_on_disk_then_it_is_refused_not_misplaced(tmp_path, file):

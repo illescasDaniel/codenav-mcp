@@ -45,7 +45,7 @@ from codenav_mcp.pysource import (
 	top_level_names,
 	utf16_to_index,
 )
-from codenav_mcp.rename_sites import Declaration, plan_v2_sites, select_sites
+from codenav_mcp.rename_sites import Declaration, plan_v2_sites
 from codenav_mcp.writes import require_workspace_file
 
 
@@ -429,7 +429,6 @@ class RenamePlan(EditPlan):
 	# v2 `rename`: uncertain sites the agent can opt into (`sites=`), the ones this plan already includes,
 	# and how many certain extras (patch-target strings, keyword arguments) it writes.
 	optional_sites: list[OptionalSite] = field(default_factory=list)
-	chosen_sites: list[OptionalSite] = field(default_factory=list)
 	certain_extras: int = 0
 
 
@@ -455,7 +454,6 @@ async def plan_rename(
 	roots: Sequence[Path] = (),
 	include_unlinked_attrs: bool = False,
 	v2_sites: bool = False,
-	sites: Sequence[str] | None = None,
 ) -> RenamePlan:
 	"""Plan a rename. With `v2_sites` (the `rename` tool) the sites ty cannot link are split into certain ones,
 	written with the plan, and optional ones (ids u1..uN, added by `sites=`) instead of notes."""
@@ -584,7 +582,6 @@ async def plan_rename(
 	)
 	attr_hint = None
 	v2_plan = None
-	chosen: list[OptionalSite] = []
 	if v2_sites:
 		declarations = [_declaration_for(target.path, target.line, old_name)] if target.parameter is None else []
 		if related is not None and target.parameter is None:
@@ -603,16 +600,9 @@ async def plan_rename(
 			split_attrs=_split_unlinked_attrs,
 			is_unlinked_attr=_is_unlinked_attr,
 		)
-		chosen = select_sites(v2_plan.optional, sites)
 		for path, extra in v2_plan.certain.items():
 			guard.check_path(path)
 			merge_bom_free(path, extra)
-		by_site: dict[Path, list[TextEdit]] = {}
-		for site in chosen:
-			by_site.setdefault((workspace / site.path).resolve(), []).append(site.edit)
-		for path, more_sites in by_site.items():
-			guard.check_path(path)
-			merge_bom_free(path, more_sites)
 		notes += v2_plan.notes
 	elif include_unlinked_attrs and not is_member:
 		notes.append(
@@ -674,7 +664,6 @@ async def plan_rename(
 	plan = RenamePlan(title, changes, notes, left_out=left)
 	if v2_plan is not None:
 		plan.optional_sites = v2_plan.optional
-		plan.chosen_sites = chosen
 		plan.certain_extras = v2_plan.certain_count
 	return plan
 

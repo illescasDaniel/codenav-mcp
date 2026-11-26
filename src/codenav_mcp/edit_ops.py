@@ -12,11 +12,12 @@ from mcp_nav_shared.errors import ToolInputError
 from mcp_nav_shared.transaction import AppliedEdit, StaleFileError
 
 from codenav_mcp.edit_state import StoredPlan, changed_files
-from codenav_mcp.plan_merge import add_sites
+from codenav_mcp.plan_merge import add_sites, site_followup
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.reply import call
+from codenav_mcp.simulate import simulate_plan
 from codenav_mcp.tool_base import Session
-from codenav_mcp.writes import WriteState, errors_after_write
+from codenav_mcp.writes import WriteState, errors_after_write, type_check_report
 
 
 MAX_REPEATED_CALL = 1500
@@ -71,19 +72,46 @@ async def apply_stored(
 ) -> Applied:
 	"""Write the stored preview `plan_id` (plus the optional sites chosen by id), refusing if a file changed."""
 	state = session.state
-	stored = state.plans.get_stored(plan_id)
+	parent_id = None
+	followup = state.journal.followup(plan_id) if sites else None
+	if followup is not None:
+		parent_id = plan_id
+		stored = StoredPlan(plan_id, 0, None, followup)
+	elif sites and state.journal.entry(plan_id) is not None:
+		raise ToolInputError(
+			f"applied edit {plan_id} has no available optional sites. {call('edits', action='list')} shows recent edits."
+		)
+	else:
+		stored = state.plans.get_stored(plan_id)
 	stale = changed_files(stored.plan.plan, state.root)
 	if stale:
+		if parent_id is not None:
+			raise StaleFileError(f"changed since edit {parent_id} was applied: {_names(stale)}. Nothing was written.")
 		raise StaleFileError(
 			f"changed since the preview was made: {_names(stale)}. Nothing was written. {rerun_hint(stored.rerun)}"
 		)
 	chosen = pick_sites(stored, sites)
 	plan = add_sites(stored.plan.plan, chosen, session.workspace)
-	entry = state.journal.apply(plan, allow_large=allow_large, entry_id=plan_id)
-	state.plans.discard(plan_id)
-	after = await errors_after_write(session.client, session.workspace, plan)
+	if parent_id is not None:
+		if plan.is_empty:
+			raise ToolInputError("the requested optional sites make no changes")
+		state.guard.check_plan(plan, allow_large=allow_large)
+		delta = await simulate_plan(session.client, session.workspace, session.roots, plan)
+		if delta.unchecked or delta.new_errors:
+			raise ToolInputError(f"Optional sites were not applied. {type_check_report(delta)}")
 	left = [site for site in stored.plan.optional_sites if site not in chosen]
-	return Applied(entry, plan, after, chosen, left)
+	remaining = site_followup(plan, left, session.workspace)
+	entry = state.journal.apply(
+		plan,
+		allow_large=allow_large,
+		entry_id=plan_id if parent_id is None else None,
+		followup=remaining,
+		parent_id=parent_id,
+	)
+	if parent_id is None:
+		state.plans.discard(plan_id)
+	after = await errors_after_write(session.client, session.workspace, plan)
+	return Applied(entry, plan, after, chosen, remaining.optional_sites if remaining else [])
 
 
 def undo_stored(state: WriteState, edit_id: str | None) -> AppliedEdit:

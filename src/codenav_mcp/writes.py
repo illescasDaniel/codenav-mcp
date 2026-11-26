@@ -22,6 +22,7 @@ from mcp_nav_shared.transaction import WriteGuard, read_only_from_env, refuse_ho
 
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.edit_state import PersistentJournal, PersistentPlanStore, workspace_state_dir
+from codenav_mcp.plan_merge import site_followup
 from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 from codenav_mcp.reply import call
 from codenav_mcp.simulate import simulate_plan
@@ -117,6 +118,7 @@ class Outcome:
 	applied_id: str | None = None
 	preview_id: str | None = None
 	delta: DiagnosticsDelta | None = None
+	followup: CodenavPlan | None = None
 
 
 NOT_CHECKED = "tests and docs not checked"
@@ -240,8 +242,8 @@ async def finish_plan(
 ) -> Outcome:
 	"""Simulate `plan`, then preview it or apply it, and describe what happened.
 
-	`optional_sites` are the uncertain edits a preview keeps for the agent to opt in to (`edits(action="apply",
-	id=..., sites=[...])`); they are stored with the plan, never written by this call. `edits_style` words the
+	`optional_sites` are the remaining uncertain edits kept for the agent to opt in to with
+	`edits(action="apply", id=..., sites=[...])`. `edits_style` words the
 	replies with `edits(...)` calls instead of `apply_edit` / `undo_edit`."""
 	capture = plan_capture.get()
 	if capture is not None:
@@ -259,7 +261,7 @@ async def finish_plan(
 		return Outcome(f"{title}\nNo changes: the edit leaves every file as it is.")
 	if any(change.is_noop for change in plan.changes):
 		changes = [change for change in plan.changes if not change.is_noop]
-		plan = EditPlan(plan.description, changes, plan.notes, {c.path: plan.base_hashes[c.path] for c in changes})
+		plan = EditPlan(plan.description, changes, plan.notes, dict(plan.base_hashes))
 	created = [change for change in plan.changes if change.kind == "create"]
 	if created and not apply:
 		return _refuse_new_file_preview(
@@ -292,8 +294,10 @@ async def finish_plan(
 	blocked = f"NOT applied: {refusal}" if apply and refusal else ""
 	applied_id = None
 	preview_id = None
+	followup = None
 	if apply and not blocked:
-		entry = state.journal.apply(plan, allow_large=allow_large)
+		followup = site_followup(plan, optional_sites, workspace)
+		entry = state.journal.apply(plan, allow_large=allow_large, followup=followup)
 		applied_id = entry.id
 		status = await errors_after_write(client, workspace, plan)
 		if status.startswith("Not checked"):
@@ -323,7 +327,13 @@ async def finish_plan(
 	if applied_id is None and diff_lines > 0:
 		lines += ["", plan.diff(workspace, max_lines=diff_lines).rstrip()]
 	text = "\n".join(lines)
-	return Outcome(FailedText(text) if blocked else text, applied_id=applied_id, preview_id=preview_id, delta=delta)
+	return Outcome(
+		FailedText(text) if blocked else text,
+		applied_id=applied_id,
+		preview_id=preview_id,
+		delta=delta,
+		followup=followup,
+	)
 
 
 def read_text(path: Path) -> str:

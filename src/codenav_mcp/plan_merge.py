@@ -2,13 +2,14 @@
 
 An `EditPlan` holds whole-file texts, not the edits that produced them, so both operations work on lines: a
 file's change is turned into hunks (`difflib`), hunks from different plans must not overlap, and a site's
-position is carried across the plan's own edits through the lines the plan left unchanged.
+position is carried across the plan's own edits through unchanged lines or spans.
 """
 
 from __future__ import annotations
 
 import difflib
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from mcp_nav_shared.edits import (
@@ -17,13 +18,15 @@ from mcp_nav_shared.edits import (
 	TextEdit,
 	apply_text_edits,
 	hash_bytes,
+	position_to_offset,
 	read_source,
 	relative_name,
 	split_lines,
+	utf16_length,
 )
 from mcp_nav_shared.errors import ToolInputError
 
-from codenav_mcp.plan_sites import OptionalSite
+from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 from codenav_mcp.pysource import check_syntax
 
 
@@ -100,56 +103,126 @@ def _merge_file(path: Path, items: list[tuple[str, FileChange]]) -> FileChange:
 # Optional sites
 
 
-def _carry(
-	site: OptionalSite, old_lines: list[str], new_lines: list[str], blocks: list[tuple[int, int, int]]
-) -> TextEdit:
-	"""The site's edit in the coordinates of the plan's new text.
+def _line_matches(lines: list[str], index: int, snippet: str) -> bool:
+	if not 0 <= index < len(lines):
+		return False
+	row = lines[index].strip()
+	return row == snippet or (len(snippet) == 140 and row.startswith(snippet))
 
-	Sites are positioned against the file as it was when the plan was made (the plan's old text). If the line there
-	is the one the site describes and the plan left it alone, the edit moves with the lines before it. A site
-	that was positioned against the new text already (its line matches there) is taken as it is."""
+
+def _carry(
+	site: OptionalSite,
+	old_lines: list[str],
+	new_lines: list[str],
+	opcodes: Sequence[tuple[str, int, int, int, int]],
+) -> TextEdit:
+	"""Move a site's LSP range through the certain edits using unchanged lines or unchanged spans."""
 	edit = site.edit
 	first, last = edit.start_line, edit.end_line
-	if last < len(old_lines) and first < len(old_lines) and old_lines[first].strip() == site.text:
-		for i1, i2, j1 in blocks:  # unchanged runs of lines: old [i1, i2) is new [j1, j1 + i2 - i1)
-			if i1 <= first and last < i2:
-				shift = j1 - i1
-				return TextEdit(first + shift, edit.start_character, last + shift, edit.end_character, edit.new_text)
-		raise ToolInputError(f"{site.id} ({site.path}:{site.line}) is on a line the plan itself changes; skip it")
-	if last < len(new_lines) and first < len(new_lines) and new_lines[first].strip() == site.text:
+	if last < len(old_lines) and _line_matches(old_lines, first, site.text):
+		for tag, i1, i2, j1, j2 in opcodes:
+			if not (i1 <= first and last < i2):
+				continue
+			shift = j1 - i1
+			if tag == "equal":
+				return replace(edit, start_line=first + shift, end_line=last + shift)
+			if tag == "replace" and first == last and i2 - i1 == j2 - j1:
+				carried = _carry_on_changed_line(edit, old_lines[first], new_lines[first + shift], first + shift)
+				if carried is not None:
+					return carried
+			break
+		raise ToolInputError(f"{site.id} ({site.path}:{site.line}) overlaps a change in the plan; skip it")
+	if last < len(new_lines) and _line_matches(new_lines, first, site.text):
 		return edit
 	raise ToolInputError(f"{site.id} ({site.path}:{site.line}) no longer matches the file (`{site.text}`)")
 
 
-def _unchanged_blocks(old_lines: list[str], new_lines: list[str]) -> list[tuple[int, int, int]]:
-	matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
-	return [(i1, i2, j1) for tag, i1, i2, j1, _j2 in matcher.get_opcodes() if tag == "equal"]
+def _carry_on_changed_line(edit: TextEdit, old: str, new: str, new_line: int) -> TextEdit | None:
+	start = position_to_offset(old, 0, edit.start_character)
+	end = position_to_offset(old, 0, edit.end_character)
+	for old_start, new_start, size in difflib.SequenceMatcher(None, old, new, autojunk=False).get_matching_blocks():
+		if old_start <= start < end <= old_start + size:
+			shift = new_start - old_start
+			return TextEdit(
+				new_line, utf16_length(new[: start + shift]), new_line, utf16_length(new[: end + shift]), edit.new_text
+			)
+	return None
+
+
+def _site_change(
+	site: OptionalSite, path: Path, changes: dict[Path, FileChange], hashes: dict[Path, str | None]
+) -> FileChange:
+	change = changes.get(path)
+	if change is None:
+		if not path.is_file():
+			raise ToolInputError(f"{site.id}: {site.path} no longer exists")
+		text, bom = read_source(path)
+		change = FileChange(path, text, text, bom, bom)
+		hashes.setdefault(path, hash_bytes(change.old_bytes() or b""))
+	return change
+
+
+def _sites_by_path(sites: Sequence[OptionalSite], workspace: Path) -> dict[Path, list[OptionalSite]]:
+	by_path: dict[Path, list[OptionalSite]] = {}
+	for site in sites:
+		path = (workspace / site.path).resolve()
+		if not path.is_relative_to(workspace.resolve()):
+			raise ToolInputError(f"{site.id}: {site.path} is outside the workspace")
+		by_path.setdefault(path, []).append(site)
+	return by_path
+
+
+def _site_lines(change: FileChange, sites: list[OptionalSite]) -> tuple[list[str], list[str]]:
+	if change.old_text is None or change.new_text is None:
+		raise ToolInputError(f"{sites[0].id}: {sites[0].path} is created or deleted by the plan")
+	return split_lines(change.old_text, keepends=True), split_lines(change.new_text, keepends=True)
+
+
+def track_optional_files(plan: EditPlan, sites: Sequence[OptionalSite], workspace: Path) -> EditPlan:
+	"""Record the baseline even for files the certain edits leave alone."""
+	hashes = dict(plan.base_hashes)
+	for path in _sites_by_path(sites, workspace):
+		if path not in hashes:
+			hashes[path] = hash_bytes(path.read_bytes())
+	return replace(plan, base_hashes=hashes)
+
+
+def site_followup(plan: EditPlan, sites: Sequence[OptionalSite], workspace: Path) -> CodenavPlan | None:
+	"""A plan with only remaining site ranges, anchored to the bytes expected after this write."""
+	if not sites:
+		return None
+	changes = {change.path: change for change in plan.changes}
+	hashes = dict(plan.base_hashes)
+	rebased = {}
+	for path, group in _sites_by_path(sites, workspace).items():
+		change = _site_change(group[0], path, changes, hashes)
+		old_lines, new_lines = _site_lines(change, group)
+		opcodes = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False).get_opcodes()
+		for site in group:
+			edit = _carry(site, old_lines, new_lines, opcodes)
+			rebased[site.id] = replace(
+				site, line=edit.start_line + 1, text=new_lines[edit.start_line].strip()[:140], edit=edit
+			)
+	for change in plan.changes:
+		data = change.new_bytes()
+		hashes[change.path] = hash_bytes(data) if data is not None else None
+	return CodenavPlan(
+		EditPlan(f"Follow-up to {plan.description}", [], base_hashes=hashes), [rebased[site.id] for site in sites]
+	)
 
 
 def add_sites(plan: EditPlan, chosen: Sequence[OptionalSite], workspace: Path) -> EditPlan:
 	"""The plan with the chosen optional sites written too; a site that cannot be placed raises `ToolInputError`."""
 	if not chosen:
 		return plan
-	by_path: dict[Path, list[OptionalSite]] = {}
-	for site in chosen:
-		by_path.setdefault((workspace / site.path).resolve(), []).append(site)
 	changes = {change.path: change for change in plan.changes}
 	hashes = dict(plan.base_hashes)
-	for path, sites in by_path.items():
-		change = changes.get(path)
-		if change is None:
-			if not path.is_file():
-				raise ToolInputError(f"{sites[0].id}: {sites[0].path} no longer exists")
-			text, bom = read_source(path)
-			change = FileChange(path, text, text, bom, bom)
-			hashes[path] = hash_bytes(change.old_bytes() or b"")
-		if change.old_text is None or change.new_text is None:
-			raise ToolInputError(f"{sites[0].id}: {sites[0].path} is created or deleted by the plan")
-		old_lines = split_lines(change.old_text, keepends=True)
-		new_lines = split_lines(change.new_text, keepends=True)
-		blocks = _unchanged_blocks(old_lines, new_lines)
-		edits = [_carry(site, old_lines, new_lines, blocks) for site in sites]
-		new_text = apply_text_edits(change.new_text, edits, bom=bool(change.new_bom), bom_in_positions=False)
+	for path, sites in _sites_by_path(chosen, workspace).items():
+		change = _site_change(sites[0], path, changes, hashes)
+		old_lines, new_lines = _site_lines(change, sites)
+		opcodes = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False).get_opcodes()
+		edits = list(dict.fromkeys(_carry(site, old_lines, new_lines, opcodes) for site in sites))
+		new_text = apply_text_edits("".join(new_lines), edits, bom=bool(change.new_bom), bom_in_positions=False)
 		if path.suffix.lower() in (".py", ".pyi"):
 			check_syntax(new_text, relative_name(path, workspace))
 		changes[path] = FileChange(
@@ -163,7 +236,7 @@ def add_sites(plan: EditPlan, chosen: Sequence[OptionalSite], workspace: Path) -
 		)
 	return EditPlan(
 		f"{plan.description} (+{len(chosen)} optional site{'s' if len(chosen) != 1 else ''})",
-		list(changes.values()),
+		[change for change in changes.values() if not change.is_noop],
 		plan.notes,
 		hashes,
 	)

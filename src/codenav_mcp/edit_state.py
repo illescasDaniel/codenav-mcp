@@ -247,7 +247,7 @@ class PersistentPlanStore(PlanStore):
 
 	# -- PlanStore API
 
-	def add(self, plan: EditPlan | CodenavPlan, *, rerun: str | None = None) -> str:  # ty: ignore[invalid-method-override]
+	def add(self, plan: EditPlan | CodenavPlan, *, rerun: str | None = None) -> str:
 		codenav = plan if isinstance(plan, CodenavPlan) else CodenavPlan(plan)
 		with _locked(self._directory):
 			self._load()
@@ -315,6 +315,8 @@ class PersistentJournal(EditJournal):
 		self._directory = directory
 		self._file = directory / "journal.json"
 		self.applied_at: dict[str, float] = {}
+		self._followups: dict[str, CodenavPlan] = {}
+		self._parents: dict[str, str] = {}
 		self.save_error: str | None = None
 
 	@property
@@ -326,12 +328,21 @@ class PersistentJournal(EditJournal):
 		self._entries.clear()
 		self._undone.clear()
 		self.applied_at = {}
+		self._followups = {}
+		self._parents = {}
 		for raw in data.get("entries", []):
 			try:
 				plan = plan_from_json(raw["plan"], self.root)
 				hashes = {_path_in(path, self.root): digest for path, digest in raw["applied_hashes"].items()}
 				self._entries[raw["id"]] = AppliedEdit(raw["id"], plan, hashes)
 				self.applied_at[raw["id"]] = raw["created"]
+				if followup := raw.get("followup"):
+					self._followups[raw["id"]] = CodenavPlan(
+						plan_from_json(followup["plan"], self.root),
+						[_site_in(site) for site in followup["optional_sites"]],
+					)
+				if parent := raw.get("parent"):
+					self._parents[raw["id"]] = parent
 			except (KeyError, TypeError, ValueError):
 				continue
 		for edit_id in data.get("undone", []):
@@ -347,6 +358,8 @@ class PersistentJournal(EditJournal):
 					"applied_hashes": {
 						_path_out(path, self.root): digest for path, digest in entry.applied_hashes.items()
 					},
+					"followup": self._followup_json(entry.id),
+					"parent": self._parents.get(entry.id),
 				}
 				for entry in self._entries.values()
 			],
@@ -357,6 +370,26 @@ class PersistentJournal(EditJournal):
 			self.save_error = None
 		except OSError as exc:
 			self.save_error = exc.strerror or "could not write the state directory"
+
+	def _followup_json(self, edit_id: str) -> dict[str, Any] | None:
+		followup = self._followups.get(edit_id)
+		if followup is None:
+			return None
+		return {
+			"plan": plan_to_json(followup.plan, self.root),
+			"optional_sites": [_site_out(site) for site in followup.optional_sites],
+		}
+
+	def followup(self, edit_id: str) -> CodenavPlan | None:
+		self._load()
+		if self._active_child(edit_id) is not None:
+			return None
+		return self._followups.get(edit_id)
+
+	def _active_child(self, parent: str) -> str | None:
+		return next(
+			(child for child, ancestor in self._parents.items() if ancestor == parent and child in self._entries), None
+		)
 
 	# -- EditJournal API
 
@@ -377,11 +410,28 @@ class PersistentJournal(EditJournal):
 		self._load()
 		return edit_id in self._undone
 
-	def apply(self, plan: EditPlan, *, allow_large: bool = False, entry_id: str | None = None) -> AppliedEdit:
+	def apply(
+		self,
+		plan: EditPlan,
+		*,
+		allow_large: bool = False,
+		entry_id: str | None = None,
+		followup: CodenavPlan | None = None,
+		parent_id: str | None = None,
+	) -> AppliedEdit:
 		with _locked(self._directory):
 			self._load()
+			if parent_id is not None:
+				if parent_id not in self._entries:
+					raise ToolInputError(f"edit {parent_id} is no longer in the history")
+				if child := self._active_child(parent_id):
+					raise ToolInputError(f"edit {parent_id} already has follow-up {child}")
 			entry = super().apply(plan, allow_large=allow_large, entry_id=entry_id)
 			self.applied_at[entry.id] = time.time()
+			if followup is not None:
+				self._followups[entry.id] = followup
+			if parent_id is not None:
+				self._parents[entry.id] = parent_id
 			self._save()
 		return entry
 
@@ -401,6 +451,9 @@ class PersistentJournal(EditJournal):
 					f"edit {shown} is not in the undo history (never applied, already undone, or older than the "
 					f"last {self._max_entries}); {call('edits', action='list')} shows the history"
 				)
+			target = edit_id or next(reversed(self._entries))
+			if child := self._active_child(target):
+				raise ToolInputError(f"edit {target} has follow-up {child}; undo {child} first")
 			entry = super().undo(edit_id)
 			self._save()
 		return entry
