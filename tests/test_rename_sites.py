@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from mcp_nav_shared.edits import EditPlan, TextEdit
 
-from codenav_mcp.plan_sites import CodenavPlan, OptionalSite, load_optional_sites, store_plan
+from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
 from codenav_mcp.pysource import definitions_in
 from codenav_mcp.rename import _is_unlinked_attr, _split_unlinked_attrs
 from codenav_mcp.rename_sites import (
@@ -161,12 +161,11 @@ def test_given_a_site_then_the_reply_line_is_id_path_line_kind_snippet():
 	assert format_site(site) == "u3  tests/x.py:12  attr  mock.execute(...)"
 
 
-def test_given_a_stored_plan_then_its_optional_sites_come_back_by_id(tmp_path):
+def test_given_a_plan_then_it_finds_optional_sites_by_id():
 	sites = _sites("u1", "u2")
-	store_plan(str(tmp_path), "ab12", CodenavPlan(EditPlan("x", []), sites))
-	assert load_optional_sites(str(tmp_path), "ab12") == sites
-	assert load_optional_sites(str(tmp_path), "other") == []
-	assert CodenavPlan(EditPlan("x", []), sites).site("u2") is sites[1]
+	plan = CodenavPlan(EditPlan("x", []), sites)
+	assert plan.site("u2") is sites[1]
+	assert plan.site("u3") is None
 
 
 class _FakeClient:
