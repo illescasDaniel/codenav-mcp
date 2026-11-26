@@ -1783,7 +1783,17 @@ def _checked_call_tool(original: Any) -> Any:
 			problem = batch_tools.argument_problem(name, fn, arguments)
 			raise ToolError(problem or f"{name}: one or more arguments have the wrong type.") from exc
 
-	return call_tool
+	async def call_tool_recording_the_call(name: str, arguments: dict[str, Any], context: Any = None) -> Any:
+		# A preview stored while serving this call remembers it, so a stale one can say how to redo it.
+		from codenav_mcp.edit_state import call_text, current_call
+
+		token = current_call.set(call_text(name, dict(arguments or {})))
+		try:
+			return await call_tool(name, arguments, context)
+		finally:
+			current_call.reset(token)
+
+	return call_tool_recording_the_call
 
 
 async def _require_initialize(ctx: Any, call_next: Any) -> Any:

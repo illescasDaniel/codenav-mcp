@@ -8,17 +8,22 @@ tool functions in `write_tools` do.
 
 from __future__ import annotations
 
+import contextvars
 import dataclasses
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from mcp_nav_shared.diagnostics_delta import DiagnosticsDelta, entries_from_lsp, format_delta
 from mcp_nav_shared.edits import EditPlan, FileChange, read_source, relative_name
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError
 from mcp_nav_shared.lsp_client import LspClient
-from mcp_nav_shared.transaction import EditJournal, PlanStore, WriteGuard, read_only_from_env, refuse_home_path
+from mcp_nav_shared.transaction import WriteGuard, read_only_from_env, refuse_home_path
 
 from codenav_mcp.deps import ENV_PREFIX
+from codenav_mcp.edit_state import PersistentJournal, PersistentPlanStore, workspace_state_dir
+from codenav_mcp.plan_sites import CodenavPlan, OptionalSite
+from codenav_mcp.reply import call
 from codenav_mcp.simulate import simulate_plan
 
 
@@ -32,15 +37,15 @@ DEFAULT_DIFF_LINES = 150
 class WriteState:
 	root: Path
 	guard: WriteGuard
-	journal: EditJournal
-	plans: PlanStore = field(default_factory=PlanStore)
+	journal: PersistentJournal
+	plans: PersistentPlanStore
 
 
 _state: WriteState | None = None
 
 
 def write_state(root: Path) -> WriteState:
-	"""The journal and pending previews for `root`; a different workspace starts fresh.
+	"""The journal and pending previews for `root` (kept on disk, see `edit_state`); another workspace has its own.
 
 	The environment-derived guard settings (read-only mode, read-only files) follow the environment on every
 	call; other guard settings already on the state are kept, and the journal keeps its history."""
@@ -55,7 +60,13 @@ def write_state(root: Path) -> WriteState:
 			allow_readonly=allow_readonly,
 			exclude_prefix=ENV_PREFIX,
 		)
-		_state = WriteState(root=root, guard=guard, journal=EditJournal(guard))
+		directory = workspace_state_dir(root)
+		_state = WriteState(
+			root=root,
+			guard=guard,
+			journal=PersistentJournal(guard, directory),
+			plans=PersistentPlanStore(root, directory),
+		)
 	elif _state.guard.read_only != read_only or _state.guard.allow_readonly != allow_readonly:
 		_state.guard = dataclasses.replace(_state.guard, read_only=read_only, allow_readonly=allow_readonly)
 		_state.journal.guard = _state.guard
@@ -73,6 +84,29 @@ def import_roots(workspace: Path, source_root: Path, extra_roots: list[Path]) ->
 	if (workspace / "src").is_dir():
 		roots.append(workspace / "src")
 	return list(dict.fromkeys(r.resolve() for r in roots))
+
+
+@dataclass
+class CapturedPlan:
+	plan: EditPlan
+	apply: bool  # what the tool asked finish_plan to do (False: it held the plan back as a preview)
+	title: str
+
+
+# While set, `finish_plan` only records the plan it is given (nothing is simulated, stored or written). The
+# multi-edit mode of `edit_symbol` runs each item through its normal planning code this way and merges the plans.
+plan_capture: contextvars.ContextVar[list[CapturedPlan] | None] = contextvars.ContextVar("plan_capture", default=None)
+
+
+def apply_call(preview_id: str, *, large: bool = False, edits_style: bool = False) -> str:
+	"""The exact call that writes a stored preview (`apply_edit` for the 1.x tools, `edits` for the v2 ones)."""
+	if edits_style:
+		return call("edits", action="apply", id=preview_id, allow_large=True if large else None)
+	return f'apply_edit(id="{preview_id}", allow_large=true)' if large else f'apply_edit(id="{preview_id}")'
+
+
+def undo_call(edit_id: str, *, edits_style: bool = False) -> str:
+	return call("edits", action="undo", id=edit_id) if edits_style else f'undo_edit(id="{edit_id}")'
 
 
 @dataclass
@@ -161,6 +195,8 @@ def _refuse_new_file_preview(
 	created: list[FileChange],
 	title: str,
 	diff_lines: int,
+	optional_sites: Sequence[OptionalSite] = (),
+	edits_style: bool = False,
 ) -> Outcome:
 	"""Refuse a preview that would create a file, and keep the plan for the existing approval flow.
 
@@ -168,13 +204,14 @@ def _refuse_new_file_preview(
 	(RC-091): a preview never creates files. The user approves the write through `apply_edit` (or `apply=true`).
 	"""
 	names = ", ".join(repr(relative_name(change.path, workspace)) for change in created)
-	preview_id = state.plans.add(plan)
+	preview_id = state.plans.add(CodenavPlan(plan, list(optional_sites)))
 	lines = [
 		title,
 		"",
 		f"Preview refused: the plan creates {_count_label(len(created), 'new file')} ({names}). Checking a new file "
 		"needs a temporary file in the workspace that a crash could leave behind; previews never create files.",
-		f'To approve the write: apply_edit(id="{preview_id}") creates it (undo_edit(id="{preview_id}") reverts it), '
+		f"To approve the write: {apply_call(preview_id, edits_style=edits_style)} creates it "
+		f"({undo_call(preview_id, edits_style=edits_style)} reverts it), "
 		"or rerun the tool with apply=true to run the type check first.",
 		"",
 		"Files:",
@@ -198,8 +235,18 @@ async def finish_plan(
 	include_dependents: bool = True,
 	diff_lines: int = DEFAULT_DIFF_LINES,
 	hold_back: str = "",
+	optional_sites: Sequence[OptionalSite] = (),
+	edits_style: bool = False,
 ) -> Outcome:
-	"""Simulate `plan`, then preview it or apply it, and describe what happened."""
+	"""Simulate `plan`, then preview it or apply it, and describe what happened.
+
+	`optional_sites` are the uncertain edits a preview keeps for the agent to opt in to (`edits(action="apply",
+	id=..., sites=[...])`); they are stored with the plan, never written by this call. `edits_style` words the
+	replies with `edits(...)` calls instead of `apply_edit` / `undo_edit`."""
+	capture = plan_capture.get()
+	if capture is not None:
+		capture.append(CapturedPlan(plan, apply, title))
+		return Outcome("")
 	if max_new_errors is not None and max_new_errors < 0:
 		raise ToolInputError("max_new_errors must be 0 or more (or null for no limit)")
 	state = write_state(workspace)
@@ -215,7 +262,9 @@ async def finish_plan(
 		plan = EditPlan(plan.description, changes, plan.notes, {c.path: plan.base_hashes[c.path] for c in changes})
 	created = [change for change in plan.changes if change.kind == "create"]
 	if created and not apply:
-		return _refuse_new_file_preview(state, workspace, plan, created, title, diff_lines)
+		return _refuse_new_file_preview(
+			state, workspace, plan, created, title, diff_lines, optional_sites=optional_sites, edits_style=edits_style
+		)
 	delta = await simulate_plan(client, workspace, roots, plan, include_dependents=include_dependents)
 	lines = [title, ""]
 	# Only real diagnostics gate the write. Importers past the check limit are a note (simulate.py), not a gate.
@@ -227,9 +276,10 @@ async def finish_plan(
 			"diagnostics could not be checked for all files; review the unchecked files or set max_new_errors=null."
 		)
 	elif max_new_errors is not None and len(delta.new_errors) > max_new_errors:
+		anyway = call("edits", action="apply") if edits_style else "apply_edit"
 		refusal = (
 			f"{_count_label(len(delta.new_errors), 'new error')} (allowed: {max_new_errors}). "
-			"Review the diagnostics below; adjust and rerun, or write the plan anyway with apply_edit."
+			f"Review the diagnostics below; adjust and rerun, or write the plan anyway with {anyway}."
 		)
 	# The file-count limit is checked when the write starts, after the plan was simulated; check it here too so
 	# that a refused plan is kept under an id (apply_edit(id, allow_large=true) writes it).
@@ -250,11 +300,11 @@ async def finish_plan(
 			unchecked_count = status.splitlines()[0].rsplit(" (", 1)[-1].split()[0]
 			lines.append(f"Applied as edit {entry.id}. {unchecked_count} file(s) could not be checked for errors.")
 		else:
-			lines.append(f'Applied as edit {entry.id} (undo_edit(id="{entry.id}") reverts it).')
+			lines.append(f"Applied as edit {entry.id} ({undo_call(entry.id, edits_style=edits_style)} reverts it).")
 		lines.append(status)
 	else:
-		preview_id = state.plans.add(plan)
-		keep = f'apply_edit(id="{preview_id}", allow_large=true)' if too_large else f'apply_edit(id="{preview_id}")'
+		preview_id = state.plans.add(CodenavPlan(plan, list(optional_sites)))
+		keep = apply_call(preview_id, large=too_large, edits_style=edits_style)
 		if blocked:
 			lines.append(blocked)
 			lines.append(f"The plan is kept: {keep} writes it anyway.")
@@ -263,7 +313,7 @@ async def finish_plan(
 			lines.append(f"The plan is kept: {keep} writes it anyway.")
 		else:
 			lines.append("Preview only, nothing written.")
-			lines.append(f'Write it with apply_edit(id="{preview_id}") or rerun with apply=true.')
+			lines.append(f"Write it with {apply_call(preview_id, edits_style=edits_style)} or rerun with apply=true.")
 	if not include_dependents:
 		lines.append("Dependent files were not checked.")
 	lines += ["", "Files:", plan.summary(workspace)]

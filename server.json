@@ -73,6 +73,12 @@
           "description": "Maximum number of Python files (.py/.pyi) a workspace may hold (default 250000); a larger tree is refused before the language server starts",
           "isRequired": false,
           "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_STATE_DIR",
+          "description": "Directory where previews and the applied-edit history are kept across restarts, one subdirectory per workspace (default $XDG_STATE_HOME/codenav-mcp or ~/.local/state/codenav-mcp)",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     }
