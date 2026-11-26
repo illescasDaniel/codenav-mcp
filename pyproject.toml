@@ -1,6 +1,6 @@
 [project]
 name = "codenav-mcp"
-version = "1.0.3"
+version = "1.0.2"
 description = "Python code navigation and type-checked refactoring through MCP, powered by ty."
 readme = "README.md"
 requires-python = ">=3.11"
