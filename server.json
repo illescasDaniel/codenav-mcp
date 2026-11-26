@@ -1,0 +1,80 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.illescasDaniel/codenav-mcp",
+  "title": "CodeNav",
+  "description": "MCP server exposing ty's language-server features (hover, definition, references, workspace symbol search, diagnostics) as MCP tools, plus type-checked refactoring tools (rename, change signature, move, safe delete)",
+  "version": "1.0.1",
+  "websiteUrl": "https://pypi.org/project/codenav-mcp/",
+  "repository": {
+    "url": "https://github.com/illescasDaniel/codenav-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "codenav-mcp",
+      "version": "1.0.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CODENAV_MCP_WORKSPACE",
+          "description": "Project root the server serves (never overridden); default follows the client's MCP roots, CLAUDE_PROJECT_DIR or the working directory",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_SOURCE_ROOT",
+          "description": "Directory scanned for implementations candidates and used to derive dotted import paths (e.g. src); default is the whole workspace",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_READ_ONLY",
+          "description": "Set to 1/true/yes/on to make write tools refuse to write (previews and checks still work)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_EXTRA_SOURCE_ROOTS",
+          "description": "Comma-separated directories (e.g. tests) that implementations also scans; matches are listed under a separate heading",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_MAX_OUTPUT_CHARS",
+          "description": "Maximum characters of one tool result (default 30000); longer results end with an omission note",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_ALLOW_READONLY_FILES",
+          "description": "Set to 1/true/yes/on to let write tools overwrite read-only (0444) Python files and keep their mode",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_EXCLUDE_DIRS",
+          "description": "Comma-separated directory names added to the built-in list of directories that are never scanned or written",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_INCLUDE_DIRS",
+          "description": "Comma-separated directory names removed from that list, for example build to treat a first-party build/ package as source",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "CODENAV_MCP_MAX_FILES",
+          "description": "Maximum number of Python files (.py/.pyi) a workspace may hold (default 250000); a larger tree is refused before the language server starts",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

@@ -54,7 +54,7 @@ From a checkout, run `uv sync --group dev` and `uv run pytest`. See [development
 - [Development](docs/development.md): local setup and tests.
 - [Documentation index](docs/INDEX.md).
 
-Related: [webnav-mcp](https://pypi.org/project/webnav-mcp/) provides navigation for JS/TS/HTML/CSS. [Design notes](https://github.com/illescasDaniel/SpaceMaker/blob/main/docs/agent-tooling.md) cover Protocol conformance, positioning and output formats.
+Related: [webnav-ts-mcp](https://www.npmjs.com/package/webnav-ts-mcp) provides navigation for JS/TS/HTML/CSS. [Design notes](https://github.com/illescasDaniel/SpaceMaker/blob/main/docs/agent-tooling.md) cover Protocol conformance, positioning and output formats.
 
 ## License
 

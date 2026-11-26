@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Improved
+
+- Refusals for an unknown argument suggest the closest real name (`unknown argument 'file' for outline; did you mean 'file_path'?; allowed: file_path, depth`), so an agent gets there on the first retry. The surface stays strict: no aliases were added.
+- A `server.json` manifest (MCP Registry format) ships in the repository root, kept in sync with the package metadata and documented settings by a test.
+
 ## 1.0.1
 
 ### Fixed
