@@ -63,7 +63,7 @@ default-groups = ["dev"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "."]
 
 [tool.ruff.format]
 indent-style = "tab"
@@ -79,6 +79,8 @@ lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S603", "ANN"]
+"hardening/**" = ["S101", "S108", "S311", "S314", "S602", "S603", "S607"]
+"tests/test_fuzz_support.py" = ["S311"]
 
 [tool.taskipy.tasks]
 sync-uploader = { cmd = "uv sync --group dev --group uploader", help = "dev + uploader (twine) groups, needed by upload" }
@@ -90,10 +92,14 @@ test-package = { cmd = "bash scripts/test_package.sh", help = "install the publi
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--tb=short -rs"
+addopts = "--tb=short -rs -m \"not fuzz and not differential and not crosshair and not mutation\""
 pythonpath = ["src"]
 timeout = 60
 timeout_method = "thread"
 markers = [
 	"integration: live language-server smoke test",
+	"fuzz: refactor fuzzer on a corpus of real projects (hardening/fuzz_refactors.py); slow, run with -m fuzz",
+	"differential: differential checks against an independent implementation; slow, run with -m differential",
+	"crosshair: CrossHair symbolic-execution contract checks; slow, run with -m crosshair",
+	"mutation: mutation testing (mutmut); slow, run with -m mutation",
 ]

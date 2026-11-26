@@ -1,0 +1,48 @@
+# Corpus for hardening/fuzz_refactors.py. Each project is a throwaway clone with its own uv venv (`.venv`).
+# Paths are machine-local; `python -m hardening.fuzz_refactors --setup` re-creates the OSS clones at the pinned commits.
+# `test_args` run as `<path>/.venv/bin/python -m pytest <test_args>`; `src_roots` are where symbols are picked
+# (and where codenav may write); `test_roots` are the other places edits are allowed.
+
+[[project]]
+name = "srxy"
+path = "/tmp/cnav-sandbox/srxy-t4"
+repo = ""                       # private sandbox clone (srxy, hexagonal architecture, Qt/Textual app)
+commit = "953d27c"
+src_roots = ["src/srxy"]
+test_roots = ["tests", "scripts"]
+test_args = ["tests/unit", "tests/cli", "-n", "4", "-p", "no:pytest-qt"]
+baseline_passed = 1170          # `uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` -> 1170 passed, ~9 s
+
+[[project]]
+name = "click"
+path = "/tmp/cnav-corpus/click"
+repo = "https://github.com/pallets/click"
+commit = "08b803cf32ceb2ae6a772c62d5da42757a897d44"
+src_roots = ["src/click"]
+test_roots = ["tests"]
+test_args = []
+baseline_passed = 2628          # `uv run pytest -q` -> 2628 passed, 24 skipped, 1 xfailed, ~5 s
+setup = "uv sync -q"
+
+[[project]]
+name = "tomlkit"
+path = "/tmp/cnav-corpus/tomlkit"
+repo = "https://github.com/python-poetry/tomlkit"
+commit = "d2aa305673a01eafd0edda54ef07ebcb8902f4d4"
+src_roots = ["tomlkit"]
+test_roots = ["tests"]
+# tests/test_toml_tests.py needs the `toml-test` git submodule, which a shallow clone does not fetch.
+test_args = ["--ignore=tests/test_toml_tests.py"]
+baseline_passed = 802           # ~1 s
+setup = "uv sync -q"
+
+[[project]]
+name = "python-dotenv"
+path = "/tmp/cnav-corpus/python-dotenv"
+repo = "https://github.com/theskumar/python-dotenv"
+commit = "4fbc6ff07215367ece731006855e732d1405992c"
+src_roots = ["src/dotenv"]
+test_roots = ["tests"]
+test_args = []
+baseline_passed = 0             # filled by the baseline run; optional project (not in the default selection)
+setup = "uv venv -q && uv pip install -q -e . pytest sh click ipython"
