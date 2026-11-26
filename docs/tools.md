@@ -1,3 +1,17 @@
+---
+id: DOC-001
+title: Tool reference
+summary: The 12 tools, edits and previews, aliases and refusals, output limits and known limits
+type: reference
+status: current
+updated: 2026-11-26
+verified:
+covers: [src/codenav_mcp/**]
+related: []
+supersedes:
+superseded_by:
+---
+
 # Tool reference
 
 Start with a symbol name such as `parse`, `Cart.total` or `pkg.parser.parse`.

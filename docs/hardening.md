@@ -161,3 +161,34 @@ The pure helpers (`hardening/fuzz_checks.py`) are unit-tested in the default sui
 
 Every failing case in `results-seed<N>.jsonl` carries the project, commit, symbol, exact call, the replies and the
 failing tests, which is the minimal repro for a finding.
+
+## Differential: references against jedi, rename against rope
+
+**Invariant.** For a sampled function, method or class, codenav and an independent tool agree on where the symbol
+is used:
+
+- `hardening/diff_references.py` compares the (path, line) set of `lookup(name=..., show=["references"], limit=1000)`
+  with jedi's `get_references` at the definition.
+- `hardening/diff_rename.py` compares the (path, line) set that `rename(apply=false)` edits with rope's
+  `Rename(...).get_changes`. Two modes: codenav's certain sites against rope's default rename, and codenav with
+  `sites=["all"]` against rope with `docs=True` and every unsure occurrence accepted. The second mode is noisy by
+  construction (rope rewrites every comment and string that spells a common name), so read its
+  `codenav_lines_also_in_rope_rate`, not the overlap rate. When codenav's preview diff is cut at 150 lines only the
+  per-file edited-line counts are compared (`basis` is `file counts`).
+
+Both scripts only read the project (rope runs without a `.ropeproject` folder, codenav's edit state goes to a
+temporary directory, renames are previews). A symbol codenav refuses (ambiguous name, not found, excluded file) is an
+error result with an `error_kind`, never counted as an empty result. Sampling is seeded; dunder methods and names
+defined twice in a file (property setters) are skipped, and codenav is asked for `Class.method` plus the file path.
+
+```bash
+uv run python hardening/diff_references.py PROJECT_DIR --symbols 40 --seed 0 [--output FILE]
+uv run python hardening/diff_rename.py PROJECT_DIR --symbols 40 --seed 0 [--output FILE]
+uv run pytest -m differential          # known-answer runs of both scripts on a tiny project, about 5 s
+```
+
+Each prints one block per symbol and a `SUMMARY` line, and writes JSON (default `hardening/results/diff_*.json`)
+with per symbol `only_in_codenav`, `only_in_jedi` / `only_in_rope`, `shared` and the timing. Runtime on a 335-file
+project: 40 symbols take about 8 s for references and about 35 s for rename (rope rescans the project per rename);
+400 reference symbols about 45 s. The parser and sampler unit tests in `tests/test_hardening_differential.py` run in
+the default suite.

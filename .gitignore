@@ -13,3 +13,4 @@ node_modules/
 qa/
 .hypothesis/
 mutants/
+hardening/results/
