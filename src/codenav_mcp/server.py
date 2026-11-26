@@ -613,7 +613,7 @@ def _pyproject_warning(root: Path) -> str | None:
 	)
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def workspace(ctx: Context | None = None) -> str:
 	"""Which directory is codenav navigating, and why?
@@ -635,7 +635,7 @@ async def workspace(ctx: Context | None = None) -> str:
 	return "\n".join(lines)
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def hover(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
 	"""Get type/documentation info for the symbol at a position.
@@ -663,7 +663,7 @@ async def hover(file_path: str, line: int, column: int, ctx: Context | None = No
 	return "No hover information at that position."
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def definition(file_path: str, line: int, column: int, ctx: Context | None = None) -> str:
 	"""Go to the definition of the symbol at a position.
@@ -782,7 +782,7 @@ async def _syntax_warning(client: LspClient, file_path: str) -> str:
 	return f"Warning: {_workspace_display_path(file_path)} has a syntax error at line {min(lines)}; the outline may be incomplete."
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def references(
 	file_path: str,
@@ -814,7 +814,7 @@ async def references(
 	return _with_outside_note(format_references(inside, WORKSPACE_ROOT, limit=limit), outside)
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def search_symbol(
 	query: str | None = None,
@@ -964,7 +964,7 @@ async def _owned_by(client: LspClient, symbols: list[dict[str, Any]], owner: str
 	return kept
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def diagnostics(file_path: str, ctx: Context | None = None) -> str:
 	"""Get ty's type-check diagnostics (errors/warnings) for a single file.
@@ -982,7 +982,7 @@ async def diagnostics(file_path: str, ctx: Context | None = None) -> str:
 	return _scrub_text(format_diagnostics(items, path=_workspace_display_path(file_path)))
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def symbol_info(
 	name: str | None = None,
@@ -1038,7 +1038,7 @@ async def symbol_info(
 	return "\n".join(parts)
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def outline(file_path: str, depth: int | None = None, ctx: Context | None = None) -> str:
 	"""What's in this file? Example: `outline(file_path="src/app/services.py")`.
@@ -1067,7 +1067,7 @@ async def outline(file_path: str, depth: int | None = None, ctx: Context | None 
 	return f"{warning}\n{body}" if warning else body
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def callers(
 	name: str | None = None,
@@ -1353,7 +1353,7 @@ def _candidate_files(root: Path) -> list[Path]:
 	return sorted(files)
 
 
-@mcp.tool(annotations=tool_base.READS)
+@mcp.tool(annotations=tool_base.READS, structured_output=False)
 @_notices.tool
 async def implementations(
 	port_name: str | None = None,
@@ -1603,12 +1603,12 @@ def _register_write_tools() -> None:
 		batch_tools.register(read_tool.__name__, read_tool, writes=False)
 	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
-			mcp.tool(annotations=tool_annotations)(_notices.tool(fn))
+			mcp.tool(annotations=tool_annotations, structured_output=False)(_notices.tool(fn))
 			batch_tools.register(fn.__name__, fn, writes=tool_annotations is tool_base.WRITES)
 	# Last: the batch can reach every tool registered above and carries the strictest hints of them.
 	batch_fn = batch_tools.make_batch_tool()
 	batch_tools.register_signature("batch", batch_fn)
-	mcp.tool(annotations=tool_base.WRITES)(_notices.tool(batch_fn))
+	mcp.tool(annotations=tool_base.WRITES, structured_output=False)(_notices.tool(batch_fn))
 	# Direct calls get the same argument checks as batch calls, before the SDK validates them.
 	mcp.call_tool = _checked_call_tool(mcp.call_tool)
 	mcp.middleware.append(_require_initialize)
@@ -1682,9 +1682,7 @@ def _checked_call_tool(original: Any) -> Any:
 				return result
 			if isinstance(result, FailedText):
 				return _refusal(str(result))
-			return CallToolResult(
-				content=[TextContent(type="text", text=result)], structured_content={"result": result}
-			)
+			return CallToolResult(content=[TextContent(type="text", text=result)])
 		try:
 			return await original(name, arguments, context)
 		except ToolError as exc:

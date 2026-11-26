@@ -3,7 +3,7 @@
   "name": "io.github.illescasDaniel/codenav-mcp",
   "title": "CodeNav",
   "description": "MCP server exposing ty's language-server features (hover, definition, references, workspace symbol search, diagnostics) as MCP tools, plus type-checked refactoring tools (rename, change signature, move, safe delete)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "websiteUrl": "https://pypi.org/project/codenav-mcp/",
   "repository": {
     "url": "https://github.com/illescasDaniel/codenav-mcp",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "codenav-mcp",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

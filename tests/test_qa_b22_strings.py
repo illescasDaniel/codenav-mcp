@@ -41,7 +41,7 @@ def test_optional_literal_strings_reach_edit_unchanged(tmp_path, monkeypatch, lo
 	results = loop.run_until_complete(run())
 	assert not results[0].is_error and "Preview" in results[0].content[0].text
 	assert "literal string regression notice" in results[0].content[0].text
-	assert results[0].structured_content["result"] == results[0].content[0].text
+	assert results[0].structured_content is None, "tools answer text only; no structuredContent is emitted"
 	assert not results[1].is_error and "Preview" in results[1].content[0].text
 	assert "literal string regression notice" not in results[1].content[0].text
 	assert results[2].is_error and "not found" in results[2].content[0].text

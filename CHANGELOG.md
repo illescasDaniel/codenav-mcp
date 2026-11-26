@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.0.2
+
+### Changed
+
+- Tool replies are text-only: `structuredContent` is no longer emitted and tools no longer advertise an output schema. Agents and hosts read the same text as before; a programmatic client that parsed `structuredContent` should parse the text instead. A typed payload alongside the report is a candidate for a future minor version.
 
 ### Improved
 
 - Refusals for an unknown argument suggest the closest real name (`unknown argument 'file' for outline; did you mean 'file_path'?; allowed: file_path, depth`), so an agent gets there on the first retry. The surface stays strict: no aliases were added.
 - A `server.json` manifest (MCP Registry format) ships in the repository root, kept in sync with the package metadata and documented settings by a test.
+- The README gained an Examples section with real tool output (navigation, references, a refused unsafe edit, a type-checked rename).
 
 ## 1.0.1
 
