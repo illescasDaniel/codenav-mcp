@@ -21,6 +21,7 @@ def test_given_manifest_then_name_version_and_description_match_pyproject():
 	project = _pyproject()["project"]
 	assert manifest["version"] == project["version"]
 	assert manifest["description"] == " ".join(project["description"].split())
+	assert len(manifest["description"]) <= 100
 	assert manifest["name"] == "io.github.illescasDaniel/codenav-mcp"
 
 

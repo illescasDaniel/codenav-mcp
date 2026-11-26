@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-11-26
+
+### Fixed
+
+- Shorten the package and MCP Registry descriptions to meet the registry schema limit.
+
 ## 1.0.2
 
 ### Changed

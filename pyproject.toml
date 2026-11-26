@@ -1,7 +1,7 @@
 [project]
 name = "codenav-mcp"
-version = "1.0.2"
-description = "MCP server exposing ty's language-server features (hover, definition, references, workspace symbol search, diagnostics) as MCP tools, plus type-checked refactoring tools (rename, change signature, move, safe delete)"
+version = "1.0.3"
+description = "Python code navigation and type-checked refactoring through MCP, powered by ty."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
