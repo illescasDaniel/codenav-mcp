@@ -497,7 +497,8 @@ async def plan_rename(
 	kept = [
 		m for m in find_mentions(workspace, old_name, covered_positions(edits)) if not _synced_export(m, synced_exports)
 	]
-	notes += format_mentions(kept, old_name)
+	is_member = None if target.parameter else locate_member_class(text, target.line, old_name) is not None
+	notes += format_mentions(kept, old_name, member=is_member)
 	left: list[str] = []
 	if left_out:
 		counts: dict[tuple[str, SkipReason], int] = {}

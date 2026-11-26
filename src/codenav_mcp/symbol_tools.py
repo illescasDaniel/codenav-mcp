@@ -502,7 +502,7 @@ async def _safe_delete(
 			for m in mentions
 			if not (m.path == rel and m.line in own_lines)
 			and (m.path, m.line) not in pruned
-			and m.kind in ("code", "string")
+			and m.kind in ("attr", "code", "string")
 			and not (
 				m.kind == "code"
 				and m.path != rel

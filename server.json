@@ -3,7 +3,7 @@
   "name": "io.github.illescasDaniel/codenav-mcp",
   "title": "CodeNav",
   "description": "Python code navigation and type-checked refactoring through MCP, powered by ty.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "websiteUrl": "https://pypi.org/project/codenav-mcp/",
   "repository": {
     "url": "https://github.com/illescasDaniel/codenav-mcp",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "codenav-mcp",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

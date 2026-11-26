@@ -290,3 +290,32 @@ def test_given_clean_tree_when_verify_changes_then_no_differences(project, loop)
 
 def test_given_repo_root_marker():
 	assert REPO_ROOT.name
+
+
+def test_given_protocol_method_and_same_named_function_when_rename_then_mock_attribute_is_listed_first(
+	tmp_path, monkeypatch, loop
+):
+	# given
+	files = {
+		"src/pkg/__init__.py": "",
+		"src/pkg/port.py": (
+			"from typing import Protocol\n\n\nclass DesktopPort(Protocol):\n\tdef reveal_path(self, p: str) -> None: ...\n"
+		),
+		"src/pkg/os_desktop.py": "def reveal_path(p: str) -> None:\n\tpass\n",
+	}
+	for i in range(8):
+		files[f"src/pkg/a{i}.py"] = (
+			"from pkg.os_desktop import reveal_path\n\n\ndef go() -> None:\n\treveal_path('x')\n"
+		)
+	files["tests/__init__.py"] = ""
+	files["tests/test_gui.py"] = "def test_it(desktop):\n\tdesktop.reveal_path.assert_called_once_with('x')\n"
+	make_workspace(tmp_path, monkeypatch, files)
+	# when
+	text = _run(
+		loop, write_tools.rename_symbol(name="DesktopPort.reveal_path", new_name="reveal_in_file_manager", apply=False)
+	)
+	# then
+	assert "still accessed as an attribute" in text
+	assert "tests/test_gui.py:2: desktop.reveal_path.assert_called_once_with('x')" in text
+	assert text.index("still accessed as an attribute") < text.index("bare name")
+	assert "-def reveal_path(p: str)" not in text  # the module function is not renamed

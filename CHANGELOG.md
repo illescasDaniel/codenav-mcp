@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.4] - 2026-11-26
+
+### Improved
+
+- `rename_symbol` notes now list leftover mentions that are attribute accesses (`mock.old`, untyped objects) first and almost in full (up to 50), under their own heading, because they are the likeliest real uses the type checker missed. Bare names, imports and `def`s (often a different symbol with the same name) keep the short list of 6. The attribute heading is softer when the renamed symbol is a module-level function or class. Edits are unchanged. `delete_symbol` shows the same split.
+
 ## [1.0.3] - 2026-11-26
 
 ### Fixed

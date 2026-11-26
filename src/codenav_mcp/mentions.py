@@ -31,7 +31,7 @@ _FSTRING_MIDDLE = getattr(tokenize, "FSTRING_MIDDLE", None)
 class Mention:
 	path: str
 	line: int
-	kind: str  # "code" | "string" | "comment" | "text"
+	kind: str  # "attr" | "code" | "string" | "comment" | "text"
 	snippet: str
 
 
@@ -61,16 +61,20 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 		found.append(Mention(rel, row, kind, snippet[:140]))
 
 	try:
+		previous: tokenize.TokenInfo | None = None
 		for token in tokenize.generate_tokens(io.StringIO(text).readline):
 			row, col = token.start
 			if token.type == tokenize.NAME and token.string == name:
 				line = lines[row - 1] if row <= len(lines) else ""
 				if (row - 1, utf16_column(line, col)) not in covered:
-					add(row, "code")
+					after_dot = previous is not None and previous.type == tokenize.OP and previous.string == "."
+					add(row, "attr" if after_dot else "code")
 			elif token.type == tokenize.COMMENT and word.search(token.string):
 				add(row, "comment")
 			elif (token.type == tokenize.STRING or token.type == _FSTRING_MIDDLE) and word.search(token.string):
 				add(row, "string")
+			if token.type not in (tokenize.NL, tokenize.COMMENT):
+				previous = token
 	except (tokenize.TokenError, IndentationError, SyntaxError):
 		pass
 	return found
@@ -111,14 +115,29 @@ def find_mentions(workspace: Path, name: str, covered: dict[Path, set[tuple[int,
 			for number, line in enumerate(lines, 1)
 			if word.search(line)
 		]
-	order = {"code": 0, "string": 1, "comment": 2, "text": 3}
+	order = {"attr": 0, "code": 1, "string": 2, "comment": 3, "text": 4}
 	return sorted(found, key=lambda m: (order[m.kind], m.path, m.line))
 
 
-def format_mentions(mentions: list[Mention], old_name: str, *, per_kind: int = 6) -> list[str]:
-	"""One note per kind (a heading plus a few example lines), for a plan's notes."""
+def format_mentions(
+	mentions: list[Mention], old_name: str, *, per_kind: int = 6, attr_cap: int = 50, member: bool | None = None
+) -> list[str]:
+	"""One note per kind (a heading plus a few example lines), for a plan's notes.
+
+	An unlinked attribute access (`mock.old`) is the likeliest real use of a renamed member, so it comes first and
+	is listed almost in full; a bare name is usually another symbol with the same name, so it keeps the short cap.
+	`member` is True when the renamed symbol is a method or field, False for a module-level function or class
+	(where `module.old` is common and less telling), None when unknown.
+	"""
+	if member:
+		attr = f"`{old_name}` still accessed as an attribute the type checker could not link (mocks, untyped objects). Probably the renamed member; check each"
+	elif member is False:
+		attr = f"`{old_name}` accessed as an attribute the type checker could not link (`module.{old_name}` or an untyped object; may or may not be this symbol)"
+	else:
+		attr = f"`{old_name}` accessed as an attribute the type checker could not link (untyped objects, mocks; check these)"
 	headings = {
-		"code": f"`{old_name}` still appears as code the type checker did not link (untyped or dynamic access; check these)",
+		"attr": attr,
+		"code": f"`{old_name}` also appears as a bare name (often a different symbol with the same name)",
 		"string": f"`{old_name}` appears in strings (getattr/patch targets, __all__, messages)",
 		"comment": f"`{old_name}` appears in comments",
 		"text": f"`{old_name}` appears in non-Python files",
@@ -128,9 +147,10 @@ def format_mentions(mentions: list[Mention], old_name: str, *, per_kind: int = 6
 		group = [m for m in mentions if m.kind == kind]
 		if not group:
 			continue
+		cap = attr_cap if kind == "attr" else per_kind
 		lines = [f"{heading}: {len(group)}"]
-		lines += [f"    {m.path}:{m.line}: {m.snippet}" for m in group[:per_kind]]
-		if len(group) > per_kind:
-			lines.append(f"    ... {len(group) - per_kind} more")
+		lines += [f"    {m.path}:{m.line}: {m.snippet}" for m in group[:cap]]
+		if len(group) > cap:
+			lines.append(f"    ... {len(group) - cap} more")
 		notes.append("\n".join(lines))
 	return notes
