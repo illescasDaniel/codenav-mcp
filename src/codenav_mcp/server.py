@@ -1663,7 +1663,17 @@ def _register_write_tools() -> None:
 	"""Add the tools that change code (see `write_tools`, `symbol_tools`, `refactor_tools`)."""
 	from mcp_nav_shared.errors import set_display_root
 
-	from codenav_mcp import batch_tools, edit_tools, refactor_tools, symbol_tools, tool_base, write_tools
+	from codenav_mcp import (
+		analysis_tools,
+		batch_tools,
+		edit_tools,
+		edits_tools,
+		read_tools,
+		refactor_tools,
+		symbol_tools,
+		tool_base,
+		write_tools,
+	)
 
 	tool_base.bind(sys.modules[__name__])
 	set_display_root(_workspace_root_for_errors)
@@ -1680,7 +1690,8 @@ def _register_write_tools() -> None:
 		implementations,
 	):
 		batch_tools.register(read_tool.__name__, read_tool, writes=False)
-	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools):
+	# v2 modules (read_tools, analysis_tools, edits_tools) register the same way; see docs/v2-design.md.
+	for tool_module in (write_tools, symbol_tools, refactor_tools, edit_tools, read_tools, analysis_tools, edits_tools):
 		for fn, tool_annotations in tool_module.TOOLS:
 			mcp.tool(annotations=tool_annotations, structured_output=False)(_notices.tool(fn))
 			batch_tools.register(fn.__name__, fn, writes=tool_annotations is tool_base.WRITES)
