@@ -34,8 +34,11 @@ from codenav_mcp import edit_ops, tool_base
 from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import Skipped, format_skipped, primary_module_name
 from codenav_mcp.linked import ClassRef
+from codenav_mcp.plan_sites import CodenavPlan, store_plan
 from codenav_mcp.pysource import check_syntax
-from codenav_mcp.rename import ATTR_HINT, plan_rename, resolve_target
+from codenav_mcp.rename import ATTR_HINT, RenamePlan, plan_rename, resolve_target
+from codenav_mcp.rename_sites import UnknownSitesError, format_site
+from codenav_mcp.reply import Reply, call
 from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
 from codenav_mcp.writes import (
@@ -156,6 +159,114 @@ async def rename_symbol(
 	except TOOL_ERRORS as exc:
 		return write_refusal(exc, "rename_symbol", name, fixed=f"new_name={json.dumps(new_name)}, ")
 	return _with_attr_hint(outcome)
+
+
+_SITES_SHOWN = 30
+_NOTES_SHOWN = 5
+
+
+async def rename(
+	name: str,
+	new_name: str,
+	file_path: str | None = None,
+	apply: bool = True,
+	sites: list[str] | None = None,
+	ctx: Context | None = None,
+) -> str:
+	"""Rename a symbol everywhere (refs, overrides, patch strings), type-checked; beats grep+Edit.
+	Uncertain sites (mocks, comments) get ids u1..: add with sites=["all"].
+	Example: `rename(name="Port.run", new_name="go")`"""
+	retry = {"name": name, "new_name": new_name, "file_path": file_path}
+	try:
+		session = await open_session(ctx)
+		target = await resolve_target(
+			session.client,
+			session.workspace,
+			name=name,
+			file_path=file_path,
+			line=None,
+			column=None,
+			parameter=None,
+		)
+		plan = await plan_rename(
+			session.client,
+			session.workspace,
+			session.state.guard,
+			target,
+			new_name,
+			linked=True,
+			conforms=conforms_probe(session),
+			roots=session.roots,
+			v2_sites=True,
+			sites=sites,
+		)
+		outcome = await finish_plan(
+			session.client,
+			workspace=session.workspace,
+			roots=session.roots,
+			plan=plan,
+			title=plan.description,
+			apply=apply,
+			max_new_errors=0,
+			hold_back=(
+				f"importers that cannot be rewritten would be left broken ({'; '.join(plan.left_out)}); "
+				"fix or include them first."
+			)
+			if plan.left_out
+			else "",
+		)
+		plan_id = outcome.applied_id or outcome.preview_id
+		if plan_id:
+			left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
+			store_plan(str(session.workspace), plan_id, CodenavPlan(plan, left))
+	except UnknownSitesError as exc:
+		return format_tool_error(f"{exc}\nExample: {call('rename', **retry, sites=['all'])}")
+	except TOOL_ERRORS as exc:
+		return write_refusal(exc, "rename", name, fixed=f"new_name={json.dumps(new_name)}, ")
+	return _rename_reply(plan, outcome, retry, apply=apply, sites=sites)
+
+
+def _rename_reply(
+	plan: RenamePlan, outcome: Any, retry: dict[str, Any], *, apply: bool, sites: list[str] | None
+) -> str:
+	"""The v2 reply: what happened in one line, the optional sites still open, the type-check line, the next calls.
+
+	A preview or refused plan keeps finish_plan's text (files, notes, type check, diff); the site list goes before the diff."""
+	left = [site for site in plan.optional_sites if site not in plan.chosen_sites]
+	reply = Reply(f"{plan.description}. Applied as edit {outcome.applied_id}." if outcome.applied_id else "")
+	if outcome.applied_id:
+		blocks = str(outcome.text).split("\n\n")
+		reply.items.extend(blocks[1].splitlines()[1:] if len(blocks) > 1 else [])
+		notes = [note for note in plan.notes if "\n" not in note]
+		reply.notes.extend(notes[:_NOTES_SHOWN])
+		if len(notes) > _NOTES_SHOWN:
+			reply.notes.append(f"... {len(notes) - _NOTES_SHOWN} more notes")
+		reply.notes.append(type_check_line(outcome))
+	if plan.chosen_sites:
+		reply.notes.insert(0, f"{len(plan.chosen_sites)} optional site(s) included (sites={json.dumps(sites)})")
+	site_lines: list[str] = []
+	if left:
+		site_lines.append(f"{len(left)} optional site(s), not changed (add with sites):")
+		site_lines.extend(f"  {format_site(site)}" for site in left[:_SITES_SHOWN])
+		if len(left) > _SITES_SHOWN:
+			site_lines.append(f"  ... {len(left) - _SITES_SHOWN} more")
+		if outcome.applied_id:
+			reply.next_calls.append(f'undo_edit(id="{outcome.applied_id}")')
+		reply.next_calls.append(call("rename", **retry, sites=["all"] if len(left) > 1 else [left[0].id]))
+	if outcome.applied_id:
+		reply.items.extend(site_lines)
+		text = reply.render()
+	else:
+		whole = str(outcome.text)
+		cut = whole.find("\n--- a/")
+		head, diff = (whole[:cut], whole[cut:]) if cut != -1 else (whole, "")
+		extra = Reply("", [*site_lines], list(reply.notes), list(reply.next_calls)).render().lstrip("\n")
+		text = "\n".join(part for part in (head, extra) if part) + diff
+	return FailedText(text) if isinstance(outcome.text, FailedText) else text
+
+
+def type_check_line(outcome: Any) -> str:
+	return type_check_report(outcome.delta).splitlines()[0] if outcome.delta is not None else ""
 
 
 def _with_attr_hint(outcome: Any) -> str:
@@ -557,6 +668,7 @@ async def undo_edit(id: str | None = None, ctx: Context | None = None) -> str:  
 
 TOOLS: list[tuple[Any, Any]] = [
 	(rename_symbol, tool_base.WRITES),
+	(rename, tool_base.WRITES),
 	(verify_changes, tool_base.READS),
 	(apply_edit, tool_base.WRITES),
 	(undo_edit, tool_base.WRITES),

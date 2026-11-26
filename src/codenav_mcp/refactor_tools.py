@@ -38,6 +38,7 @@ from codenav_mcp.signature import (
 	ManualCallError,
 	Param,
 	SourceMap,
+	added_keyword_only,
 	apply_offset_edits,
 	call_edit,
 	find_call_at,
@@ -133,7 +134,8 @@ async def change_signature(
 
 	`name` is a function, a method (`Class.method`) or a class (its `__init__`).
 	- `add`: list of `{"name", "annotation"?, "default"?, "value"?, "position"?, "keyword_only"?}`.
-	`default` is written in the definition and callers need not change; `value` is
+	`default` is written in the definition and callers need not change (the parameter is appended
+	keyword-only, after `*`, unless you give `position` or `keyword_only=false`); `value` is
 	inserted at every call site as `name=value` (give both for a required-at-call
 	parameter with a default). `position` is a 0-based index among the parameters
 	(self/cls not counted); the default is the end. One of `default`/`value` is required.
@@ -177,7 +179,7 @@ async def change_signature(
 def _keyword_only_variant(signature: Any, change: Change, qualname: str) -> tuple[list[Param], dict[str, str]] | None:
 	"""The callable parameters and call-site values the change would give with every added parameter keyword-only
 	(None when nothing is added positionally, or when that variant is not valid)."""
-	if not any(not spec.get("keyword_only") for spec in change.add):
+	if not any(not added_keyword_only(spec) for spec in change.add):
 		return None
 	variant = Change(
 		add=[{**spec, "keyword_only": True, "position": None} for spec in change.add],
@@ -316,6 +318,14 @@ async def _plan_signature(
 				f"also changing the override {site.cls.name}.{other.name} ({relative_name(site.cls.path, session.workspace)}:{site.line})"
 			)
 
+	callers_unaffected = (
+		not change.remove
+		and not change.reorder
+		and all(
+			spec.get("default") is not None and spec.get("value") is None and added_keyword_only(spec)
+			for spec in change.add
+		)
+	)
 	updated_calls = 0
 	manual: list[str] = []
 	fixable_by_keyword = 0  # held call sites that `keyword_only=true` on the added parameters would let us rewrite
@@ -361,8 +371,14 @@ async def _plan_signature(
 				f"Note: docstring of {declaration.definition.qualname} still mentions parameter(s) {', '.join(repr(n) for n in mentioned)}; update it manually."
 			)
 		call_sites: list[tuple[FileCtx, ast.Call, int]] = []
-		locations = await session.client.references(
-			str(ctx.path), declaration.ref_line, declaration.ref_column, include_declaration=False
+		# Only keyword-only parameters with defaults are added: no caller can be affected, so none is looked up
+		# (and a function passed around as a value does not hold the plan back).
+		locations = (
+			[]
+			if callers_unaffected
+			else await session.client.references(
+				str(ctx.path), declaration.ref_line, declaration.ref_column, include_declaration=False
+			)
 		)
 		for location in locations:
 			target_ctx = load(uri_to_path(location["uri"]))
@@ -384,7 +400,11 @@ async def _plan_signature(
 			call_sites.append((target_ctx, call, 1 if unbound else 0))
 		# ty references may stop at an import alias. Report calls through such aliases
 		# rather than silently claiming all calls were updated.
-		if declaration is declarations[0] and (is_constructor or not declaration.definition.parents):
+		if (
+			not callers_unaffected
+			and declaration is declarations[0]
+			and (is_constructor or not declaration.definition.parents)
+		):
 			target_modules = module_names_for(ctx.path, session.roots)
 			for candidate in iter_python_files(session.workspace):
 				if candidate.resolve() == ctx.path.resolve():
@@ -414,7 +434,7 @@ async def _plan_signature(
 							manual.append(
 								f"{relative_name(candidate, session.workspace)}:{node.lineno}: call left as is, imported alias {node.func.id!r} requires review"
 							)
-		if signature.has_self and declaration.definition.parents:
+		if not callers_unaffected and signature.has_self and declaration.definition.parents:
 			for call in _super_calls(ctx, declaration.definition.parents[-1], declaration.definition.name):
 				call_sites.append((ctx, call, 0))
 		for target_ctx, call, skip in call_sites:

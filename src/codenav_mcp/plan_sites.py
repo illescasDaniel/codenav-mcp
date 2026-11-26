@@ -33,3 +33,17 @@ class CodenavPlan:
 
 	def site(self, site_id: str) -> OptionalSite | None:
 		return next((site for site in self.optional_sites if site.id == site_id), None)
+
+
+# -- storage ---------------------------------------------------------------------
+# One small pair of functions so WS3's persistent plan state can replace the in-memory dict: optional sites are
+# remembered under the id `finish_plan` gave the preview or the applied edit (the same id `edits(...)` uses).
+_remembered: dict[tuple[str, str], list[OptionalSite]] = {}
+
+
+def store_plan(workspace: str, plan_id: str, plan: CodenavPlan) -> None:
+	_remembered[(workspace, plan_id)] = list(plan.optional_sites)
+
+
+def load_optional_sites(workspace: str, plan_id: str) -> list[OptionalSite]:
+	return list(_remembered.get((workspace, plan_id), []))

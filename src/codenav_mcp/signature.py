@@ -202,6 +202,15 @@ class Change:
 	reorder: list[str] = field(default_factory=list)
 
 
+def added_keyword_only(spec: dict[str, Any]) -> bool:
+	"""Whether an added parameter is keyword-only: when asked, or by default when it has a default and no
+	`position` (it is appended and callers need no rewrite); an explicit `keyword_only=false` or a position keeps it positional."""
+	explicit = spec.get("keyword_only")
+	if explicit is not None:
+		return bool(explicit)
+	return spec.get("default") is not None and spec.get("position") is None
+
+
 def new_params(signature: Signature, change: Change, name: str) -> tuple[list[Param], dict[str, str], set[str]]:
 	"""(the new parameter list, call-site values for new parameters, names removed)."""
 	params = list(signature.params)
@@ -235,7 +244,7 @@ def new_params(signature: Signature, change: Change, name: str) -> tuple[list[Pa
 			raise ToolInputError(
 				f"add {pname!r}: give a `default` (callers need not change) or a `value` (inserted at every call)"
 			)
-		keyword_only = bool(spec.get("keyword_only"))
+		keyword_only = added_keyword_only(spec)
 		param = Param(
 			pname, KWONLY if keyword_only else NORMAL, spec.get("annotation"), None if default is None else str(default)
 		)

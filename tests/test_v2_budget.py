@@ -11,6 +11,8 @@ from codenav_mcp import analysis_tools, edits_tools, read_tools, server as coden
 # Description + JSON input schema per v2 tool, in characters.
 PER_TOOL_BUDGET = 700
 V2_TOOL_NAMES = {fn.__name__ for module in (read_tools, analysis_tools, edits_tools) for fn, _ in module.TOOLS}
+# write_tools still holds the v1 tools (far over budget until WS5 removes them): list the v2 ones by name.
+V2_TOOL_NAMES |= {"rename"}
 
 
 def _tool_sizes() -> dict[str, int]:

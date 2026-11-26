@@ -30,6 +30,7 @@ from mcp_nav_shared.transaction import WriteGuard
 from codenav_mcp.deps import Skipped, SkipReason, find_dependents, format_skipped, module_names_for
 from codenav_mcp.linked import Conforms, classes_in_file, external_declaration, find_linked, locate_member_class
 from codenav_mcp.mentions import Mention, covered_positions, find_mentions, format_mentions
+from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import (
 	Definition,
 	PythonSyntaxError,
@@ -44,6 +45,7 @@ from codenav_mcp.pysource import (
 	top_level_names,
 	utf16_to_index,
 )
+from codenav_mcp.rename_sites import Declaration, plan_v2_sites, select_sites
 from codenav_mcp.writes import require_workspace_file
 
 
@@ -424,6 +426,21 @@ class RenamePlan(EditPlan):
 	"""A rename plan that also knows which importers it did not rewrite (excluded directories, nested repositories)."""
 
 	left_out: list[str] = field(default_factory=list)
+	# v2 `rename`: uncertain sites the agent can opt into (`sites=`), the ones this plan already includes,
+	# and how many certain extras (patch-target strings, keyword arguments) it writes.
+	optional_sites: list[OptionalSite] = field(default_factory=list)
+	chosen_sites: list[OptionalSite] = field(default_factory=list)
+	certain_extras: int = 0
+
+
+def _declaration_for(path: Path, line: int, name: str) -> Declaration:
+	"""A renamed declaration with the name it has in a dotted path (`Class.method`, `func`, `Class`)."""
+	text = read_source(path)[0]
+	definition = find_definition(text, name_line=line)
+	if definition is not None and definition.name == name:
+		return Declaration(path.resolve(), line, definition.qualname)
+	container = locate_member_class(text, line, name)
+	return Declaration(path.resolve(), line, f"{container.qualname}.{name}" if container else name)
 
 
 async def plan_rename(
@@ -437,7 +454,11 @@ async def plan_rename(
 	conforms: Conforms | None,
 	roots: Sequence[Path] = (),
 	include_unlinked_attrs: bool = False,
+	v2_sites: bool = False,
+	sites: Sequence[str] | None = None,
 ) -> RenamePlan:
+	"""Plan a rename. With `v2_sites` (the `rename` tool) the sites ty cannot link are split into certain ones,
+	written with the plan, and optional ones (ids u1..uN, added by `sites=`) instead of notes."""
 	text = read_source(target.path)[0]
 	prep = await client.prepare_rename(str(target.path), target.line, target.column)
 	if prep is None:
@@ -498,6 +519,7 @@ async def plan_rename(
 	main_edit = await client.rename(str(target.path), target.line, target.column, new_name)
 	merge_server_edits(main_edit)
 	notes: list[str] = []
+	related = None
 	if linked:
 		member_name = _function_name(text, target.member_line) if target.parameter else old_name
 		related = await find_linked(
@@ -551,11 +573,48 @@ async def plan_rename(
 				synced_exports.update((relative_name(export_file, workspace), e.start_line + 1) for e in more_all)
 	is_member = None if target.parameter else locate_member_class(text, target.line, old_name) is not None
 	# The `__all__` lines renamed above are not mentions the caller still has to review.
-	kept = [
-		m for m in find_mentions(workspace, old_name, covered_positions(edits)) if not _synced_export(m, synced_exports)
-	]
+	kept = (
+		[]
+		if v2_sites
+		else [
+			m
+			for m in find_mentions(workspace, old_name, covered_positions(edits))
+			if not _synced_export(m, synced_exports)
+		]
+	)
 	attr_hint = None
-	if include_unlinked_attrs and not is_member:
+	v2_plan = None
+	chosen: list[OptionalSite] = []
+	if v2_sites:
+		declarations = [_declaration_for(target.path, target.line, old_name)] if target.parameter is None else []
+		if related is not None and target.parameter is None:
+			declarations += [_declaration_for(site.cls.path, site.line, old_name) for site in related.sites]
+		v2_plan = await plan_v2_sites(
+			client,
+			workspace,
+			roots or [workspace],
+			old_name=old_name,
+			new_name=new_name,
+			declarations=declarations,
+			is_member=bool(is_member),
+			parameter=target.parameter is not None,
+			link_keywords=target.parameter is not None or declaration is None,
+			edits=edits,
+			split_attrs=_split_unlinked_attrs,
+			is_unlinked_attr=_is_unlinked_attr,
+		)
+		chosen = select_sites(v2_plan.optional, sites)
+		for path, extra in v2_plan.certain.items():
+			guard.check_path(path)
+			merge_bom_free(path, extra)
+		by_site: dict[Path, list[TextEdit]] = {}
+		for site in chosen:
+			by_site.setdefault((workspace / site.path).resolve(), []).append(site.edit)
+		for path, more_sites in by_site.items():
+			guard.check_path(path)
+			merge_bom_free(path, more_sites)
+		notes += v2_plan.notes
+	elif include_unlinked_attrs and not is_member:
 		notes.append(
 			"include_unlinked_attrs was ignored: it only applies to renaming a method or a field of a class "
 			"(a bare name, string or comment is never renamed this way)."
@@ -612,7 +671,12 @@ async def plan_rename(
 		left = [f"{path} ({count} file{'s' if count != 1 else ''})" for (path, _), count in sorted(counts.items())]
 	total = sum(len(es) for es in edits.values())
 	title = f"Rename {old_name} -> {new_name} ({target.display}): {total} edit(s) in {len(changes)} file(s)"
-	return RenamePlan(title, changes, notes, left_out=left)
+	plan = RenamePlan(title, changes, notes, left_out=left)
+	if v2_plan is not None:
+		plan.optional_sites = v2_plan.optional
+		plan.chosen_sites = chosen
+		plan.certain_extras = v2_plan.certain_count
+	return plan
 
 
 def _unwritable_importer_group(path: Path, workspace: Path, exclude_prefix: str) -> Skipped | None:
