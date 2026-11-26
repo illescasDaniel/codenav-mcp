@@ -53,7 +53,7 @@ never flakes) and `fuzz` (1500 examples, random seed; select it with `HYPOTHESIS
     stay consistent through apply, undo, follow-ups, eviction at 50 entries, server restarts, and files reset or
     deleted outside the tool (those must not look cleanly applied).
 - **Run**: `uv run pytest tests/property -q`
-- **Runtime**: about 7 s (146 passed, 15 xfailed, with the 13 slow tests deselected).
+- **Runtime**: about 7 s (164 passed, 15 xfailed, with the 13 slow tests deselected).
 
 ## Fuzz
 
@@ -107,8 +107,8 @@ mutant. Configuration is in `[tool.mutmut]` in `pyproject.toml`. Not a gate: the
   before a re-run after changing the tests or code.
 - **Runtime**: about 1 min on a 32-core machine (45 mutants/s with 12 workers, the first run 15/s).
 - **Result**: first run 1231 killed / 355 survived / 47 not covered / 3 timeouts; after the added example tests in
-  `tests/property/test_mutation_killers.py`: 1431 killed / 196 survived / 8 not covered / 1 timeout. Not-killed per
-  module, first run to last: `signature` 206 to 100, `plan_merge` 100 to 36, `args` 88 to 66, `reply` 11 to 3.
+  `tests/property/test_mutation_killers.py`: 1437 killed / 190 survived / 8 not covered / 1 timeout. Not-killed per
+  module, first run to last: `signature` 206 to 94, `plan_merge` 100 to 36, `args` 88 to 66, `reply` 11 to 3.
 - **Survivors left** (grouped in the "Mutation survivors" section of `hardening/FINDINGS-h3.md`): mostly the wording of refusal
   messages and hints, `autojunk=` arguments of `difflib` (only matter above 200 lines, a performance heuristic),
   `strict=` of `zip` calls where the lengths always agree, and equivalent mutants.

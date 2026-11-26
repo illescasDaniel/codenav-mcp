@@ -165,11 +165,11 @@ plans, child edits, stale previews, restarts, external resets and deletes.
 
 `uv run mutmut run --max-children 12` over `signature.py`, `plan_merge.py`, `args.py`, `reply.py` (1636 mutants; run
 and config in `docs/hardening.md`). First run: 1231 killed, 355 survived, 47 not covered, 3 timeouts. After the killer
-tests: **1431 killed, 196 survived, 8 not covered, 1 timeout** (`uv run mutmut results` lists them).
+tests: **1437 killed, 190 survived, 8 not covered, 1 timeout** (`uv run mutmut results` lists them).
 
 | Module | Mutants | Not killed, first run | Not killed, final |
 |--------|--------:|----------------------:|------------------:|
-| `signature.py` | 798 | 206 | 100 |
+| `signature.py` | 798 | 206 | 94 |
 | `plan_merge.py` | 487 | 100 | 36 |
 | `args.py` | 297 | 88 | 66 |
 | `reply.py` | 54 | 11 | 3 |
@@ -191,25 +191,26 @@ line); `track_optional_files`; `read_call_args`; the wording of the refusals use
   (18), `args.argument_problem` (15), `args._type_phrase` (14), `args.unknown_tool_message` (7), `signature.tokenize_source`
   (14), `read_signature`, `parse_checked`, `_signature_hint`, `_short_repr`, `example_call`. These texts are not
   pinned on purpose: pinning every sentence would make rewording a test failure. Noise.
-- **Equivalent mutants**: `difflib` `autojunk=` (only changes the result above 200 lines, a speed heuristic),
-  `strict=` on `zip` where both sides always have the same length, `_default_insert_index` dead branch (a
-  parameter kind that cannot reach it, `mutmut_6`), `SourceMap.end` / `offset` boundary mutants. Noise.
+- **Equivalent or unreachable by small inputs**: `strict=` on `zip` where both sides always have the same length, the
+  dead `if keyword_only and param.kind == KWARG` branch of `_default_insert_index` (the line above already returns
+  for `KWARG`), `SourceMap.end` / `offset` boundary mutants. Noise.
 - **Layout of added arguments in `call_edit`** (about 16): separator and indent when an argument is appended to a
   multi-line call; the result is valid and binds the same (see the layout observations above). Not pinned because the
   layout is the thing a fix for #1/#2 would change.
-- **Real gaps, not yet covered** (a test could kill them; none reveals a product bug so far, they only show the oracle
-  does not look there):
-  - `rebind_call` `mutmut_98` (`a is not e` in the effectful-argument detection) and `mutmut_61` (`broken = None`):
-    only exercised through combinations of effectful arguments with a removed one; the execution oracle in
-    `test_signature_props.py` should reach it with more effectful values.
-  - `new_params` `mutmut_107` / `mutmut_121` (the anchor for an added keyword-only parameter after existing
-    keyword-only ones, `_default_insert_index(rest, None)`).
-  - `call_edit` `mutmut_22` (a comment starting exactly at the span end counted as inside), `mutmut_35`
-    (`common += 1` vs `= 1`, matters with two or more common leading arguments), `mutmut_51` (the empty-span
-    start/end for a pure insert).
-  - `plan_merge` `_carry` (6), `_site_change` (5), `_merge_file` (5), `_carry_on_changed_line` (5), `add_sites` (8):
-    follow-up carrying across several edited lines; the property tests keep the follow-up single-line.
-  - `reply.paginate` (2) and `args.apply_aliases` / `register` (4).
-  Closing these is the next step if the oracle is to be trusted for effectful calls; they are listed here so they can
-  be chosen deliberately.
-
+- **Looked at in a second round** (tests added in `test_mutation_killers.py`, then the run was repeated):
+  - Killed: `rebind_call` `mutmut_98` (the effectful-argument guard: tests that a kept effectful argument is not
+    refused, and that removing or reordering one is), `call_edit` `mutmut_35` (`common = 1`; now a timeout) and
+    `_default_insert_index` `mutmut_6`, plus `call_edit` `mutmut_51` (the empty-span insert into `f( )`).
+  - Equivalent, so left: `rebind_call` `mutmut_61` (`broken` is only truth-tested, `None` behaves like `False`),
+    `call_edit` `mutmut_22` (a comment cannot start on the closing parenthesis, so `<` and `<=` agree),
+    `new_params` `mutmut_107` / `mutmut_121` (`render_params` orders parameters by kind, so where the new one is
+    inserted within `rest` does not change the written signature).
+  - `plan_merge` (36 not killed), read one by one: 12 are `autojunk=` of `difflib.SequenceMatcher` (the result changes
+    only for files of 200+ lines with a very frequent line; a test needs such a file, not written); 9 are BOM or file
+    mode passed through in `_site_change` / `add_sites` / `_merge_file` (`None` instead of the BOM or `old_mode`);
+    6 are boundary mutants in `_carry` / `_carry_on_changed_line` (`<` vs `<=` at the end of the file or of a
+    matching block); the rest are sort-key and cursor initialisations. A multi-edit follow-up example (inserts, a
+    deletion, an edit in place and a refused site in one plan) was added and killed none of them. These are real
+    gaps, small ones: a site written to a file with a BOM or a non-default mode after a follow-up is the case to pin
+    next.
+  - `reply.paginate` (2) and `args.apply_aliases` / `register` (4): argument-error wording. Left.

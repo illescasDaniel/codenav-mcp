@@ -23,6 +23,7 @@ from codenav_mcp.signature import (
 	CommentedCallError,
 	Param,
 	SourceMap,
+	_default_insert_index,
 	added_keyword_only,
 	apply_offset_edits,
 	paren_span,
@@ -891,3 +892,128 @@ def test_given_a_missing_required_argument_then_the_refusal_shows_the_signature(
 	problem = argument_problem("t", _tool, {"line": 1})
 	assert problem is not None and problem.startswith("t: missing required 'name'.")
 	assert "t(name, line=..., flag=..., kind=..., loose=...)" in problem
+
+
+# -- effectful arguments and where added parameters land (from the second mutmut round) --------------------------
+
+
+def _new_definition(definition, change):
+	return rewrite(definition, change, "result = f(1)", method=False, qualname="f").new_definition
+
+
+def test_given_an_effectful_argument_the_change_does_not_touch_then_the_call_keeps_it_and_gets_the_new_value():
+	assert _rewritten(
+		"def f(a, b):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 5}]), "result = f(g(), 2)"
+	) == (
+		"result = f(g(), 2, n=5)",
+		None,
+	)
+
+
+@pytest.mark.parametrize("gone", ["a", "b"])
+def test_given_a_removed_parameter_whose_argument_has_side_effects_then_the_call_is_left_for_the_user(gone):
+	new_statement, reason = _rewritten("def f(a, b):\n\tpass\n", Change(remove=[gone]), "result = f(g(), h())")
+	assert new_statement is None
+	assert reason == "changing effectful arguments could change evaluation order or discard side effects"
+
+
+def test_given_effectful_keywords_written_out_of_parameter_order_then_the_call_is_left_for_the_user():
+	# They would be re-emitted in parameter order, which changes the order they run in (see also FINDINGS-h3 #2).
+	new_statement, reason = _rewritten(
+		"def f(a, b):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 5}]), "result = f(b=g(), a=h())"
+	)
+	assert new_statement is None
+	assert reason is not None and "evaluation order" in reason
+
+
+def test_given_an_effectful_keyword_in_parameter_order_then_the_call_is_rewritten_with_it_kept():
+	assert _rewritten(
+		"def f(a, b):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 5}]), "result = f(1, b=g())"
+	) == ("result = f(1, b=g(), n=5)", None)
+
+
+def test_given_effectful_positionals_and_a_removed_constant_then_the_rest_keep_their_order():
+	assert _rewritten("def f(a, b, c):\n\tpass\n", Change(remove=["b"]), "result = f(g(), 2, h())") == (
+		"result = f(g(), h())",
+		None,
+	)
+
+
+def test_given_default_insert_index_then_a_star_args_is_passed_unless_the_new_parameter_is_keyword_only():
+	rest = [Param("args", "vararg"), Param("kw", "kwarg")]
+	assert _default_insert_index(rest, False) == 0  # a normal parameter goes before *args
+	assert _default_insert_index(rest, True) == 1  # a keyword-only one goes after *args, before **kwargs
+	assert _default_insert_index([Param("a", "normal")], True) == 1
+	assert _default_insert_index([], False) == 0
+
+
+@pytest.mark.parametrize(
+	("definition", "spec", "expected"),
+	[
+		("def f(*args):\n\tpass\n", {}, "def f(*args, n=2):\n\tpass\n"),
+		("def f(*args, **kw):\n\tpass\n", {}, "def f(*args, n=2, **kw):\n\tpass\n"),
+		("def f(a, *, k=1):\n\tpass\n", {"keyword_only": False}, "def f(a, n=2, *, k=1):\n\tpass\n"),
+		("def f(a, *, k=1):\n\tpass\n", {}, "def f(a, *, k=1, n=2):\n\tpass\n"),
+		("def f(a, *, k=1, **kw):\n\tpass\n", {}, "def f(a, *, k=1, n=2, **kw):\n\tpass\n"),
+		("def f(a, b, *args):\n\tpass\n", {"keyword_only": False}, "def f(a, b, n=2, *args):\n\tpass\n"),
+		("def f(**kw):\n\tpass\n", {"keyword_only": False}, "def f(n=2, **kw):\n\tpass\n"),
+		("def f(**kw):\n\tpass\n", {}, "def f(*, n=2, **kw):\n\tpass\n"),
+	],
+)
+def test_given_an_added_parameter_without_a_position_then_it_lands_next_to_its_own_kind(definition, spec, expected):
+	assert _new_definition(definition, Change(add=[{"name": "n", "default": 2, **spec}])) == expected
+
+
+def test_given_two_common_leading_arguments_then_only_the_tail_that_differs_is_rewritten():
+	assert _rewritten(
+		"def f(a, b, c):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 7}]), "result = f(1, 2, 3)"
+	) == (
+		"result = f(1, 2, 3, n=7)",
+		None,
+	)
+	assert _rewritten("def f(a, b, c):\n\tpass\n", Change(remove=["c"]), "result = f(1, 2, 3)") == (
+		"result = f(1, 2)",
+		None,
+	)
+	assert _rewritten("def f(a, b, c):\n\tpass\n", Change(remove=["a"]), "result = f(1, 2, 3)") == (
+		"result = f(2, 3)",
+		None,
+	)
+
+
+def test_given_a_call_with_no_arguments_but_a_space_then_a_new_argument_goes_in_front_of_the_space():
+	assert _rewritten(
+		"def f(a=1):\n\tpass\n", Change(add=[{"name": "n", "default": 1, "value": 5}]), "result = f( )"
+	) == (
+		"result = f(n=5 )",
+		None,
+	)
+
+
+def test_given_a_plan_with_inserts_a_deletion_and_an_edit_in_place_then_every_site_follows_its_own_line(workspace):
+	path = workspace / "a.py"
+	base = "l0 = 0\nl1 = 1\nl2 = 2\nl3 = 3\nl4 = 4\nl5 = 5\n"
+	new = "top = 0\nl0 = 0\nl2 = 2\nl3 = 33\nl4 = 4\nmid = 1\nl5 = 5\n"
+	path.write_text(base)
+	plan = EditPlan("p", [FileChange(path, base, new)])
+	lines = base.splitlines()
+
+	def site(index: int) -> OptionalSite:
+		return OptionalSite(
+			f"u{index}", "a.py", index + 1, "text", lines[index], TextEdit(index, 0, index, 2, f"y{index}")
+		)
+
+	follow = site_followup(plan, [site(i) for i in (0, 2, 3, 4, 5)], workspace)
+	assert follow is not None
+	assert [
+		(s.id, s.line, s.edit.start_line, s.edit.end_line, s.edit.start_character, s.edit.end_character, s.text)
+		for s in follow.optional_sites
+	] == [
+		("u0", 2, 1, 1, 0, 2, "l0 = 0"),
+		("u2", 3, 2, 2, 0, 2, "l2 = 2"),
+		("u3", 4, 3, 3, 0, 2, "l3 = 33"),
+		("u4", 5, 4, 4, 0, 2, "l4 = 4"),
+		("u5", 7, 6, 6, 0, 2, "l5 = 5"),
+	]
+	with pytest.raises(ToolInputError, match=r"u1 \(a.py:2\) overlaps a change in the plan; skip it"):
+		site_followup(plan, [site(1)], workspace)
