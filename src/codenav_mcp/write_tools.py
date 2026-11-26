@@ -30,7 +30,7 @@ from mcp_nav_shared.edits import (
 from mcp_nav_shared.errors import TOOL_ERRORS, FailedText, ToolInputError, format_tool_error
 from mcp_nav_shared.transaction import refuse_home_path
 
-from codenav_mcp import tool_base
+from codenav_mcp import edit_ops, tool_base
 from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import Skipped, format_skipped, primary_module_name
 from codenav_mcp.linked import ClassRef
@@ -40,7 +40,6 @@ from codenav_mcp.simulate import CHECK_LIMIT, diagnostics_delta, files_to_check
 from codenav_mcp.tool_base import Session, open_session
 from codenav_mcp.writes import (
 	PYTHON_SUFFIXES,
-	errors_after_write,
 	finish_plan,
 	require_workspace_file,
 	type_check_report,
@@ -531,28 +530,26 @@ async def apply_edit(id: str, allow_large: bool = False, ctx: Context | None = N
 	undo_edit(id) reverts it. Fails if any file changed since the preview."""
 	try:
 		session = await open_session(ctx)
-		plan = session.state.plans.get(id)
-		entry = session.state.journal.apply(plan, allow_large=allow_large, entry_id=id)
-		session.state.plans.discard(id)
-		after = await errors_after_write(session.client, session.workspace, plan)
+		result = await edit_ops.apply_stored(session, id, allow_large=allow_large)
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)
 	return (
-		f"Applied edit {entry.id}: {plan.description}\n\n{after}\n\nFiles:\n{plan.summary(session.workspace)}\n\n"
-		f'Revert with undo_edit(id="{entry.id}").'
+		f"Applied edit {result.entry.id}: {result.plan.description}\n\n{result.after}\n\n"
+		f"Files:\n{result.plan.summary(session.workspace)}\n\n"
+		f'Revert with undo_edit(id="{result.entry.id}").'
 	)
 
 
 async def undo_edit(id: str | None = None, ctx: Context | None = None) -> str:  # noqa: A002
-	"""Revert an edit applied by the write tools (the latest one by default). The undo history keeps the last 20
-	edits of this server session; older ones, and ids that were already undone, cannot be reverted.
+	"""Revert an edit applied by the write tools (the latest one by default). The undo history keeps the last 50
+	edits per workspace, across server restarts; older ones, and ids that were already undone, cannot be reverted.
 
 	Refuses when any of its files was changed after the edit, so later work is never overwritten. An edit
 	blocked by a newer one names that edit, which must be undone first.
 	"""
 	try:
 		session = await open_session(ctx)
-		entry = session.state.journal.undo(id)
+		entry = edit_ops.undo_stored(session.state, id)
 	except TOOL_ERRORS as exc:
 		return format_tool_error(exc)
 	return f"Reverted edit {entry.id}: {entry.plan.description}\n\nFiles restored:\n{entry.plan.summary(session.workspace)}"

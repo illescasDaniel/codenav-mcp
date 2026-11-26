@@ -19,7 +19,11 @@ class OptionalSite:
 	line: int  # 1-based
 	kind: str  # "attr" | "keyword" | "def" | "string" | "comment" | "docstring" | "text"
 	text: str  # the source line, stripped, for display
-	edit: TextEdit  # the edit to add if the agent opts in
+	# The edit to add if the agent opts in. Positions refer to the file as it was when the plan was made (its
+	# on-disk text, i.e. the plan's old text); `plan_merge.add_sites` carries them across the plan's own edits and
+	# refuses a site whose line the plan changed or whose line no longer reads `text`. A site positioned against
+	# the plan's new text is accepted too when its line matches there. `text` must be the stripped line.
+	edit: TextEdit
 
 
 @dataclass
