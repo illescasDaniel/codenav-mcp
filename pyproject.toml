@@ -88,6 +88,22 @@ format = { cmd = "uv run ruff check --fix . && uv run ruff format .", help = "fo
 upload = { cmd = "bash scripts/publish.sh", help = "build + upload to PyPI (--testpypi, --skip-existing, --build-only after --)" }
 test-package = { cmd = "bash scripts/test_package.sh", help = "install the published package in a fresh venv and smoke-test it (--testpypi after --)" }
 
+[tool.mutmut]
+paths_to_mutate = [
+	"src/codenav_mcp/signature.py",
+	"src/codenav_mcp/plan_merge.py",
+	"src/codenav_mcp/args.py",
+	"src/codenav_mcp/reply.py",
+]
+tests_dir = [
+	"tests/property/",
+	"tests/test_signature.py",
+	"tests/test_plan_merge.py",
+	"tests/test_args.py",
+]
+also_copy = ["tests/", "src/"]
+do_not_mutate = []
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -rs -m \"not fuzz and not differential and not crosshair and not mutation\""
