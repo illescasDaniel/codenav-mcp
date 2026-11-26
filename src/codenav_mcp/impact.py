@@ -448,7 +448,7 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 		summary = _arg_summary(calls_)
 		prod_calls = [s for s in prod if s.kind == "call"]
 		test_calls = len(calls_) - len(prod_calls)
-		head = f"{len(calls_)} calls ({len(prod_calls)} in code, {test_calls} in tests)"
+		head = f"{len(calls_)} call{'s' if len(calls_) != 1 else ''} ({len(prod_calls)} in code, {test_calls} in tests)"
 		reply.items.append(f"Call sites: {head}. Arguments: {summary}")
 		rows = [f"{s.path}:{s.line}  ({s.args.label() if s.args else '?'})" for s in prod_calls]
 		if rows:
