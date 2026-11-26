@@ -144,7 +144,7 @@ mcp = _CodenavMCPServer(
 		"you change an API. Refactor with rename, change_signature, move, edit_symbol (one definition, or "
 		"edits=[...] for several at once) and fix. Writes apply by default (apply=true) when the type check adds "
 		"no new errors; otherwise they are held as a preview, and apply=false always previews. edits lists, "
-		"shows, applies or undoes previews. The gate checks types only: run tests and docs checks yourself."
+		"shows and applies previews, and undoes applied edits. The gate checks types only: run tests and docs checks yourself."
 	),
 )
 

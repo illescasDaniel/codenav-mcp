@@ -122,9 +122,9 @@ gate checks types only. Run relevant tests and documentation checks.
 ## Arguments and errors
 
 Guessed argument names are renamed to the real ones before the call is
-checked, on every tool: `symbol`, `symbol_name`, `qualified_name` and
-`port_name` for `name` (`query` on `search`); `query` for `name`, and `name`
-for search's `query`; `file`, `filepath` and `path` for `file_path` (`unused`
+checked, on every tool: `symbol`, `symbol_name` and `qualified_name` for
+`name` (`query` on `search`); `port_name` for `name`; `query` for `name`, and
+`name` for search's `query`; `file`, `filepath` and `path` for `file_path` (`unused`
 and `search` keep their own `path`); `col` for `column`; `line_number` and
 `lineno` for `line`; `in_` for `scope`; `edit_id` for `id`. Inside `edits`
 items, `old_str` and `new_str` mean `old_string` and `new_string`. A tool's

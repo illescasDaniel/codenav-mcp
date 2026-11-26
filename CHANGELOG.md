@@ -17,8 +17,7 @@
 - `lookup(show=["references"])` lists every file whose hits are within `limit`, and a cut list ends with the exact `next:` call.
 - `rename` leaves attribute accesses the type checker resolves to another symbol (`sqlite3.Connection.execute`) alone and counts them in a note; the uncertain sites (mock or untyped receivers) keep their `u1..` ids. The mention scan skips directories whose name starts with a dot (`.agents/`, `.cursor/`, `.github/`).
 - `edit_symbol(action="delete")` no longer holds a delete because of a use that ty resolves to a different definition; those are counted in a note. Strings and uses of the deleted symbol still hold it.
-- `lookup(show=["implementations"])` says which source root it scanned and names `CODENAV_MCP_EXTRA_SOURCE_ROOTS` when a `tests/` directory outside it was left out.
-- A Protocol member's callers note that implementations are listed separately, so test doubles are not silently missed.
+- `lookup(show=["implementations"])` says which source root it scanned and names `CODENAV_MCP_EXTRA_SOURCE_ROOTS` when a `tests/` directory outside it was left out, so test doubles are not silently missed.
 - Every write's type-check line says "tests and docs not checked": a green check says nothing about tests, generated docs or other repo invariants.
 
 ### Known limits

@@ -28,7 +28,7 @@
         },
         {
           "name": "CODENAV_MCP_SOURCE_ROOT",
-          "description": "Directory scanned for implementations candidates and used to derive dotted import paths (e.g. src); default is the whole workspace",
+          "description": "Directory scanned for lookup implementations candidates and used to derive dotted import paths (e.g. src); default is the whole workspace",
           "isRequired": false,
           "isSecret": false
         },
@@ -40,7 +40,7 @@
         },
         {
           "name": "CODENAV_MCP_EXTRA_SOURCE_ROOTS",
-          "description": "Comma-separated directories (e.g. tests) that implementations also scans; matches are listed under a separate heading",
+          "description": "Comma-separated directories (e.g. tests) that lookup implementations also scans; matches are listed under a separate heading",
           "isRequired": false,
           "isSecret": false
         },

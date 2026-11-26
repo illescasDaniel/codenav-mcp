@@ -507,7 +507,7 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 	notes.extend(data.notes)
 	if subject.protocol:
 		notes.append(
-			f'{subject.name} is a Protocol: classes that satisfy it structurally are listed by implementations(name="{subject.name}")'
+			f'{subject.name} is a Protocol: classes that satisfy it structurally are listed by lookup(name="{subject.name}", show=["implementations"])'
 		)
 	if cut:
 		reply.next_calls.append(

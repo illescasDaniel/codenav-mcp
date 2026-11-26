@@ -60,16 +60,6 @@ def format_references_listing(
 	return "\n".join(lines)
 
 
-def format_symbol_references(locations: list[dict[str, Any]], workspace_root: Path, retry_call: str) -> str:
-	"""The compact per-file summary for `symbol_info`; when it leaves files out, the last line says how to list
-	them all: `retry_call` is the exact `references(...)` call (the position form, so it picks the same symbol)."""
-	text = format_references_grouped(locations, workspace_root)
-	lines = text.splitlines()
-	if lines and lines[-1].startswith("… and ") and lines[-1].endswith("more file(s)"):
-		lines[-1] += f"; {retry_call} lists every hit"
-	return "\n".join(lines)
-
-
 def constructor_keyword_locations(class_references: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
 	"""Map typed references to a dataclass to keywords in direct constructor calls.
 
