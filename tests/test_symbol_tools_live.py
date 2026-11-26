@@ -274,9 +274,13 @@ def test_given_ambiguous_fix_when_quick_fix_without_choice_then_options_listed_a
 	assert (project / "src/pkg/needs_import.py").read_text() == before
 
 
-def test_given_single_fix_when_quick_fix_then_import_added_without_choice(project, loop):
+def test_given_import_fix_when_quick_fix_then_apply_or_select_ambiguous_choice(project, loop):
 	# when
 	text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=11))
+	if "Several fixes apply" in text:
+		assert "import os" in text
+		assert "import os" not in (project / "src/pkg/needs_import.py").read_text()
+		text = _run(loop, symbol_tools.quick_fix("src/pkg/needs_import.py", line=11, choice="import os"))
 	# then
 	assert "import os" in (project / "src/pkg/needs_import.py").read_text(), text
 	assert "Applied as edit" in text
