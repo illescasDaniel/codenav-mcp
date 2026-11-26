@@ -1,0 +1,3373 @@
+{
+ "project": "/tmp/cnav-sandbox/srxy-t3",
+ "seed": 0,
+ "summary": {
+  "symbols": 40,
+  "seconds": 34.8,
+  "certain": {
+   "errors": 0,
+   "error_kinds": {},
+   "compared": 40,
+   "compared_by_lines": 39,
+   "compared_by_file_counts": 1,
+   "agreeing_symbols": 39,
+   "agreement_rate": 0.975,
+   "shared_lines": 115,
+   "only_in_codenav_lines": 1,
+   "only_in_rope_lines": 0,
+   "codenav_lines_also_in_rope_rate": 0.9914,
+   "line_overlap_rate": 0.9914
+  },
+  "all": {
+   "errors": 0,
+   "error_kinds": {},
+   "compared": 40,
+   "compared_by_lines": 39,
+   "compared_by_file_counts": 1,
+   "agreeing_symbols": 37,
+   "agreement_rate": 0.925,
+   "shared_lines": 118,
+   "only_in_codenav_lines": 12,
+   "only_in_rope_lines": 237,
+   "codenav_lines_also_in_rope_rate": 0.9077,
+   "line_overlap_rate": 0.3215
+  }
+ },
+ "symbols": [
+  {
+   "symbol": {
+    "qualname": "_mock_process_pool",
+    "name": "_mock_process_pool",
+    "kind": "function",
+    "path": "tests/unit/test_search_process_pool.py",
+    "line": 15,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_process_pool.py",
+       15
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       32
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       48
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       63
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_process_pool.py",
+       15
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       32
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       48
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       63
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.25
+  },
+  {
+   "symbol": {
+    "qualname": "_set_mode_env",
+    "name": "_set_mode_env",
+    "kind": "function",
+    "path": "src/srxy/application/search_runner.py",
+    "line": 66,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/search_runner.py",
+       53
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       54
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       55
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       56
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       66
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/search_runner.py",
+       53
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       54
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       55
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       56
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       66
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.68
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_english_install_when_headless_then_progress_matches_language",
+    "name": "test_given_english_install_when_headless_then_progress_matches_language",
+    "kind": "function",
+    "path": "tests/unit/test_installer_engine_integration.py",
+    "line": 21,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       21
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       21
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.27
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_invalid_text_when_validating_then_raises",
+    "name": "test_given_invalid_text_when_validating_then_raises",
+    "kind": "function",
+    "path": "tests/unit/test_tui_size_limits.py",
+    "line": 45,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_tui_size_limits.py",
+       45
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_tui_size_limits.py",
+       45
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.23
+  },
+  {
+   "symbol": {
+    "qualname": "FileQ.any",
+    "name": "any",
+    "kind": "method",
+    "path": "src/srxy/domain/file_query.py",
+    "line": 61,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/domain/file_query.py",
+       61
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       72
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       138
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       202
+      ],
+      [
+       "tests/unit/test_file_query.py",
+       119
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/domain/file_query.py",
+       61
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       72
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       138
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       202
+      ],
+      [
+       "tests/unit/test_file_query.py",
+       119
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 3.21
+  },
+  {
+   "symbol": {
+    "qualname": "_DownloadWorker",
+    "name": "_DownloadWorker",
+    "kind": "class",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 238,
+    "column": 6
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       238
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       463
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1535
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       238
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       463
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1535
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.5
+  },
+  {
+   "symbol": {
+    "qualname": "cache_put",
+    "name": "cache_put",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/cache/cache.py",
+    "line": 242,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "file counts (codenav diff truncated)",
+     "codenav_count": 23,
+     "rope_count": 23,
+     "count_differences": {},
+     "shared": [],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "file counts (codenav diff truncated)",
+     "codenav_count": 23,
+     "rope_count": 23,
+     "count_differences": {},
+     "shared": [],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.58
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "name": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 1333,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       1333
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       1333
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.47
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "name": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "kind": "function",
+    "path": "tests/cli/test_cli_startup_path.py",
+    "line": 62,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli_startup_path.py",
+       62
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli_startup_path.py",
+       62
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.4
+  },
+  {
+   "symbol": {
+    "qualname": "_get_file_walker",
+    "name": "_get_file_walker",
+    "kind": "function",
+    "path": "src/srxy/application/use_cases/search_files.py",
+    "line": 89,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       89
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       520
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       790
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       89
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       520
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       790
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.74
+  },
+  {
+   "symbol": {
+    "qualname": "_touch",
+    "name": "_touch",
+    "kind": "function",
+    "path": "tests/unit/test_macos_pyside_packaging.py",
+    "line": 34,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 19,
+     "rope_count": 19,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       34
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       141
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       142
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       143
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       144
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       145
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       146
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       147
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       148
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       149
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       150
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       151
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       152
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       153
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       154
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       155
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       156
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       157
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 19,
+     "rope_count": 19,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       34
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       141
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       142
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       143
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       144
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       145
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       146
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       147
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       148
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       149
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       150
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       151
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       152
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       153
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       154
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       155
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       156
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       157
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.34
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "name": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "kind": "function",
+    "path": "tests/unit/test_search.py",
+    "line": 293,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search.py",
+       293
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search.py",
+       293
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.3
+  },
+  {
+   "symbol": {
+    "qualname": "_parse_finder_tags",
+    "name": "_parse_finder_tags",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+    "line": 294,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       252
+      ],
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       294
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       252
+      ],
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       294
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.4
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "name": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "kind": "function",
+    "path": "tests/cli/test_cli.py",
+    "line": 1118,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli.py",
+       1118
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli.py",
+       1118
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.59
+  },
+  {
+   "symbol": {
+    "qualname": "_ci_forced",
+    "name": "_ci_forced",
+    "kind": "function",
+    "path": "src/srxy/application/launch.py",
+    "line": 13,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/launch.py",
+       13
+      ],
+      [
+       "src/srxy/application/launch.py",
+       22
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/launch.py",
+       13
+      ],
+      [
+       "src/srxy/application/launch.py",
+       22
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.34
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "name": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "kind": "function",
+    "path": "tests/gui/test_qt_theme.py",
+    "line": 197,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_qt_theme.py",
+       197
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_qt_theme.py",
+       197
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.49
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "name": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "kind": "function",
+    "path": "tests/unit/test_updates_path_i18n.py",
+    "line": 47,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_updates_path_i18n.py",
+       47
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_updates_path_i18n.py",
+       47
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.27
+  },
+  {
+   "symbol": {
+    "qualname": "SrxyApp.action_start_search",
+    "name": "action_start_search",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/tui/app.py",
+    "line": 650,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       382
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       650
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       962
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       976
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       382
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       650
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       962
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       976
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.88
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "name": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 697,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       697
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       697
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.9
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.uninstallPrefix",
+    "name": "uninstallPrefix",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 249,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       249
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       249
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.68
+  },
+  {
+   "symbol": {
+    "qualname": "_iter_office_zip_media_blobs",
+    "name": "_iter_office_zip_media_blobs",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/documents/document_text.py",
+    "line": 123,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       244
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       281
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       244
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       281
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.46
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.privacyAck",
+    "name": "privacyAck",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 260,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       260
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/gui/test_installer_snapshots.py",
+       32
+      ]
+     ],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       260
+      ],
+      [
+       "tests/gui/test_installer_snapshots.py",
+       32
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.64
+  },
+  {
+   "symbol": {
+    "qualname": "_part_of",
+    "name": "_part_of",
+    "kind": "function",
+    "path": "tests/unit/test_installer_download.py",
+    "line": 47,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_download.py",
+       47
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       64
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       81
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       110
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       127
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       150
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       167
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_download.py",
+       47
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       64
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       81
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       110
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       127
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       150
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       167
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.36
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.confirmClearModel",
+    "name": "confirmClearModel",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2741,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2741
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1841
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2741
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1841
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.63
+  },
+  {
+   "symbol": {
+    "qualname": "_ErrorModalHostApp.compose",
+    "name": "compose",
+    "kind": "method",
+    "path": "tests/tui/test_error_modal.py",
+    "line": 18,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/tui/test_error_modal.py",
+       18
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 10,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/tui/test_error_modal.py",
+       18
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/tui/test_download_modal.py",
+       18
+      ],
+      [
+       "tests/tui/test_help_language.py",
+       17
+      ],
+      [
+       "tests/tui/test_query_builder.py",
+       23
+      ],
+      [
+       "tests/tui/test_query_builder_display.py",
+       23
+      ],
+      [
+       "tests/tui/test_search_filters_modal.py",
+       21
+      ],
+      [
+       "tests/tui/test_search_options_modal.py",
+       18
+      ],
+      [
+       "tests/tui/test_tui_filters_ignore.py",
+       24
+      ],
+      [
+       "tests/tui/test_tui_filters_scan.py",
+       23
+      ],
+      [
+       "tests/tui/test_tui_modals_integration.py",
+       21
+      ]
+     ],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.89
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "name": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "kind": "function",
+    "path": "tests/unit/test_model_store.py",
+    "line": 331,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_model_store.py",
+       331
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_model_store.py",
+       331
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.4
+  },
+  {
+   "symbol": {
+    "qualname": "split_archive_member_path",
+    "name": "split_archive_member_path",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/archive/archive_search.py",
+    "line": 33,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 14,
+     "rope_count": 14,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2453
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2460
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       33
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       46
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       112
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       135
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       18
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       156
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       14
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       16
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       29
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       31
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       14
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       103
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 14,
+     "rope_count": 14,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2453
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2460
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       33
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       46
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       112
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       135
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       18
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       156
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       14
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       16
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       29
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       31
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       14
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       103
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.32
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "name": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "kind": "function",
+    "path": "tests/gui/test_gui_ignore.py",
+    "line": 520,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_ignore.py",
+       520
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_ignore.py",
+       520
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.31
+  },
+  {
+   "symbol": {
+    "qualname": "_rel",
+    "name": "_rel",
+    "kind": "function",
+    "path": "tests/unit/test_file_walker_ignore.py",
+    "line": 26,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       26
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       32
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       401
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       402
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       415
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       26
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       32
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       401
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       402
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       415
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.98
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "name": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "kind": "function",
+    "path": "tests/unit/test_path_setup.py",
+    "line": 46,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_path_setup.py",
+       46
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_path_setup.py",
+       46
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.36
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "name": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "kind": "function",
+    "path": "tests/integration/test_corpus_search.py",
+    "line": 43,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/integration/test_corpus_search.py",
+       43
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/integration/test_corpus_search.py",
+       43
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.34
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "name": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "kind": "function",
+    "path": "tests/unit/test_windows_pyside_packaging.py",
+    "line": 97,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_pyside_packaging.py",
+       97
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_pyside_packaging.py",
+       97
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.34
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.status",
+    "name": "status",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 450,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       450
+      ],
+      [
+       "tests/gui/test_installer.py",
+       738
+      ],
+      [
+       "tests/gui/test_installer.py",
+       743
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1340
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1414
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 10,
+     "rope_count": 243,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       450
+      ],
+      [
+       "tests/gui/test_installer.py",
+       738
+      ],
+      [
+       "tests/gui/test_installer.py",
+       743
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1340
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1414
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       160
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       265
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/gui/test_gui_controller.py",
+       603
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       674
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       675
+      ]
+     ],
+     "only_in_rope": [
+      [
+       "scripts/bench_file_search.py",
+       50
+      ],
+      [
+       "scripts/docs/export_public_api.py",
+       42
+      ],
+      [
+       "scripts/quality/checks.py",
+       53
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       215
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       222
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       224
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       285
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       505
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1252
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1275
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1401
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1410
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1420
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1440
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1485
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1656
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1667
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1674
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1693
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1720
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1727
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1729
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1731
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1771
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1774
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1799
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2553
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2840
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2845
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2847
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2908
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2914
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/splash.py",
+       1
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       187
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       188
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       189
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       192
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       198
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       199
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       200
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       233
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       234
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       235
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       238
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       244
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       247
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/__main__.py",
+       259
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       86
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       97
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       103
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       112
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       672
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       694
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       717
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       852
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       902
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       904
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       906
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       930
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       78
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       79
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       80
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       86
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       88
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       90
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       92
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       93
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       95
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       116
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       905
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       925
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       943
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       952
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       955
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       965
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       994
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       1107
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/install.py",
+       1131
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       43
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       50
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       51
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       59
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       71
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       72
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       73
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       74
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       79
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       80
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       85
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       86
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       95
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       105
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       106
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       121
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       122
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       124
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       125
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       126
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       132
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       134
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       135
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       139
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       140
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       141
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       147
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       149
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       150
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       159
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       166
+      ],
+      [
+       "src/srxy/adapters/inbound/installer/uninstall.py",
+       167
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       85
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       94
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       97
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       129
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       139
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       249
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       414
+      ],
+      [
+       "src/srxy/adapters/inbound/installer_online/server.py",
+       431
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       276
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       286
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       367
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       370
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       481
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       669
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       709
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       852
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       865
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       904
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       923
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/modals.py",
+       118
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/modals.py",
+       133
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       34
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       104
+      ],
+      [
+       "src/srxy/application/disk_usage.py",
+       38
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       58
+      ],
+      [
+       "src/srxy/application/search_messages.py",
+       1
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       112
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       114
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       147
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       149
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       153
+      ],
+      [
+       "src/srxy/application/settings_maintenance.py",
+       155
+      ],
+      [
+       "src/srxy/application/updates.py",
+       87
+      ],
+      [
+       "src/srxy/application/updates.py",
+       91
+      ],
+      [
+       "src/srxy/application/updates.py",
+       92
+      ],
+      [
+       "src/srxy/application/updates.py",
+       104
+      ],
+      [
+       "src/srxy/application/updates.py",
+       107
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       959
+      ],
+      [
+       "src/srxy/domain/progress.py",
+       47
+      ],
+      [
+       "src/srxy/domain/progress.py",
+       82
+      ],
+      [
+       "src/srxy/domain/progress.py",
+       127
+      ],
+      [
+       "src/srxy/domain/progress.py",
+       138
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       544
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       579
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       670
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1070
+      ],
+      [
+       "tests/gui/test_gui_snapshots.py",
+       77
+      ],
+      [
+       "tests/gui/test_gui_snapshots.py",
+       115
+      ],
+      [
+       "tests/gui/test_gui_splash.py",
+       48
+      ],
+      [
+       "tests/gui/test_gui_splash.py",
+       51
+      ],
+      [
+       "tests/gui/test_gui_splash.py",
+       53
+      ],
+      [
+       "tests/gui/test_installer.py",
+       42
+      ],
+      [
+       "tests/gui/test_installer.py",
+       595
+      ],
+      [
+       "tests/gui/test_installer.py",
+       604
+      ],
+      [
+       "tests/gui/test_installer.py",
+       605
+      ],
+      [
+       "tests/gui/test_installer.py",
+       719
+      ],
+      [
+       "tests/gui/test_installer.py",
+       726
+      ],
+      [
+       "tests/gui/test_installer.py",
+       727
+      ],
+      [
+       "tests/gui/test_installer.py",
+       911
+      ],
+      [
+       "tests/gui/test_installer.py",
+       919
+      ],
+      [
+       "tests/gui/test_installer.py",
+       920
+      ],
+      [
+       "tests/gui/test_installer.py",
+       926
+      ],
+      [
+       "tests/gui/test_installer.py",
+       934
+      ],
+      [
+       "tests/gui/test_installer.py",
+       935
+      ],
+      [
+       "tests/gui/test_installer.py",
+       998
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1006
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1007
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1304
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1316
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1317
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1378
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1393
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1394
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1423
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       35
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       52
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       77
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       100
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       153
+      ],
+      [
+       "tests/unit/test_dsl.py",
+       168
+      ],
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       36
+      ],
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       43
+      ],
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       93
+      ],
+      [
+       "tests/unit/test_installer_install_flow.py",
+       108
+      ],
+      [
+       "tests/unit/test_installer_install_flow.py",
+       220
+      ],
+      [
+       "tests/unit/test_installer_install_flow.py",
+       225
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       298
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       348
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       353
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       354
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       372
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       375
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       380
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       399
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       403
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       426
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       429
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       432
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       464
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       469
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       470
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       488
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       491
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       496
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       516
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       519
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       525
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       530
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       531
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       545
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       548
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       551
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       563
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       566
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       569
+      ],
+      [
+       "tests/unit/test_installer_online.py",
+       597
+      ],
+      [
+       "tests/unit/test_installer_resolve.py",
+       26
+      ],
+      [
+       "tests/unit/test_installer_resolve.py",
+       30
+      ],
+      [
+       "tests/unit/test_installer_resolve.py",
+       46
+      ],
+      [
+       "tests/unit/test_installer_resolve.py",
+       87
+      ],
+      [
+       "tests/unit/test_search.py",
+       154
+      ],
+      [
+       "tests/unit/test_search.py",
+       155
+      ],
+      [
+       "tests/unit/test_search.py",
+       159
+      ],
+      [
+       "tests/unit/test_search.py",
+       167
+      ]
+     ]
+    }
+   },
+   "seconds": 2.23
+  },
+  {
+   "symbol": {
+    "qualname": "download_semantic_image_model",
+    "name": "download_semantic_image_model",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/models/model_store.py",
+    "line": 188,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 6,
+     "rope_count": 6,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       10
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       93
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       188
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       470
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       11
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       110
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 6,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       10
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       93
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       188
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       470
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       11
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       110
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": [
+      [
+       "tests/unit/test_model_store.py",
+       384
+      ]
+     ]
+    }
+   },
+   "seconds": 0.77
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.updateBusy",
+    "name": "updateBusy",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2934,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2934
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2934
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.3
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "name": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "kind": "function",
+    "path": "tests/unit/test_ignore_edit.py",
+    "line": 204,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_ignore_edit.py",
+       204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_ignore_edit.py",
+       204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.42
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController._on_search_event",
+    "name": "_on_search_event",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 1658,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1521
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1658
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       3083
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1521
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1658
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       3083
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.48
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "name": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "kind": "function",
+    "path": "tests/unit/test_windows_metadata.py",
+    "line": 158,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_metadata.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_metadata.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.47
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "name": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "kind": "function",
+    "path": "tests/unit/test_search_worker.py",
+    "line": 122,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_worker.py",
+       122
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_worker.py",
+       122
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.37
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "name": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "kind": "function",
+    "path": "tests/unit/test_file_search.py",
+    "line": 602,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_search.py",
+       602
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_search.py",
+       602
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.76
+  }
+ ]
+}

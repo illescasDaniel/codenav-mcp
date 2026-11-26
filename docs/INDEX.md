@@ -7,3 +7,4 @@ run `docs_index.py check` to list docs whose covered code changed after they wer
 - DOC-001 [Tool reference](tools.md) reference: The 12 tools, edits and previews, aliases and refusals, output limits and known limits
 - DOC-002 [Configuration](configuration.md) reference: MCP host setup, workspace selection, environment variables and ty selection
 - DOC-003 [Development](development.md) reference: Local setup, test commands, language server lifecycle and shutdown behaviour
+- DOC-004 [Hardening checks](hardening.md) reference: Slow automated checks that look for bugs (differential runs against jedi and rope), how to run each and what they assert

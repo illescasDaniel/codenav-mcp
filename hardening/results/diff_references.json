@@ -1,0 +1,1335 @@
+{
+ "project": "/tmp/cnav-sandbox/srxy-t3",
+ "seed": 0,
+ "summary": {
+  "symbols": 40,
+  "errors": 0,
+  "error_kinds": {},
+  "compared": 40,
+  "agreeing_symbols": 40,
+  "agreement_rate": 1.0,
+  "shared_locations": 139,
+  "only_in_codenav_locations": 0,
+  "only_in_jedi_locations": 0,
+  "location_overlap_rate": 1.0,
+  "seconds": 7.7
+ },
+ "symbols": [
+  {
+   "symbol": {
+    "qualname": "_mock_process_pool",
+    "name": "_mock_process_pool",
+    "kind": "function",
+    "path": "tests/unit/test_search_process_pool.py",
+    "line": 15,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 4,
+   "jedi_count": 4,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_search_process_pool.py",
+     15
+    ],
+    [
+     "tests/unit/test_search_process_pool.py",
+     32
+    ],
+    [
+     "tests/unit/test_search_process_pool.py",
+     48
+    ],
+    [
+     "tests/unit/test_search_process_pool.py",
+     63
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.49
+  },
+  {
+   "symbol": {
+    "qualname": "_set_mode_env",
+    "name": "_set_mode_env",
+    "kind": "function",
+    "path": "src/srxy/application/search_runner.py",
+    "line": 66,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 5,
+   "jedi_count": 5,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/application/search_runner.py",
+     53
+    ],
+    [
+     "src/srxy/application/search_runner.py",
+     54
+    ],
+    [
+     "src/srxy/application/search_runner.py",
+     55
+    ],
+    [
+     "src/srxy/application/search_runner.py",
+     56
+    ],
+    [
+     "src/srxy/application/search_runner.py",
+     66
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.17
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_english_install_when_headless_then_progress_matches_language",
+    "name": "test_given_english_install_when_headless_then_progress_matches_language",
+    "kind": "function",
+    "path": "tests/unit/test_installer_engine_integration.py",
+    "line": 21,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_installer_engine_integration.py",
+     21
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.08
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_invalid_text_when_validating_then_raises",
+    "name": "test_given_invalid_text_when_validating_then_raises",
+    "kind": "function",
+    "path": "tests/unit/test_tui_size_limits.py",
+    "line": 45,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_tui_size_limits.py",
+     45
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.07
+  },
+  {
+   "symbol": {
+    "qualname": "FileQ.any",
+    "name": "any",
+    "kind": "method",
+    "path": "src/srxy/domain/file_query.py",
+    "line": 61,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 5,
+   "jedi_count": 5,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/domain/file_query.py",
+     61
+    ],
+    [
+     "src/srxy/domain/file_query.py",
+     72
+    ],
+    [
+     "src/srxy/domain/file_query.py",
+     138
+    ],
+    [
+     "src/srxy/domain/file_query.py",
+     202
+    ],
+    [
+     "tests/unit/test_file_query.py",
+     119
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.51
+  },
+  {
+   "symbol": {
+    "qualname": "_DownloadWorker",
+    "name": "_DownloadWorker",
+    "kind": "class",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 238,
+    "column": 6
+   },
+   "status": "ok",
+   "codenav_count": 3,
+   "jedi_count": 3,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     238
+    ],
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     463
+    ],
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     1535
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.38
+  },
+  {
+   "symbol": {
+    "qualname": "cache_put",
+    "name": "cache_put",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/cache/cache.py",
+    "line": 242,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 23,
+   "jedi_count": 23,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/outbound/cache/cache.py",
+     242
+    ],
+    [
+     "src/srxy/adapters/outbound/documents/document_text.py",
+     177
+    ],
+    [
+     "src/srxy/adapters/outbound/documents/document_text.py",
+     188
+    ],
+    [
+     "src/srxy/adapters/outbound/ocr/ocr_text.py",
+     436
+    ],
+    [
+     "src/srxy/adapters/outbound/ocr/ocr_text.py",
+     446
+    ],
+    [
+     "src/srxy/adapters/outbound/semantic/semantic_image.py",
+     8
+    ],
+    [
+     "src/srxy/adapters/outbound/semantic/semantic_image.py",
+     152
+    ],
+    [
+     "src/srxy/adapters/outbound/transcribe/transcribe_text.py",
+     520
+    ],
+    [
+     "src/srxy/adapters/outbound/transcribe/transcribe_text.py",
+     557
+    ],
+    [
+     "src/srxy/application/matching/semantic.py",
+     117
+    ],
+    [
+     "src/srxy/application/matching/semantic.py",
+     135
+    ],
+    [
+     "tests/unit/test_cache.py",
+     12
+    ],
+    [
+     "tests/unit/test_cache.py",
+     59
+    ],
+    [
+     "tests/unit/test_cache.py",
+     73
+    ],
+    [
+     "tests/unit/test_cache.py",
+     102
+    ],
+    [
+     "tests/unit/test_cache.py",
+     126
+    ],
+    [
+     "tests/unit/test_cache.py",
+     144
+    ],
+    [
+     "tests/unit/test_cache.py",
+     180
+    ],
+    [
+     "tests/unit/test_cache.py",
+     215
+    ],
+    [
+     "tests/unit/test_semantic_cache.py",
+     110
+    ],
+    [
+     "tests/unit/test_semantic_cache.py",
+     117
+    ],
+    [
+     "tests/unit/test_transcribe_text.py",
+     343
+    ],
+    [
+     "tests/unit/test_transcribe_text.py",
+     354
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.14
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "name": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 1333,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/gui/test_gui_controller.py",
+     1333
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.36
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "name": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "kind": "function",
+    "path": "tests/cli/test_cli_startup_path.py",
+    "line": 62,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/cli/test_cli_startup_path.py",
+     62
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.05
+  },
+  {
+   "symbol": {
+    "qualname": "_get_file_walker",
+    "name": "_get_file_walker",
+    "kind": "function",
+    "path": "src/srxy/application/use_cases/search_files.py",
+    "line": 89,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 3,
+   "jedi_count": 3,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/application/use_cases/search_files.py",
+     89
+    ],
+    [
+     "src/srxy/application/use_cases/search_files.py",
+     520
+    ],
+    [
+     "src/srxy/application/use_cases/search_files.py",
+     790
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.16
+  },
+  {
+   "symbol": {
+    "qualname": "_touch",
+    "name": "_touch",
+    "kind": "function",
+    "path": "tests/unit/test_macos_pyside_packaging.py",
+    "line": 34,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 19,
+   "jedi_count": 19,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     34
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     141
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     142
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     143
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     144
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     145
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     146
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     147
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     148
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     149
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     150
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     151
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     152
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     153
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     154
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     155
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     156
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     157
+    ],
+    [
+     "tests/unit/test_macos_pyside_packaging.py",
+     158
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.08
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "name": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "kind": "function",
+    "path": "tests/unit/test_search.py",
+    "line": 293,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_search.py",
+     293
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.07
+  },
+  {
+   "symbol": {
+    "qualname": "_parse_finder_tags",
+    "name": "_parse_finder_tags",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+    "line": 294,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 2,
+   "jedi_count": 2,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+     252
+    ],
+    [
+     "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+     294
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.08
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "name": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "kind": "function",
+    "path": "tests/cli/test_cli.py",
+    "line": 1118,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/cli/test_cli.py",
+     1118
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.16
+  },
+  {
+   "symbol": {
+    "qualname": "_ci_forced",
+    "name": "_ci_forced",
+    "kind": "function",
+    "path": "src/srxy/application/launch.py",
+    "line": 13,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 2,
+   "jedi_count": 2,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/application/launch.py",
+     13
+    ],
+    [
+     "src/srxy/application/launch.py",
+     22
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.06
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "name": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "kind": "function",
+    "path": "tests/gui/test_qt_theme.py",
+    "line": 197,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/gui/test_qt_theme.py",
+     197
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.14
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "name": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "kind": "function",
+    "path": "tests/unit/test_updates_path_i18n.py",
+    "line": 47,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_updates_path_i18n.py",
+     47
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.06
+  },
+  {
+   "symbol": {
+    "qualname": "SrxyApp.action_start_search",
+    "name": "action_start_search",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/tui/app.py",
+    "line": 650,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 4,
+   "jedi_count": 4,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/tui/app.py",
+     382
+    ],
+    [
+     "src/srxy/adapters/inbound/tui/app.py",
+     650
+    ],
+    [
+     "src/srxy/adapters/inbound/tui/app.py",
+     962
+    ],
+    [
+     "src/srxy/adapters/inbound/tui/app.py",
+     976
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.2
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "name": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 697,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/gui/test_gui_controller.py",
+     697
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.13
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.uninstallPrefix",
+    "name": "uninstallPrefix",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 249,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/installer/controller.py",
+     249
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.18
+  },
+  {
+   "symbol": {
+    "qualname": "_iter_office_zip_media_blobs",
+    "name": "_iter_office_zip_media_blobs",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/documents/document_text.py",
+    "line": 123,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 3,
+   "jedi_count": 3,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/outbound/documents/document_text.py",
+     123
+    ],
+    [
+     "src/srxy/adapters/outbound/documents/document_text.py",
+     244
+    ],
+    [
+     "src/srxy/adapters/outbound/documents/document_text.py",
+     281
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.privacyAck",
+    "name": "privacyAck",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 260,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 2,
+   "jedi_count": 2,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/installer/controller.py",
+     260
+    ],
+    [
+     "tests/gui/test_installer_snapshots.py",
+     32
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "_part_of",
+    "name": "_part_of",
+    "kind": "function",
+    "path": "tests/unit/test_installer_download.py",
+    "line": 47,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 7,
+   "jedi_count": 7,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_installer_download.py",
+     47
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     64
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     81
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     110
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     127
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     150
+    ],
+    [
+     "tests/unit/test_installer_download.py",
+     167
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.confirmClearModel",
+    "name": "confirmClearModel",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2741,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 2,
+   "jedi_count": 2,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     2741
+    ],
+    [
+     "tests/gui/test_gui_controller.py",
+     1841
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.27
+  },
+  {
+   "symbol": {
+    "qualname": "_ErrorModalHostApp.compose",
+    "name": "compose",
+    "kind": "method",
+    "path": "tests/tui/test_error_modal.py",
+    "line": 18,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/tui/test_error_modal.py",
+     18
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.12
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "name": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "kind": "function",
+    "path": "tests/unit/test_model_store.py",
+    "line": 331,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_model_store.py",
+     331
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.1
+  },
+  {
+   "symbol": {
+    "qualname": "split_archive_member_path",
+    "name": "split_archive_member_path",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/archive/archive_search.py",
+    "line": 33,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 14,
+   "jedi_count": 14,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     2453
+    ],
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     2460
+    ],
+    [
+     "src/srxy/adapters/outbound/archive/archive_search.py",
+     33
+    ],
+    [
+     "src/srxy/adapters/outbound/archive/archive_search.py",
+     46
+    ],
+    [
+     "src/srxy/adapters/outbound/archive/archive_search.py",
+     112
+    ],
+    [
+     "src/srxy/adapters/outbound/archive/archive_search.py",
+     135
+    ],
+    [
+     "src/srxy/adapters/outbound/content/file_walker.py",
+     18
+    ],
+    [
+     "src/srxy/adapters/outbound/content/file_walker.py",
+     156
+    ],
+    [
+     "src/srxy/adapters/outbound/os/desktop.py",
+     14
+    ],
+    [
+     "src/srxy/adapters/outbound/os/desktop.py",
+     16
+    ],
+    [
+     "src/srxy/adapters/outbound/os/desktop.py",
+     29
+    ],
+    [
+     "src/srxy/adapters/outbound/os/desktop.py",
+     31
+    ],
+    [
+     "tests/unit/test_archive_search.py",
+     14
+    ],
+    [
+     "tests/unit/test_archive_search.py",
+     103
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.18
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "name": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "kind": "function",
+    "path": "tests/gui/test_gui_ignore.py",
+    "line": 520,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/gui/test_gui_ignore.py",
+     520
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.22
+  },
+  {
+   "symbol": {
+    "qualname": "_rel",
+    "name": "_rel",
+    "kind": "function",
+    "path": "tests/unit/test_file_walker_ignore.py",
+    "line": 26,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 5,
+   "jedi_count": 5,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_file_walker_ignore.py",
+     26
+    ],
+    [
+     "tests/unit/test_file_walker_ignore.py",
+     32
+    ],
+    [
+     "tests/unit/test_file_walker_ignore.py",
+     401
+    ],
+    [
+     "tests/unit/test_file_walker_ignore.py",
+     402
+    ],
+    [
+     "tests/unit/test_file_walker_ignore.py",
+     415
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.18
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "name": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "kind": "function",
+    "path": "tests/unit/test_path_setup.py",
+    "line": 46,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_path_setup.py",
+     46
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.07
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "name": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "kind": "function",
+    "path": "tests/integration/test_corpus_search.py",
+    "line": 43,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/integration/test_corpus_search.py",
+     43
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "name": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "kind": "function",
+    "path": "tests/unit/test_windows_pyside_packaging.py",
+    "line": 97,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_windows_pyside_packaging.py",
+     97
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.status",
+    "name": "status",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 450,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 5,
+   "jedi_count": 5,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/installer/controller.py",
+     450
+    ],
+    [
+     "tests/gui/test_installer.py",
+     738
+    ],
+    [
+     "tests/gui/test_installer.py",
+     743
+    ],
+    [
+     "tests/gui/test_installer.py",
+     1340
+    ],
+    [
+     "tests/gui/test_installer.py",
+     1414
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.37
+  },
+  {
+   "symbol": {
+    "qualname": "download_semantic_image_model",
+    "name": "download_semantic_image_model",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/models/model_store.py",
+    "line": 188,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 6,
+   "jedi_count": 6,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/tui/preflight.py",
+     10
+    ],
+    [
+     "src/srxy/adapters/inbound/tui/preflight.py",
+     93
+    ],
+    [
+     "src/srxy/adapters/outbound/models/model_store.py",
+     188
+    ],
+    [
+     "src/srxy/adapters/outbound/models/model_store.py",
+     470
+    ],
+    [
+     "src/srxy/application/model_preflight.py",
+     11
+    ],
+    [
+     "src/srxy/application/model_preflight.py",
+     110
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.1
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.updateBusy",
+    "name": "updateBusy",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2934,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     2934
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.14
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "name": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "kind": "function",
+    "path": "tests/unit/test_ignore_edit.py",
+    "line": 204,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_ignore_edit.py",
+     204
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.07
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController._on_search_event",
+    "name": "_on_search_event",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 1658,
+    "column": 5
+   },
+   "status": "ok",
+   "codenav_count": 4,
+   "jedi_count": 4,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     1521
+    ],
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     1658
+    ],
+    [
+     "src/srxy/adapters/inbound/gui/controller.py",
+     3083
+    ],
+    [
+     "tests/gui/test_gui_controller.py",
+     1204
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.19
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "name": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "kind": "function",
+    "path": "tests/unit/test_windows_metadata.py",
+    "line": 158,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_windows_metadata.py",
+     158
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "name": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "kind": "function",
+    "path": "tests/unit/test_search_worker.py",
+    "line": 122,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_search_worker.py",
+     122
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.09
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "name": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "kind": "function",
+    "path": "tests/unit/test_file_search.py",
+    "line": 602,
+    "column": 4
+   },
+   "status": "ok",
+   "codenav_count": 1,
+   "jedi_count": 1,
+   "codenav_truncated": false,
+   "shared": [
+    [
+     "tests/unit/test_file_search.py",
+     602
+    ]
+   ],
+   "only_in_codenav": [],
+   "only_in_jedi": [],
+   "seconds": 0.14
+  }
+ ]
+}

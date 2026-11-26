@@ -90,10 +90,14 @@ test-package = { cmd = "bash scripts/test_package.sh", help = "install the publi
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--tb=short -rs"
+addopts = "--tb=short -rs -m 'not fuzz and not differential and not crosshair and not mutation'"
 pythonpath = ["src"]
 timeout = 60
 timeout_method = "thread"
 markers = [
 	"integration: live language-server smoke test",
+	"fuzz: property-based and fuzz checks (slow); run with -m fuzz",
+	"differential: codenav against jedi/rope on a tiny project (slow); run with -m differential",
+	"crosshair: symbolic-execution checks (slow); run with -m crosshair",
+	"mutation: mutation-testing helpers (slow); run with -m mutation",
 ]
