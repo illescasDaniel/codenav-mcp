@@ -143,6 +143,42 @@ def test_given_code_like_spans_then_after_dot_backtick_and_call_only():
 	assert _code_like_spans("executes .executes", "execute") == []
 
 
+def test_given_hyphenated_words_when_spanned_then_cli_flags_are_not_code():
+	# `--max-matches` is a CLI flag in a doc, not the Python name `matches` (found on srxy's docs/cli.md)
+	assert _code_like_spans("`--max-line-matches` is deprecated; use `--max-matches`.", "matches") == []
+	assert _code_like_spans("`matches-all` and `matches`", "matches") == [(19, 26)]
+
+
+def test_given_class_with_its_own_member_when_scanned_then_its_prose_is_not_a_site(tmp_path):
+	# Renaming `_Segment.matches`: the docstring in `Pattern` is about `Pattern.matches` (srxy ignore_rules.py:142).
+	text = (
+		"class _Segment:\n"
+		"\tdef matches(self, name):\n"
+		'\t\t"""`matches` one name."""\n'
+		"\t\treturn True\n\n\n"
+		"class Pattern:\n"
+		"\tdef matches(self, parts):\n"
+		"\t\treturn self.matches_normalized(parts)\n\n"
+		"\tdef matches_normalized(self, parts):\n"
+		'\t\t"""Like `matches` for normalized parts."""\n'
+		"\t\t# see .matches() above\n"
+		"\t\treturn parts\n\n\n"
+		"class Fields:\n"
+		"\tmatches: int = 0\n"
+		'\t"""`matches` counts."""\n'
+	)
+	path = _write(tmp_path, "src/rules.py", text)
+	# The rename edits `_Segment.matches` at line 2 (0-based 1), column 5.
+	scan = _scan_python(path, "src/rules.py", "matches", "matches_name", set(), {(1, 5)}, test_file=False)
+
+	assert [(site.kind, site.line) for site in scan.optional] == [("docstring", 3)]
+
+	# Renaming `Pattern.matches` instead: its own prose is offered, the other classes' is not.
+	scan = _scan_python(path, "src/rules.py", "matches", "matches_name", set(), {(7, 5)}, test_file=False)
+
+	assert [(site.kind, site.line) for site in scan.optional] == [("comment", 13), ("docstring", 12)]
+
+
 def _sites(*ids: str) -> list[OptionalSite]:
 	return [OptionalSite(i, "t.py", n, "attr", "x", TextEdit(0, 0, 0, 1, "y")) for n, i in enumerate(ids, 1)]
 

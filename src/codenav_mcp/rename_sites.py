@@ -167,9 +167,39 @@ def _code_like_spans(row: str, old: str, start: int = 0, end: int | None = None)
 			continue
 		before = row[match.start() - 1 : match.start()] if match.start() else ""
 		after = row[match.end() : match.end() + 1]
+		if "-" in (before, after):
+			continue  # part of a hyphenated word such as the CLI flag `--max-matches`, not the Python name
 		if before in (".", "`") or after in ("(", "`"):
 			spans.append((match.start(), match.end()))
 	return spans
+
+
+def _classes_with_own(tree: ast.Module, rows: list[str], old: str, covered: set[tuple[int, int]]) -> list[range]:
+	"""Line ranges (1-based) of the classes that define their own `old` member which this rename does not change.
+
+	A docstring or comment inside such a class that says `old` is about that class's member, not the renamed symbol."""
+	ranges = []
+	for node in ast.walk(tree):
+		if not isinstance(node, ast.ClassDef):
+			continue
+		for stmt in node.body:
+			position = None
+			if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == old:
+				match = re.search(rf"\bdef\s+({re.escape(old)})\b", rows[stmt.lineno - 1])
+				position = (stmt.lineno, match.start(1)) if match else None
+			elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+				targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
+				for target in targets:
+					if isinstance(target, ast.Name) and target.id == old:
+						row = rows[target.lineno - 1]
+						position = (
+							target.lineno,
+							len(row.encode("utf-8")[: target.col_offset].decode("utf-8", "ignore")),
+						)
+			if position and (position[0] - 1, utf16_column(rows[position[0] - 1], position[1])) not in covered:
+				ranges.append(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+				break
+	return ranges
 
 
 @dataclass
@@ -228,7 +258,11 @@ def _scan_python(
 					edit = TextEdit(node.lineno - 1, span[0], node.lineno - 1, span[1], new)
 					scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
 
+	foreign = _classes_with_own(tree, rows, old, covered)
+
 	def add(kind: str, row_number: int, start: int, end: int) -> None:
+		if kind in ("comment", "docstring") and any(row_number in lines_ for lines_ in foreign):
+			return
 		row = rows[row_number - 1]
 		column = utf16_column(row, start)
 		edit = TextEdit(row_number - 1, column, row_number - 1, utf16_column(row, end), new)
