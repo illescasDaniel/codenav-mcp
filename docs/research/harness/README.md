@@ -2,6 +2,9 @@
 > originals live next to the recordings (`<video-folder>/scripts/`). `run-pilot.sh` expects a srxy checkout with
 > its `.venv` at `$SRXY_AB` and this repository at `$CODENAV_MCP`; `orchestrator-prompt.md` holds tasks 1-7 (the
 > Sonnet A/B), `extra-tasks.md` tasks 8-12. `export-runs.sh` copies a campaign into `../data/agent-ab/`.
+> The export leaves out the raw agent streams (`stream.jsonl`, `events.jsonl`), which hold local paths, so
+> `summarize.py` can't rebuild the tables from the repository copy: each campaign's `summary.md` is its saved
+> output. `grade.py` works on the exported patches.
 
 # Small-model A/B (Haiku, GPT Luna)
 

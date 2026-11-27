@@ -44,8 +44,8 @@ survivors showed, and the tests added for them. How to run it is in
 - **Run 2** is the baseline: the full suite at f25bc84, after the pilot fixes. 2171 killed, 5 timeouts (a mutant that
   makes the tests hang counts as caught), 1 not covered, 431 survived.
 - **Run 3** added the tests in M2 and left 409. Three of those tests didn't yet catch their mutant (a test string 39
-  characters long instead of 40, no unreadable file, no comment right after a class); they were fixed and each was
-  checked by applying the mutation by hand.
+  characters long instead of 40, no unreadable file, no comment right after a class); they were fixed, and the
+  final run reports all three killed.
 - **Final run** (the committed configuration, all 8 modules, 18 minutes): 4719 mutants, 4031 killed, 5 timeouts,
   9 not covered, 674 survived. For the 4 modules above, 406 survived. The other 4 modules have grown since their
   earlier baseline (`signature.py` from 798 to 892 mutants, `plan_merge.py` from 487 to 799), so their numbers aren't

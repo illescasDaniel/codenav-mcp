@@ -37,7 +37,7 @@ repository. Read the numbers as evidence of direction, not as effect sizes.
   Tasks 8-12 each have a trap for text search: JSON keys with the same name as a field (8), a second copy of a
   function (9), other things named `score` (10), functions that look unused (11), other `matches` methods (12).
 - **After each run:** the patch, `ty check`, the test suite and the agent's answer are saved. The harness is in
-  [harness/](harness/README.md): `run-pilot.sh` runs one cell, `summarize.py` builds the table, `grade.py` and the
+  [harness/](harness/README.md): `run-pilot.sh` runs one cell, `summarize.py` builds the table from the raw agent streams (not exported, so `summary.md` is its saved output), `grade.py` and the
   [ground truth](data/agent-ab/ground-truth/) grade it, and `export-runs.sh` copies the runs here without local paths.
 - **Ground truth:** built from rope's rename and jedi's references, then corrected by hand where they miss call sites
   ([C3 in DOC-006](correctness.md#finding-c3-rope-also-misses-real-call-sites)).
