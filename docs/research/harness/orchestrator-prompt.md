@@ -39,7 +39,8 @@ REPEATS: 1
 - R=<video-folder>/results/ab-$(date +%Y%m%d-%H%M); mkdir -p "$R".
   LIVE=<video-folder>/results/live/events.jsonl (the project hook
   appends every tool call there; the live viewer follows that path). Use these absolute paths in every command.
-- Check `pwd` is ~/Projects/Code/Python/srxy-ab and `git rev-parse --short HEAD` is 953d27c.
+- Check `pwd` is ~/Projects/Code/Python/srxy-ab and `git rev-parse --short HEAD` is e0e75f8 (the code is
+  unchanged from 953d27c; that commit only points the harness configs at codenav 2.0).
 - KEEP = the pathspec `-- . ':(exclude).claude' ':(exclude).mcp.json' ':(exclude).codex' ':(exclude).cursor'` (the test harness and the
   MCP configs live there; never reset them).
   `git status --short` with KEEP must be empty and `git stash list` must be empty.
