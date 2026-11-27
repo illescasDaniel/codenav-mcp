@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title desc">
+<title id="title">How codenav-mcp navigates and edits Python</title>
+<desc id="desc">For navigation, an agent asks by name without a file or line; ty follows types through imports and dependency injection to find definitions, references, callers, and Protocol implementations; the reply gives the answer, an exact next call, and what was not checked. For edits, a plan is built in memory with optional text-scan sites selected by ID; ty checks changed files and holds the plan for review if it introduces type errors. A preview gives a diff and ID, apply writes the edits, and undo refuses to overwrite later changes. IDs persist across restarts. The type gate checks types only, so run tests after applying.</desc>
+<rect width="1000" height="560" rx="22" fill="#111c2e"/>
+<g font-family="sans-serif">
+<text x="30" y="38" fill="#a5b9d2" font-size="15" font-weight="bold" letter-spacing="2">HOW IT WORKS</text>
+<text x="30" y="65" fill="#78e2c1" font-size="13" font-weight="bold" letter-spacing="1">NAVIGATE</text>
+<g fill="#20334b" stroke="#415b77" stroke-width="2">
+<rect x="30" y="78" width="290" height="155" rx="14"/>
+<rect x="355" y="78" width="290" height="155" rx="14"/>
+<rect x="680" y="78" width="290" height="155" rx="14"/>
+<rect x="30" y="280" width="290" height="225" rx="14"/>
+<rect x="355" y="280" width="290" height="225" rx="14"/>
+<rect x="680" y="280" width="290" height="225" rx="14"/>
+</g>
+<g fill="#78e2c1" font-size="13" font-weight="bold">
+<text x="48" y="104">01 / AGENT</text><text x="373" y="104">02 / ty RESOLVES</text><text x="698" y="104">03 / REPLY</text>
+<text x="48" y="306">04 / PLAN IN MEMORY</text><text x="373" y="306">05 / TYPE GATE</text><text x="698" y="306">06 / PREVIEW → APPLY → UNDO</text>
+</g>
+<g fill="#ffffff" font-size="19" font-weight="bold">
+<text x="48" y="132">Asks by name</text><text x="373" y="132">Follows types</text><text x="698" y="132">Small, honest answer</text>
+<text x="48" y="334">Build the change</text><text x="373" y="334">Check before writing</text><text x="698" y="334">Review and control</text>
+</g>
+<g fill="#bdcde0" font-size="14">
+<text x="48" y="160"><tspan x="48">lookup(name=</tspan><tspan x="48" dy="19">"FileSearchPort.execute")</tspan><tspan x="48" dy="19">No file or line needed.</tspan></text>
+<text x="373" y="160"><tspan x="373">Definitions, references, callers</tspan><tspan x="373" dy="19">and Protocol implementations,</tspan><tspan x="373" dy="19">through imports and injection.</tspan></text>
+<text x="698" y="160"><tspan x="698">Answer first, exact next call,</tspan><tspan x="698" dy="19">and what was not checked.</tspan></text>
+<text x="48" y="361"><tspan x="48">Across files, without touching disk.</tspan><tspan x="48" dy="19">A text scan offers optional sites</tspan><tspan x="48" dy="19">by ID: strings, docs, comments</tspan><tspan x="48" dy="19">and Python heredocs in shell scripts.</tspan><tspan x="48" dy="19">Applied only when chosen.</tspan></text>
+<text x="373" y="361"><tspan x="373">ty checks changed files in memory.</tspan><tspan x="373" dy="19">Zero new type errors: ready to write.</tspan><tspan x="373" dy="19">Otherwise, the plan is held</tspan><tspan x="373" dy="19">for review.</tspan></text>
+<text x="698" y="361"><tspan x="698">apply=false shows a diff and ID.</tspan><tspan x="698" dy="19">edits(action="apply", id=…) writes.</tspan><tspan x="698" dy="19">Undo refuses to overwrite later</tspan><tspan x="698" dy="19">changes. IDs survive restarts.</tspan></text>
+</g>
+<g stroke="#78e2c1" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M328 155h19m-7-7 7 7-7 7"/><path d="M653 155h19m-7-7 7 7-7 7"/><path d="M328 391h19m-7-7 7 7-7 7"/><path d="M653 391h19m-7-7 7 7-7 7"/></g>
+<text x="30" y="263" fill="#78e2c1" font-size="13" font-weight="bold" letter-spacing="1">EDIT</text>
+<text x="86" y="263" fill="#bdcde0" font-size="13">rename · move · change_signature · edit_symbol · fix</text>
+<text x="30" y="538" fill="#bdcde0" font-size="15">The type gate checks types only — run your tests after applying.</text>
+</g>
+</svg>
