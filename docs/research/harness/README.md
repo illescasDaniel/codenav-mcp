@@ -1,10 +1,10 @@
-> Copy of the harness used for [DOC-007](../agent-ab.md), kept with the data so the runs can be repeated. The
-> originals live next to the recordings (`<video-folder>/scripts/`). `run-pilot.sh` expects a srxy checkout with
-> its `.venv` at `$SRXY_AB` and this repository at `$CODENAV_MCP`; `orchestrator-prompt.md` holds tasks 1-7 (the
+> The harness used for [DOC-007](../agent-ab.md), kept with the data so the runs can be repeated; run it from
+> here. `run-pilot.sh` expects a srxy checkout with its `.venv` at `$SRXY_AB` (default `~/Projects/Code/Python/srxy-ab`)
+> and this repository at `$CODENAV_MCP` (default `~/Projects/Code/MCPs/codenav-mcp`); `orchestrator-prompt.md` holds tasks 1-7 (the
 > Sonnet A/B), `extra-tasks.md` tasks 8-12. `export-runs.sh` copies a campaign into `../data/agent-ab/`.
 > The export leaves out the raw agent streams (`stream.jsonl`, `events.jsonl`), which hold local paths, so
 > `summarize.py` can't rebuild the tables from the repository copy: each campaign's `summary.md` is its saved
-> output. `grade.py` works on the exported patches.
+> output (the raw streams are archived outside the repository). `grade.py` works on the exported patches.
 
 # Small-model A/B (Haiku, GPT Luna)
 
@@ -13,10 +13,11 @@ Each run is a separate process in its own throwaway clone of srxy-ab
 Sonnet A/B.
 
 ```fish
-cd <video-folder>
-set C results/small-models-(date +%Y%m%d-%H%M)
-bash scripts/small-models/run-campaign.sh haiku "1 3 4 5 8 9" "1 2" $C   # one runner at a time; start luna in a 2nd shell if you like
-python3 -I scripts/small-models/summarize.py $C > $C/summary.md
+cd docs/research/harness
+set C ~/.local/state/srxy-ab/results/small-models-(date +%Y%m%d-%H%M)
+bash run-campaign.sh haiku "1 3 4 5 8 9" "1 2" $C   # one runner at a time; start luna in a 2nd shell if you like
+python3 -I summarize.py $C > $C/summary.md
+bash export-runs.sh $C ../data/agent-ab/<name>       # the reviewable part, without raw streams or local paths
 ```
 
 - `run-pilot.sh RUNNER ARM TASK REP [DIR]` runs a single run. It saves:

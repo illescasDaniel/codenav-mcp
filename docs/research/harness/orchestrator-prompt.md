@@ -40,7 +40,8 @@ REPEATS: 1
   LIVE=<video-folder>/results/live/events.jsonl (the project hook
   appends every tool call there; the live viewer follows that path). Use these absolute paths in every command.
 - Check `pwd` is ~/Projects/Code/Python/srxy-ab and `git rev-parse --short HEAD` is 953d27c.
-- KEEP = the pathspec `-- . ':(exclude).claude' ':(exclude).mcp.json'` (the test harness lives there; never reset it).
+- KEEP = the pathspec `-- . ':(exclude).claude' ':(exclude).mcp.json' ':(exclude).codex' ':(exclude).cursor'` (the test harness and the
+  MCP configs live there; never reset them).
   `git status --short` with KEEP must be empty and `git stash list` must be empty.
 - After your first Bash call, `tail -n 1 "$LIVE"` must show a record of that call. If the file is missing, the hooks are
   not loaded: stop and tell me.
