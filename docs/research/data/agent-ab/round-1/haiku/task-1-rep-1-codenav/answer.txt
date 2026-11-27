@@ -1,0 +1,16 @@
+There are three production call sites under `src/` that call `FileSearchPort.execute`. Nothing was changed.
+
+1. `src/srxy/adapters/inbound/cli/cli.py:817` (in `run_plain`): `services.file_search.execute(args, skipped_files=..., on_progress=..., on_activity=..., on_result=...)`.
+2. `src/srxy/adapters/outbound/worker/search_worker.py:223` (in `run_worker_main`): `services.file_search.execute(args, ..., allow_process_pool=search_uses_subprocess(args))`.
+3. `src/srxy/application/search_session.py:117` (in `run_blocking`): `self._file_search.execute(args, ..., cancel_check=cancel_check, allow_process_pool=allow_process_pool)`.
+
+**How I identified them:**
+- `lookup` on `FileSearchPort.execute` (declared at `src/srxy/ports/inbound/file_search.py:16`) returned these three as its typed references and callers. Those are resolved by ty, so they follow the receiver's static type.
+- I cross-checked with a grep for `FileSearchPort` in `src/`. It shows `search_session.py:70` as the `__init__` parameter type, and `bootstrap.py:28` and `:52` as the `file_search` field and its `FileSearchService()` default. That matches the receivers used at the call sites.
+- I read each call site to confirm the `execute(` call and its arguments.
+
+**Excluded:** `src/srxy/application/search_runner.py:143` is `FileSearchService.execute`, the implementation, not a caller through the port. The tool also reported zero direct calls to `FileSearchService.execute`.
+
+**Uncertainty:** the `lookup` tool skips files excluded by the ty configuration, and it scanned only `src/`. Both are stated in its notes. I did not check for dynamic calls such as `getattr`-based dispatch. None of the grep results suggested any.
+
+No checks were run, since this was a read-only question.

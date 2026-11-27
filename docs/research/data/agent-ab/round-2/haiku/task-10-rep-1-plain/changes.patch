@@ -1,0 +1,408 @@
+diff --git a/src/srxy/application/matching/base.py b/src/srxy/application/matching/base.py
+index a8acbad..b239dcc 100644
+--- a/src/srxy/application/matching/base.py
++++ b/src/srxy/application/matching/base.py
+@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
+ 
+ class Matcher(ABC):
+ 	@abstractmethod
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		"""Return a relevance score in the range [0.0, 1.0]."""
+ 
+ 	def score_with_breakdown(self, query: str, value: str) -> tuple[float, dict[str, float]]:
+-		score = self.score(query, value)
++		score = self.similarity(query, value)
+ 		return score, {}
+diff --git a/src/srxy/application/matching/composite.py b/src/srxy/application/matching/composite.py
+index 8e1a5b7..9955a64 100644
+--- a/src/srxy/application/matching/composite.py
++++ b/src/srxy/application/matching/composite.py
+@@ -20,7 +20,7 @@ class CompositeMatcher(Matcher):
+ 			if weight > 0.0 and match_type != MatchType.COMPOSITE and is_matcher_available(match_type)
+ 		]
+ 
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		score, _ = self.score_with_breakdown(query, value)
+ 		return score
+ 
+@@ -31,7 +31,7 @@ class CompositeMatcher(Matcher):
+ 		score = 0.0
+ 		breakdown: dict[str, float] = {}
+ 		for match_type, matcher, weight in self._active:
+-			sub_score = matcher.score(query, value)
++			sub_score = matcher.similarity(query, value)
+ 			breakdown[match_type.value] = sub_score
+ 			score += sub_score * weight / total_weight
+ 		return score, breakdown
+diff --git a/src/srxy/application/matching/contains.py b/src/srxy/application/matching/contains.py
+index 78d6309..b6f8bf8 100644
+--- a/src/srxy/application/matching/contains.py
++++ b/src/srxy/application/matching/contains.py
+@@ -4,7 +4,7 @@ from srxy.application.matching.base import Matcher
+ 
+ 
+ class ContainsMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		if not query or not value:
+ 			return 0.0
+ 		return 1.0 if query in value else 0.0
+diff --git a/src/srxy/application/matching/exact.py b/src/srxy/application/matching/exact.py
+index 9744c87..4461490 100644
+--- a/src/srxy/application/matching/exact.py
++++ b/src/srxy/application/matching/exact.py
+@@ -4,7 +4,7 @@ from srxy.application.matching.base import Matcher
+ 
+ 
+ class ExactMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		if not query or not value:
+ 			return 0.0
+ 		return 1.0 if query == value else 0.0
+diff --git a/src/srxy/application/matching/fuzzy.py b/src/srxy/application/matching/fuzzy.py
+index 541af8e..666b757 100644
+--- a/src/srxy/application/matching/fuzzy.py
++++ b/src/srxy/application/matching/fuzzy.py
+@@ -4,7 +4,7 @@ from srxy.application.matching.base import Matcher
+ 
+ 
+ class FuzzyMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		from rapidfuzz import fuzz
+ 
+ 		if not query or not value:
+diff --git a/src/srxy/application/matching/partial.py b/src/srxy/application/matching/partial.py
+index 411a680..73a8576 100644
+--- a/src/srxy/application/matching/partial.py
++++ b/src/srxy/application/matching/partial.py
+@@ -4,7 +4,7 @@ from srxy.application.matching.base import Matcher
+ 
+ 
+ class PartialMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		if not query or not value:
+ 			return 0.0
+ 		if value.startswith(query) or value.endswith(query):
+diff --git a/src/srxy/application/matching/phonetic.py b/src/srxy/application/matching/phonetic.py
+index 9a55a2c..18f021b 100644
+--- a/src/srxy/application/matching/phonetic.py
++++ b/src/srxy/application/matching/phonetic.py
+@@ -62,7 +62,7 @@ def _phonetic_signals(query: str, value: str) -> list[float]:
+ 
+ 
+ class PhoneticMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		if not query or not value:
+ 			return 0.0
+ 
+diff --git a/src/srxy/application/matching/semantic.py b/src/srxy/application/matching/semantic.py
+index 2bc0aef..6e3a04d 100644
+--- a/src/srxy/application/matching/semantic.py
++++ b/src/srxy/application/matching/semantic.py
+@@ -138,7 +138,7 @@ def _encode_text_cached(text: str) -> object:
+ 
+ 
+ class SemanticMatcher(Matcher):
+-	def score(self, query: str, value: str) -> float:
++	def similarity(self, query: str, value: str) -> float:
+ 		if not query or not value:
+ 			return 0.0
+ 
+diff --git a/src/srxy/application/use_cases/search_files.py b/src/srxy/application/use_cases/search_files.py
+index 383ee12..b8aede9 100644
+--- a/src/srxy/application/use_cases/search_files.py
++++ b/src/srxy/application/use_cases/search_files.py
+@@ -379,8 +379,8 @@ def _score_name_term(matcher: CompositeMatcher, term: str, file_path: Path, root
+ 			_score_multi_word_query(matcher, term, name),
+ 			_score_multi_word_query(matcher, term, path),
+ 		)
+-	name_score = matcher.score(term, name)
+-	path_score = matcher.score(term, path)
++	name_score = matcher.similarity(term, name)
++	path_score = matcher.similarity(term, path)
+ 	return max(name_score, path_score)
+ 
+ 
+diff --git a/src/srxy/application/use_cases/search_objects.py b/src/srxy/application/use_cases/search_objects.py
+index 011c3ea..726fc63 100644
+--- a/src/srxy/application/use_cases/search_objects.py
++++ b/src/srxy/application/use_cases/search_objects.py
+@@ -24,7 +24,7 @@ def _score_field(
+ 		if sub_breakdown:
+ 			return score, sub_breakdown
+ 		return score, score
+-	return matcher.score(query, value), matcher.score(query, value)
++	return matcher.similarity(query, value), matcher.similarity(query, value)
+ 
+ 
+ def _evaluate_leaf(item: Any, query: str, leaf: Q) -> tuple[float, dict[str, Any]]:
+diff --git a/src/srxy/application/utils.py b/src/srxy/application/utils.py
+index 40e7622..a91a0ed 100644
+--- a/src/srxy/application/utils.py
++++ b/src/srxy/application/utils.py
+@@ -223,7 +223,7 @@ def _find_semantic_word_span(text: str, query: str) -> tuple[int, int] | None:
+ 	best_score = 0.0
+ 	for match in _WORD_PATTERN.finditer(text):
+ 		word = match.group()
+-		word_score = semantic.score(query, normalize_text(word))
++		word_score = semantic.similarity(query, normalize_text(word))
+ 		if word_score > best_score:
+ 			best_score = word_score
+ 			best_span = (match.start(), match.end())
+diff --git a/tests/unit/test_file_search.py b/tests/unit/test_file_search.py
+index f967021..1ed0cbc 100644
+--- a/tests/unit/test_file_search.py
++++ b/tests/unit/test_file_search.py
+@@ -311,7 +311,7 @@ def test_given_fuzzy_folder_name_when_searching_names_then_ranks_like_a_fuzzy_fi
+ 
+ 	# then
+ 	folder_result = next(result for result in results if result.path == misspelled_folder)
+-	expected_score = CompositeMatcher().score("invoices", "invoicess")
++	expected_score = CompositeMatcher().similarity("invoices", "invoicess")
+ 	assert folder_result.score == pytest.approx(expected_score)
+ 	assert folder_result.breakdown["name"] == pytest.approx(expected_score)
+ 
+diff --git a/tests/unit/test_matchers.py b/tests/unit/test_matchers.py
+index 9e6e408..bb4baf1 100644
+--- a/tests/unit/test_matchers.py
++++ b/tests/unit/test_matchers.py
+@@ -90,7 +90,7 @@ def test_given_equal_strings_when_exact_matching_then_scores_one():
+ 	value = "hello"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -103,7 +103,7 @@ def test_given_different_case_strings_when_exact_matching_then_scores_zero():
+ 	value = "HELLO"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -116,7 +116,7 @@ def test_given_unrelated_strings_when_exact_matching_then_scores_zero():
+ 	value = "world"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -129,7 +129,7 @@ def test_given_empty_query_when_exact_matching_then_scores_zero():
+ 	value = "hello"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -142,7 +142,7 @@ def test_given_substring_query_when_contains_matching_then_scores_one():
+ 	value = "spatial"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -155,7 +155,7 @@ def test_given_missing_substring_when_contains_matching_then_scores_zero():
+ 	value = "spatial"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -168,7 +168,7 @@ def test_given_prefix_query_when_partial_matching_then_scores_one():
+ 	value = "salad"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -181,7 +181,7 @@ def test_given_suffix_query_when_partial_matching_then_scores_one():
+ 	value = "salad"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -194,7 +194,7 @@ def test_given_middle_query_when_partial_matching_then_scores_zero():
+ 	value = "salad"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -207,7 +207,7 @@ def test_given_similar_words_when_fuzzy_matching_then_scores_high():
+ 	value = "spatial"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score > 0.7
+@@ -220,7 +220,7 @@ def test_given_identical_words_when_fuzzy_matching_then_scores_one():
+ 	value = "hello"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -233,7 +233,7 @@ def test_given_unrelated_words_when_fuzzy_matching_then_scores_low():
+ 	value = "zzzzzz"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score < 0.3
+@@ -246,7 +246,7 @@ def test_given_phonetically_similar_names_when_phonetic_matching_then_scores_one
+ 	value = "smyth"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 1.0
+@@ -259,7 +259,7 @@ def test_given_phonetically_different_words_when_phonetic_matching_then_scores_z
+ 	value = "world"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -299,8 +299,8 @@ def test_given_phonetically_similar_variants_when_phonetic_matching_then_scores_
+ 	matcher = PhoneticMatcher()
+ 
+ 	# when
+-	stephen_score = matcher.score("stephen", "steven")
+-	knight_score = matcher.score("knight", "night")
++	stephen_score = matcher.similarity("stephen", "steven")
++	knight_score = matcher.similarity("knight", "night")
+ 
+ 	# then
+ 	assert stephen_score == 1.0
+diff --git a/tests/unit/test_search.py b/tests/unit/test_search.py
+index d59ea66..eb15af5 100644
+--- a/tests/unit/test_search.py
++++ b/tests/unit/test_search.py
+@@ -18,7 +18,7 @@ def test_given_salat_candidates_when_composite_matching_then_salad_scores_at_lea
+ 	matcher = CompositeMatcher()
+ 
+ 	# when
+-	scores = {item["name"]: matcher.score("salat", item["name"]) for item in food_items}
++	scores = {item["name"]: matcher.similarity("salat", item["name"]) for item in food_items}
+ 
+ 	# then
+ 	assert scores["salad"] >= scores["salty"]
+@@ -30,9 +30,9 @@ def test_given_special_query_when_composite_matching_then_spatial_beats_unrelate
+ 	matcher = CompositeMatcher()
+ 
+ 	# when
+-	score_spatial = matcher.score("special", "spatial")
+-	score_special = matcher.score("special", "special")
+-	score_unrelated = matcher.score("special", "zzzzzz")
++	score_spatial = matcher.similarity("special", "spatial")
++	score_special = matcher.similarity("special", "special")
++	score_unrelated = matcher.similarity("special", "zzzzzz")
+ 
+ 	# then
+ 	assert score_spatial > score_unrelated
+@@ -261,7 +261,7 @@ def test_given_composite_match_type_when_getting_matcher_then_scores_identical_s
+ 	matcher = get_matcher(MatchType.COMPOSITE)
+ 
+ 	# when
+-	score = matcher.score("a", "a")
++	score = matcher.similarity("a", "a")
+ 
+ 	# then
+ 	assert score == pytest.approx(1.0, abs=1e-6)
+diff --git a/tests/unit/test_semantic.py b/tests/unit/test_semantic.py
+index f8a50a1..88c15dc 100644
+--- a/tests/unit/test_semantic.py
++++ b/tests/unit/test_semantic.py
+@@ -25,7 +25,7 @@ def test_given_empty_query_when_semantic_matching_then_returns_zero():
+ 	value = "hello"
+ 
+ 	# when
+-	score = matcher.score(query, value)
++	score = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert score == 0.0
+@@ -44,7 +44,7 @@ def test_given_mocked_embeddings_when_semantic_matching_then_uses_cosine_similar
+ 	matcher = SemanticMatcher()
+ 
+ 	# when
+-	score = matcher.score("hello", "hi")
++	score = matcher.similarity("hello", "hi")
+ 
+ 	# then
+ 	assert score == pytest.approx(0.85)
+@@ -65,9 +65,9 @@ def test_given_out_of_range_cosine_values_when_semantic_matching_then_clamps_to_
+ 
+ 	# when
+ 	mock_cosine.return_value = 1.5
+-	high_score = matcher.score("a", "b")
++	high_score = matcher.similarity("a", "b")
+ 	mock_cosine.return_value = -0.5
+-	low_score = matcher.score("a", "b")
++	low_score = matcher.similarity("a", "b")
+ 
+ 	# then
+ 	assert high_score == 1.0
+diff --git a/tests/unit/test_semantic_cache.py b/tests/unit/test_semantic_cache.py
+index ac9ba8b..c93ed9b 100644
+--- a/tests/unit/test_semantic_cache.py
++++ b/tests/unit/test_semantic_cache.py
+@@ -42,8 +42,8 @@ def test_given_cached_embedding_when_scoring_twice_then_encodes_once(mock_get_mo
+ 	value = "in the end"
+ 
+ 	# when
+-	first = matcher.score(query, value)
+-	second = matcher.score(query, value)
++	first = matcher.similarity(query, value)
++	second = matcher.similarity(query, value)
+ 
+ 	# then
+ 	assert first == second
+@@ -66,10 +66,10 @@ def test_given_cached_embedding_when_new_process_scores_again_then_skips_encode(
+ 	text = "cached phrase"
+ 
+ 	# when
+-	matcher.score(query, text)
++	matcher.similarity(query, text)
+ 	reset_semantic_model()
+ 	mock_get_model.return_value = mock_model
+-	matcher.score(query, text)
++	matcher.similarity(query, text)
+ 
+ 	# then
+ 	assert mock_model.encode.call_count == 2

@@ -1,0 +1,16 @@
+Four module-level functions in `src/srxy/adapters/inbound/cli/cli.py` have no callers anywhere in the repo:
+
+| Function | Definition | Evidence |
+|---|---|---|
+| `render_results` | `cli.py:598` | Only match in the whole repo is its own `def` line. No calls, no imports, not in `__all__`. |
+| `normalize_max_file_size` | `cli.py:81` | The only callers are `src/srxy/application/search_runner.py:115`, which uses that module's own copy at `search_runner.py:73`. Nothing calls the `cli.py` copy. Not in `__all__`. |
+| `sync_options_to_args` | `cli.py:646` | Nothing calls the `cli.py` wrapper. Its body only imports `search_options.sync_options_to_args` as `_sync` (`cli.py:663`), and no `_sync(` call exists elsewhere. The real caller is `search_options.py:150`. |
+| `execute_search` | `cli.py:749` | Nothing calls the `cli.py` wrapper. Its body imports `search_runner.execute_search` as `_execute` (`cli.py:757`), and the only other hits are `search_runner.py` and patch targets in `tests/tui/*` that point at `search_runner`, not `cli`. `scripts/docs/export_tui_screenshot.sh:131` also patches `search_runner`. |
+
+The other 21 functions are used. Some are used only by tests, so they are not dead by your definition:
+- `render_progress` (`cli.py:249`) is called only from `tests/cli/test_cli.py:1299`.
+- `_terminal_size` (`cli.py:87`) is called from `cli.py:182` and monkeypatched in tests.
+
+The four above look like leftover wrappers from a refactor that moved logic into `application/`. Removing them would be a safe cleanup, but I changed nothing, as you asked.
+
+Method: I grepped each function name across the repo with word boundaries, excluding `.git` and `.venv`, and then checked `cli.py`'s own call sites and its `__all__` list. The check is static. It would not catch a dynamic lookup such as `getattr` with a string built at runtime, and I did not search for one. No tests or type checks were run, since this was read-only.

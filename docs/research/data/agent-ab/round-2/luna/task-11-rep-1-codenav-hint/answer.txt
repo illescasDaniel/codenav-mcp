@@ -1,0 +1,3 @@
+`render_results` at [cli.py:598](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-1-codenav-hint.JOZmT0/src/srxy/adapters/inbound/cli/cli.py:598) is the only module-level function with no use found. A search for `render_results` across `src`, `tests`, `scripts`, and `examples` found only its definition; it has no internal call either.
+
+The working tree is unchanged. I ran no checks because this was a read-only task.

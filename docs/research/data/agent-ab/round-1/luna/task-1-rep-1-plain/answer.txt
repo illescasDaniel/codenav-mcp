@@ -1,0 +1,7 @@
+Production code under `src/` directly calls `FileSearchPort.execute` at:
+
+- [src/srxy/application/search_session.py:117](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-plain.jXTCbM/src/srxy/application/search_session.py:117) — calls `self._file_search.execute(...)`; the constructor types `_file_search` as `FileSearchPort` ([line 70](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-plain.jXTCbM/src/srxy/application/search_session.py:70)).
+- [src/srxy/adapters/outbound/worker/search_worker.py:223](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-plain.jXTCbM/src/srxy/adapters/outbound/worker/search_worker.py:223) — calls `services.file_search.execute(...)`; `services.file_search` is the port dependency provided through bootstrap’s services ([src/srxy/bootstrap.py:28](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-plain.jXTCbM/src/srxy/bootstrap.py:28)).
+- [src/srxy/adapters/inbound/cli/cli.py:817](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-plain.jXTCbM/src/srxy/adapters/inbound/cli/cli.py:817) — calls `services.file_search.execute(...)` through the same services dependency.
+
+I identified these by checking the port’s `execute` signature in `src/srxy/ports/inbound/file_search.py` and tracing the `FileSearchPort`-typed service dependencies. Database `connection.execute(...)` calls are unrelated. No files were changed.

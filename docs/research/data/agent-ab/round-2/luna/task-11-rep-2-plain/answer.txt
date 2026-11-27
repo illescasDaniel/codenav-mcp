@@ -1,0 +1,5 @@
+`normalize_max_file_size` at [cli.py:81](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-plain.dZ45hD/src/srxy/adapters/inbound/cli/cli.py:81) is the only module-level function with no use found in `src`, `tests`, `scripts`, or `examples`.
+
+A repository-wide search for `normalize_max_file_size` found only its definition in `cli.py`. It is also absent from the module’s `__all__` at lines 938–962. The function with the same name in `src/srxy/application/search_runner.py` is separate; its uses do not reference this CLI function.
+
+No files were changed.

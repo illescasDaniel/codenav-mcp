@@ -1,0 +1,45 @@
+# Task 10 expected edited lines (srxy-ab 953d27c): rope in_hierarchy rename (41) + 3 rope misses checked by hand (marked +)
+src/srxy/application/matching/base.py:8
+src/srxy/application/matching/base.py:12
+src/srxy/application/matching/fuzzy.py:7
+src/srxy/application/use_cases/search_objects.py:27
+tests/unit/test_semantic_cache.py:45
+tests/unit/test_semantic_cache.py:46
+tests/unit/test_semantic_cache.py:69
+tests/unit/test_semantic_cache.py:72
+tests/unit/test_file_search.py:314
+src/srxy/application/matching/phonetic.py:65
+src/srxy/application/utils.py:226
+src/srxy/application/matching/composite.py:23
+tests/unit/test_matchers.py:93
+tests/unit/test_matchers.py:106
+tests/unit/test_matchers.py:119
+tests/unit/test_matchers.py:132
+tests/unit/test_matchers.py:145
+tests/unit/test_matchers.py:158
+tests/unit/test_matchers.py:171
+tests/unit/test_matchers.py:184
+tests/unit/test_matchers.py:197
+tests/unit/test_matchers.py:210
+tests/unit/test_matchers.py:223
+tests/unit/test_matchers.py:236
+tests/unit/test_matchers.py:249
+tests/unit/test_matchers.py:262
+tests/unit/test_matchers.py:302
+tests/unit/test_matchers.py:303
+tests/unit/test_semantic.py:28
+tests/unit/test_semantic.py:47
+tests/unit/test_semantic.py:68
+tests/unit/test_semantic.py:70
+src/srxy/application/matching/partial.py:7
+src/srxy/application/matching/exact.py:7
+tests/unit/test_search.py:21
+tests/unit/test_search.py:33
+tests/unit/test_search.py:34
+tests/unit/test_search.py:35
+tests/unit/test_search.py:264
+src/srxy/application/matching/semantic.py:141
+src/srxy/application/matching/contains.py:7
+src/srxy/application/matching/composite.py:34 +
+src/srxy/application/use_cases/search_files.py:382 +
+src/srxy/application/use_cases/search_files.py:383 +

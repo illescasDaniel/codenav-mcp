@@ -1,0 +1,5 @@
+Renamed `Matcher.score` to `similarity` in the base class, all seven matcher implementations, application call sites, and unit tests. The image similarity method and result score fields remain unchanged.
+
+Checks: `uv run --no-sync ty check` passed; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed (1170 passed, 7 skipped). Pytest reported five config warnings and a shutdown `ResourceWarning`. `git diff --check` passed.
+
+Key references: [base.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-1-plain.qler3b/src/srxy/application/matching/base.py:8), [composite.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-1-plain.qler3b/src/srxy/application/matching/composite.py:23), [search_files.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-1-plain.qler3b/src/srxy/application/use_cases/search_files.py:382), [test_matchers.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-1-plain.qler3b/tests/unit/test_matchers.py:93).

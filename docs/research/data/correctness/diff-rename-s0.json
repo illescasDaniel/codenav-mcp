@@ -1,0 +1,2527 @@
+{
+ "project": "srxy (sandbox clone at 953d27c)",
+ "seed": 0,
+ "summary": {
+  "symbols": 40,
+  "seconds": 47.0,
+  "certain": {
+   "errors": 0,
+   "error_kinds": {},
+   "compared": 40,
+   "compared_by_lines": 39,
+   "compared_by_file_counts": 1,
+   "agreeing_symbols": 38,
+   "agreement_rate": 0.95,
+   "shared_lines": 115,
+   "only_in_codenav_lines": 2,
+   "only_in_rope_lines": 0,
+   "codenav_lines_also_in_rope_rate": 0.9829,
+   "line_overlap_rate": 0.9829
+  },
+  "all": {
+   "errors": 0,
+   "error_kinds": {},
+   "compared": 40,
+   "compared_by_lines": 38,
+   "compared_by_file_counts": 2,
+   "agreeing_symbols": 38,
+   "agreement_rate": 0.95,
+   "shared_lines": 112,
+   "only_in_codenav_lines": 9,
+   "only_in_rope_lines": 0,
+   "codenav_lines_also_in_rope_rate": 0.9256,
+   "line_overlap_rate": 0.9256
+  }
+ },
+ "symbols": [
+  {
+   "symbol": {
+    "qualname": "_mock_process_pool",
+    "name": "_mock_process_pool",
+    "kind": "function",
+    "path": "tests/unit/test_search_process_pool.py",
+    "line": 15,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_process_pool.py",
+       15
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       32
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       48
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       63
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_process_pool.py",
+       15
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       32
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       48
+      ],
+      [
+       "tests/unit/test_search_process_pool.py",
+       63
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.44
+  },
+  {
+   "symbol": {
+    "qualname": "_set_mode_env",
+    "name": "_set_mode_env",
+    "kind": "function",
+    "path": "src/srxy/application/search_runner.py",
+    "line": 66,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/search_runner.py",
+       53
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       54
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       55
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       56
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       66
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/search_runner.py",
+       53
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       54
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       55
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       56
+      ],
+      [
+       "src/srxy/application/search_runner.py",
+       66
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.04
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_english_install_when_headless_then_progress_matches_language",
+    "name": "test_given_english_install_when_headless_then_progress_matches_language",
+    "kind": "function",
+    "path": "tests/unit/test_installer_engine_integration.py",
+    "line": 21,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       21
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_engine_integration.py",
+       21
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.56
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_invalid_text_when_validating_then_raises",
+    "name": "test_given_invalid_text_when_validating_then_raises",
+    "kind": "function",
+    "path": "tests/unit/test_tui_size_limits.py",
+    "line": 45,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_tui_size_limits.py",
+       45
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_tui_size_limits.py",
+       45
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.58
+  },
+  {
+   "symbol": {
+    "qualname": "FileQ.any",
+    "name": "any",
+    "kind": "method",
+    "path": "src/srxy/domain/file_query.py",
+    "line": 61,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/domain/file_query.py",
+       61
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       72
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       138
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       202
+      ],
+      [
+       "tests/unit/test_file_query.py",
+       119
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/domain/file_query.py",
+       61
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       72
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       138
+      ],
+      [
+       "src/srxy/domain/file_query.py",
+       202
+      ],
+      [
+       "tests/unit/test_file_query.py",
+       119
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 4.4
+  },
+  {
+   "symbol": {
+    "qualname": "_DownloadWorker",
+    "name": "_DownloadWorker",
+    "kind": "class",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 238,
+    "column": 6
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       238
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       463
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1535
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       238
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       463
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1535
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.95
+  },
+  {
+   "symbol": {
+    "qualname": "cache_put",
+    "name": "cache_put",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/cache/cache.py",
+    "line": 242,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "file counts (codenav diff truncated)",
+     "codenav_count": 23,
+     "rope_count": 23,
+     "count_differences": {},
+     "shared": [],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "file counts (codenav diff truncated)",
+     "codenav_count": 23,
+     "rope_count": 23,
+     "count_differences": {},
+     "shared": [],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.71
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "name": "test_given_selected_path_when_search_finishes_then_selection_is_preserved",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 1333,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       1333
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       1333
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.17
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "name": "test_given_non_gui_omission_when_dispatching_then_keeps_dot_default",
+    "kind": "function",
+    "path": "tests/cli/test_cli_startup_path.py",
+    "line": 62,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli_startup_path.py",
+       62
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli_startup_path.py",
+       62
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.58
+  },
+  {
+   "symbol": {
+    "qualname": "_get_file_walker",
+    "name": "_get_file_walker",
+    "kind": "function",
+    "path": "src/srxy/application/use_cases/search_files.py",
+    "line": 89,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       89
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       520
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       790
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       89
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       520
+      ],
+      [
+       "src/srxy/application/use_cases/search_files.py",
+       790
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.26
+  },
+  {
+   "symbol": {
+    "qualname": "_touch",
+    "name": "_touch",
+    "kind": "function",
+    "path": "tests/unit/test_macos_pyside_packaging.py",
+    "line": 34,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 19,
+     "rope_count": 19,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       34
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       141
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       142
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       143
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       144
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       145
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       146
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       147
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       148
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       149
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       150
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       151
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       152
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       153
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       154
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       155
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       156
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       157
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 19,
+     "rope_count": 19,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       34
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       141
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       142
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       143
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       144
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       145
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       146
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       147
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       148
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       149
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       150
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       151
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       152
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       153
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       154
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       155
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       156
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       157
+      ],
+      [
+       "tests/unit/test_macos_pyside_packaging.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.67
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "name": "test_given_semantic_match_type_when_env_enabled_then_it_is_available",
+    "kind": "function",
+    "path": "tests/unit/test_search.py",
+    "line": 293,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search.py",
+       293
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search.py",
+       293
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.57
+  },
+  {
+   "symbol": {
+    "qualname": "_parse_finder_tags",
+    "name": "_parse_finder_tags",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+    "line": 294,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       252
+      ],
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       294
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       252
+      ],
+      [
+       "src/srxy/adapters/outbound/metadata/xattr_metadata.py",
+       294
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.67
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "name": "test_given_multiple_matches_when_running_cli_then_prints_highest_score_first",
+    "kind": "function",
+    "path": "tests/cli/test_cli.py",
+    "line": 1118,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli.py",
+       1118
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/cli/test_cli.py",
+       1118
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.89
+  },
+  {
+   "symbol": {
+    "qualname": "_ci_forced",
+    "name": "_ci_forced",
+    "kind": "function",
+    "path": "src/srxy/application/launch.py",
+    "line": 13,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/launch.py",
+       13
+      ],
+      [
+       "src/srxy/application/launch.py",
+       22
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/application/launch.py",
+       13
+      ],
+      [
+       "src/srxy/application/launch.py",
+       22
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.59
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "name": "test_given_linux_when_applying_theme_then_sets_material_background",
+    "kind": "function",
+    "path": "tests/gui/test_qt_theme.py",
+    "line": 197,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_qt_theme.py",
+       197
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_qt_theme.py",
+       197
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.66
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "name": "test_given_pypi_info_without_pyside_when_checking_then_false",
+    "kind": "function",
+    "path": "tests/unit/test_updates_path_i18n.py",
+    "line": 47,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_updates_path_i18n.py",
+       47
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_updates_path_i18n.py",
+       47
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.55
+  },
+  {
+   "symbol": {
+    "qualname": "SrxyApp.action_start_search",
+    "name": "action_start_search",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/tui/app.py",
+    "line": 650,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       382
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       650
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       962
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       976
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       382
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       650
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       962
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/app.py",
+       976
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.28
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "name": "test_given_search_finished_when_activity_active_then_clears_status_spinner",
+    "kind": "function",
+    "path": "tests/gui/test_gui_controller.py",
+    "line": 697,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       697
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_controller.py",
+       697
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.14
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.uninstallPrefix",
+    "name": "uninstallPrefix",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 249,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       249
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       249
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.78
+  },
+  {
+   "symbol": {
+    "qualname": "_iter_office_zip_media_blobs",
+    "name": "_iter_office_zip_media_blobs",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/documents/document_text.py",
+    "line": 123,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       244
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       281
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 3,
+     "rope_count": 3,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       123
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       244
+      ],
+      [
+       "src/srxy/adapters/outbound/documents/document_text.py",
+       281
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.82
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.privacyAck",
+    "name": "privacyAck",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 260,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       260
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/gui/test_installer_snapshots.py",
+       32
+      ]
+     ],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       260
+      ],
+      [
+       "tests/gui/test_installer_snapshots.py",
+       32
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.73
+  },
+  {
+   "symbol": {
+    "qualname": "_part_of",
+    "name": "_part_of",
+    "kind": "function",
+    "path": "tests/unit/test_installer_download.py",
+    "line": 47,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_download.py",
+       47
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       64
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       81
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       110
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       127
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       150
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       167
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_installer_download.py",
+       47
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       64
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       81
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       110
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       127
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       150
+      ],
+      [
+       "tests/unit/test_installer_download.py",
+       167
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.59
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.confirmClearModel",
+    "name": "confirmClearModel",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2741,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2741
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1841
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 2,
+     "rope_count": 2,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2741
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1841
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.98
+  },
+  {
+   "symbol": {
+    "qualname": "_ErrorModalHostApp.compose",
+    "name": "compose",
+    "kind": "method",
+    "path": "tests/tui/test_error_modal.py",
+    "line": 18,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/tui/test_error_modal.py",
+       18
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 10,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/tui/test_error_modal.py",
+       18
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/tui/test_download_modal.py",
+       18
+      ],
+      [
+       "tests/tui/test_help_language.py",
+       17
+      ],
+      [
+       "tests/tui/test_query_builder.py",
+       23
+      ],
+      [
+       "tests/tui/test_query_builder_display.py",
+       23
+      ],
+      [
+       "tests/tui/test_search_filters_modal.py",
+       21
+      ],
+      [
+       "tests/tui/test_search_options_modal.py",
+       18
+      ],
+      [
+       "tests/tui/test_tui_filters_ignore.py",
+       24
+      ],
+      [
+       "tests/tui/test_tui_filters_scan.py",
+       23
+      ],
+      [
+       "tests/tui/test_tui_modals_integration.py",
+       21
+      ]
+     ],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.38
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "name": "test_given_module_argv_when_clearing_without_explicit_argv_then_removes_model",
+    "kind": "function",
+    "path": "tests/unit/test_model_store.py",
+    "line": 331,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_model_store.py",
+       331
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_model_store.py",
+       331
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.75
+  },
+  {
+   "symbol": {
+    "qualname": "split_archive_member_path",
+    "name": "split_archive_member_path",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/archive/archive_search.py",
+    "line": 33,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 14,
+     "rope_count": 14,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2453
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2460
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       33
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       46
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       112
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       135
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       18
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       156
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       14
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       16
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       29
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       31
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       14
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       103
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 14,
+     "rope_count": 14,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2453
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2460
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       33
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       46
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       112
+      ],
+      [
+       "src/srxy/adapters/outbound/archive/archive_search.py",
+       135
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       18
+      ],
+      [
+       "src/srxy/adapters/outbound/content/file_walker.py",
+       156
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       14
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       16
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       29
+      ],
+      [
+       "src/srxy/adapters/outbound/os/desktop.py",
+       31
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       14
+      ],
+      [
+       "tests/unit/test_archive_search.py",
+       103
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.65
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "name": "test_given_empty_ignore_editor_when_focusing_then_first_line_stays_inside_outline",
+    "kind": "function",
+    "path": "tests/gui/test_gui_ignore.py",
+    "line": 520,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_ignore.py",
+       520
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/gui/test_gui_ignore.py",
+       520
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.17
+  },
+  {
+   "symbol": {
+    "qualname": "_rel",
+    "name": "_rel",
+    "kind": "function",
+    "path": "tests/unit/test_file_walker_ignore.py",
+    "line": 26,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       26
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       32
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       401
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       402
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       415
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       26
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       32
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       401
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       402
+      ],
+      [
+       "tests/unit/test_file_walker_ignore.py",
+       415
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.35
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "name": "test_given_complete_path_block_when_removing_then_strips_block_only",
+    "kind": "function",
+    "path": "tests/unit/test_path_setup.py",
+    "line": 46,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_path_setup.py",
+       46
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_path_setup.py",
+       46
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.64
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "name": "test_given_news_corpus_when_magic_search_with_default_fields_then_ranks_science_article_first",
+    "kind": "function",
+    "path": "tests/integration/test_corpus_search.py",
+    "line": 43,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/integration/test_corpus_search.py",
+       43
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/integration/test_corpus_search.py",
+       43
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.6
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "name": "test_given_prune_script_when_reading_then_targets_windows_pyside_layout",
+    "kind": "function",
+    "path": "tests/unit/test_windows_pyside_packaging.py",
+    "line": 97,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_pyside_packaging.py",
+       97
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_pyside_packaging.py",
+       97
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.66
+  },
+  {
+   "symbol": {
+    "qualname": "InstallerController.status",
+    "name": "status",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/installer/controller.py",
+    "line": 450,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 5,
+     "rope_count": 5,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/installer/controller.py",
+       450
+      ],
+      [
+       "tests/gui/test_installer.py",
+       738
+      ],
+      [
+       "tests/gui/test_installer.py",
+       743
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1340
+      ],
+      [
+       "tests/gui/test_installer.py",
+       1414
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "file counts (codenav diff truncated)",
+     "codenav_count": 70,
+     "rope_count": 243,
+     "count_differences": {
+      "docs/development.md": [
+       1,
+       0
+      ],
+      "scripts/bench_file_search.py": [
+       0,
+       1
+      ],
+      "scripts/docs/export_public_api.py": [
+       0,
+       1
+      ],
+      "scripts/quality/checks.py": [
+       0,
+       1
+      ],
+      "src/srxy/adapters/inbound/gui/controller.py": [
+       0,
+       29
+      ],
+      "src/srxy/adapters/inbound/gui/splash.py": [
+       0,
+       1
+      ],
+      "src/srxy/adapters/inbound/installer/__main__.py": [
+       0,
+       14
+      ],
+      "src/srxy/adapters/inbound/installer/controller.py": [
+       1,
+       14
+      ],
+      "src/srxy/adapters/inbound/installer/install.py": [
+       0,
+       19
+      ],
+      "src/srxy/adapters/inbound/installer/uninstall.py": [
+       0,
+       33
+      ],
+      "src/srxy/adapters/inbound/installer_online/server.py": [
+       0,
+       8
+      ],
+      "src/srxy/adapters/inbound/tui/app.py": [
+       0,
+       11
+      ],
+      "src/srxy/adapters/inbound/tui/modals.py": [
+       0,
+       2
+      ],
+      "src/srxy/adapters/outbound/documents/document_text.py": [
+       0,
+       1
+      ],
+      "src/srxy/adapters/outbound/models/model_store.py": [
+       0,
+       1
+      ],
+      "src/srxy/application/disk_usage.py": [
+       0,
+       1
+      ],
+      "src/srxy/application/model_preflight.py": [
+       0,
+       1
+      ],
+      "src/srxy/application/search_messages.py": [
+       0,
+       1
+      ],
+      "src/srxy/application/settings_maintenance.py": [
+       0,
+       6
+      ],
+      "src/srxy/application/updates.py": [
+       0,
+       5
+      ],
+      "src/srxy/application/use_cases/search_files.py": [
+       0,
+       1
+      ],
+      "src/srxy/domain/progress.py": [
+       0,
+       4
+      ],
+      "src/srxy/i18n/en.json": [
+       45,
+       0
+      ],
+      "src/srxy/i18n/es.json": [
+       14,
+       0
+      ],
+      "tests/gui/test_gui_controller.py": [
+       3,
+       4
+      ],
+      "tests/gui/test_gui_snapshots.py": [
+       0,
+       2
+      ],
+      "tests/gui/test_gui_splash.py": [
+       0,
+       3
+      ],
+      "tests/gui/test_installer.py": [
+       4,
+       27
+      ],
+      "tests/unit/test_dsl.py": [
+       1,
+       7
+      ],
+      "tests/unit/test_installer_engine_integration.py": [
+       0,
+       3
+      ],
+      "tests/unit/test_installer_install_flow.py": [
+       0,
+       3
+      ],
+      "tests/unit/test_installer_online.py": [
+       1,
+       31
+      ],
+      "tests/unit/test_installer_resolve.py": [
+       0,
+       4
+      ],
+      "tests/unit/test_search.py": [
+       0,
+       4
+      ]
+     },
+     "shared": [],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 2.74
+  },
+  {
+   "symbol": {
+    "qualname": "download_semantic_image_model",
+    "name": "download_semantic_image_model",
+    "kind": "function",
+    "path": "src/srxy/adapters/outbound/models/model_store.py",
+    "line": 188,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 6,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       10
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       93
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       188
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       470
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       11
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       110
+      ]
+     ],
+     "only_in_codenav": [
+      [
+       "tests/unit/test_model_store.py",
+       384
+      ]
+     ],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 7,
+     "rope_count": 7,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       10
+      ],
+      [
+       "src/srxy/adapters/inbound/tui/preflight.py",
+       93
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       188
+      ],
+      [
+       "src/srxy/adapters/outbound/models/model_store.py",
+       470
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       11
+      ],
+      [
+       "src/srxy/application/model_preflight.py",
+       110
+      ],
+      [
+       "tests/unit/test_model_store.py",
+       384
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.14
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController.updateBusy",
+    "name": "updateBusy",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 2934,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2934
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       2934
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.56
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "name": "test_given_suffixless_file_when_row_ignore_choices_then_no_ext_choice",
+    "kind": "function",
+    "path": "tests/unit/test_ignore_edit.py",
+    "line": 204,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_ignore_edit.py",
+       204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_ignore_edit.py",
+       204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.69
+  },
+  {
+   "symbol": {
+    "qualname": "SearchController._on_search_event",
+    "name": "_on_search_event",
+    "kind": "method",
+    "path": "src/srxy/adapters/inbound/gui/controller.py",
+    "line": 1658,
+    "column": 5
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1521
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1658
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       3083
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 4,
+     "rope_count": 4,
+     "count_differences": {},
+     "shared": [
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1521
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       1658
+      ],
+      [
+       "src/srxy/adapters/inbound/gui/controller.py",
+       3083
+      ],
+      [
+       "tests/gui/test_gui_controller.py",
+       1204
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 2.07
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "name": "test_given_same_thread_when_reading_keywords_twice_then_initializes_com_once",
+    "kind": "function",
+    "path": "tests/unit/test_windows_metadata.py",
+    "line": 158,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_metadata.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_windows_metadata.py",
+       158
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.68
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "name": "test_given_worker_args_when_run_worker_main_then_emits_json_events",
+    "kind": "function",
+    "path": "tests/unit/test_search_worker.py",
+    "line": 122,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_worker.py",
+       122
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_search_worker.py",
+       122
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 0.68
+  },
+  {
+   "symbol": {
+    "qualname": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "name": "test_given_match_skipped_names_when_hidden_file_then_matches_name_not_content",
+    "kind": "function",
+    "path": "tests/unit/test_file_search.py",
+    "line": 602,
+    "column": 4
+   },
+   "modes": {
+    "certain": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_search.py",
+       602
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    },
+    "all": {
+     "status": "ok",
+     "basis": "lines",
+     "codenav_count": 1,
+     "rope_count": 1,
+     "count_differences": {},
+     "shared": [
+      [
+       "tests/unit/test_file_search.py",
+       602
+      ]
+     ],
+     "only_in_codenav": [],
+     "only_in_rope": []
+    }
+   },
+   "seconds": 1.1
+  }
+ ]
+}

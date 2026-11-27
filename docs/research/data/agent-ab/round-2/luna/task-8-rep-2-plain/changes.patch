@@ -1,0 +1,1559 @@
+diff --git a/docs/api-reference.md b/docs/api-reference.md
+index 7bd8975..160fc4f 100644
+--- a/docs/api-reference.md
++++ b/docs/api-reference.md
+@@ -76,10 +76,10 @@ Fields:
+ 
+ Dataclass (`srxy.domain.models.FileSearchResult`)
+ 
+-FileSearchResult(path: 'Path', score: 'float', breakdown: 'dict[str, float]' = <factory>, lines: 'list[LineMatch]' = <factory>, term_surfaces: 'dict[str, dict[str, float]]' = <factory>, is_dir: 'bool' = False)
++FileSearchResult(path: 'Path', score: 'float', breakdown: 'dict[str, float]' = <factory>, line_matches: 'list[LineMatch]' = <factory>, term_surfaces: 'dict[str, dict[str, float]]' = <factory>, is_dir: 'bool' = False)
+ 
+ ```python
+-FileSearchResult(path: Path, score: float, breakdown: dict[str, float] = ..., lines: list[LineMatch] = ..., term_surfaces: dict[str, dict[str, float]] = ..., is_dir: bool = False)
++FileSearchResult(path: Path, score: float, breakdown: dict[str, float] = ..., line_matches: list[LineMatch] = ..., term_surfaces: dict[str, dict[str, float]] = ..., is_dir: bool = False)
+ ```
+ 
+ Fields:
+@@ -87,7 +87,7 @@ Fields:
+ - `path`: `Path`
+ - `score`: `float`
+ - `breakdown`: `dict[str, float]`
+-- `lines`: `list[LineMatch]`
++- `line_matches`: `list[LineMatch]`
+ - `term_surfaces`: `dict[str, dict[str, float]]`
+ - `is_dir`: `bool`
+ 
+diff --git a/docs/python-api.md b/docs/python-api.md
+index 80e4c65..67a6573 100644
+--- a/docs/python-api.md
++++ b/docs/python-api.md
+@@ -29,7 +29,7 @@ from srxy import FileQ, magic_file_search
+ results = magic_file_search(Path("./src"), "registry", threshold=0.3)
+ for result in results:
+     print(result.path, result.score, result.breakdown)
+-    for line in result.lines:
++    for line in result.line_matches:
+         print(f"  line {line.line_number}: {line.text}")
+ 
+ results = magic_file_search(Path("."), "token", skip_hidden_folders=False)
+diff --git a/src/srxy/adapters/inbound/cli/cli.py b/src/srxy/adapters/inbound/cli/cli.py
+index 40fcad0..630c839 100644
+--- a/src/srxy/adapters/inbound/cli/cli.py
++++ b/src/srxy/adapters/inbound/cli/cli.py
+@@ -61,7 +61,7 @@ def format_json_result(result: FileSearchResult, *, query: str = "") -> dict[str
+ 				"text": line_match.text,
+ 				"score": line_match.score,
+ 			}
+-			for line_match in result.lines
++			for line_match in result.line_matches
+ 		],
+ 	}
+ 
+diff --git a/src/srxy/adapters/inbound/gui/controller.py b/src/srxy/adapters/inbound/gui/controller.py
+index 9ca8da4..480d6f4 100644
+--- a/src/srxy/adapters/inbound/gui/controller.py
++++ b/src/srxy/adapters/inbound/gui/controller.py
+@@ -3161,11 +3161,11 @@ def _resolve_preview_payload(
+ 
+ 	path = result.path
+ 	truncated_footer = tr("preview.truncated")
+-	joined_lines = "\n".join(line.text for line in result.lines[:50])
++	joined_lines = "\n".join(line.text for line in result.line_matches[:50])
+ 	empty_type = ("", "", "", "", "")
+ 	try:
+ 		if not path.is_file():
+-			if result.lines:
++			if result.line_matches:
+ 				return joined_lines, path, "", False, truncated_footer, *empty_type
+ 			return "", path, "(No file preview available)", False, truncated_footer, *empty_type
+ 		route = resolve_content_route(path)
+@@ -3177,7 +3177,7 @@ def _resolve_preview_payload(
+ 			kind, media_url, poster_url = resolve_media_preview(path, logical_suffix)
+ 			if kind and media_url:
+ 				return "", path, "", False, "", content_type, logical_suffix, kind, media_url, poster_url
+-			if result.lines:
++			if result.line_matches:
+ 				return joined_lines, path, "", False, truncated_footer, content_type, logical_suffix, "", "", ""
+ 			return (
+ 				"",
+@@ -3192,7 +3192,7 @@ def _resolve_preview_payload(
+ 				"",
+ 			)
+ 		if not route.body_text and not route.as_document:
+-			if result.lines:
++			if result.line_matches:
+ 				return joined_lines, path, "", False, truncated_footer, content_type, logical_suffix, "", "", ""
+ 			return (
+ 				"",
+@@ -3211,7 +3211,7 @@ def _resolve_preview_payload(
+ 		file_truncated = len(raw) > PREVIEW_MAX_BYTES
+ 		data = raw[:PREVIEW_MAX_BYTES]
+ 		if b"\x00" in data[:4096] and not route.body_text:
+-			if result.lines:
++			if result.line_matches:
+ 				return (
+ 					joined_lines,
+ 					path,
+@@ -3249,6 +3249,6 @@ def _resolve_preview_payload(
+ 			"",
+ 		)
+ 	except OSError:
+-		if result.lines:
++		if result.line_matches:
+ 			return joined_lines, path, "", False, truncated_footer, *empty_type
+ 		return "", path, "(Could not read file)", False, truncated_footer, *empty_type
+diff --git a/src/srxy/adapters/inbound/gui/models.py b/src/srxy/adapters/inbound/gui/models.py
+index 60361b1..983ffd0 100644
+--- a/src/srxy/adapters/inbound/gui/models.py
++++ b/src/srxy/adapters/inbound/gui/models.py
+@@ -336,7 +336,7 @@ class MatchesModel(QAbstractListModel):
+ 		max_len = 0
+ 		if result is not None:
+ 			for location, preview, score, plain, line_number in iter_grouped_line_displays(
+-				result.lines, query=query, highlight="html"
++				result.line_matches, query=query, highlight="html"
+ 			):
+ 				self._rows.append((location, preview, score, plain, line_number))
+ 				max_len = max(max_len, len(plain))
+diff --git a/src/srxy/adapters/inbound/tui/app.py b/src/srxy/adapters/inbound/tui/app.py
+index c29dfb0..5de8aa2 100644
+--- a/src/srxy/adapters/inbound/tui/app.py
++++ b/src/srxy/adapters/inbound/tui/app.py
+@@ -504,7 +504,7 @@ class SrxyApp(App[int]):
+ 		label_text = self._match_labels(result)
+ 		header.update(f"{path_text}  ·  {format_score_percent(result.score)}  ·  matched: {label_text}")
+ 		for location, preview, score, plain_text, _line in iter_grouped_line_displays(
+-			result.lines, query=query, highlight="bold"
++			result.line_matches, query=query, highlight="bold"
+ 		):
+ 			self._preview_rows.append(_PreviewRow(location=location, plain_text=plain_text, score=score))
+ 			table.add_row(
+diff --git a/src/srxy/adapters/outbound/worker/search_worker.py b/src/srxy/adapters/outbound/worker/search_worker.py
+index 3bac58b..7a761a3 100644
+--- a/src/srxy/adapters/outbound/worker/search_worker.py
++++ b/src/srxy/adapters/outbound/worker/search_worker.py
+@@ -92,7 +92,7 @@ def file_result_to_dict(result: FileSearchResult) -> dict[str, Any]:
+ 				"location_kind": line.location_kind,
+ 				"matched_term": line.matched_term,
+ 			}
+-			for line in result.lines
++			for line in result.line_matches
+ 		],
+ 	}
+ 
+@@ -102,7 +102,7 @@ def file_result_from_dict(data: dict[str, Any]) -> FileSearchResult:
+ 		path=Path(data["path"]),
+ 		score=data["score"],
+ 		breakdown=data.get("breakdown", {}),
+-		lines=[LineMatch(**line) for line in data.get("lines", [])],
++		line_matches=[LineMatch(**line) for line in data.get("lines", [])],
+ 		term_surfaces=data.get("term_surfaces", {}),
+ 		is_dir=bool(data.get("is_dir", False)),
+ 	)
+diff --git a/src/srxy/application/search_formatting.py b/src/srxy/application/search_formatting.py
+index 30d4f1d..c4b117e 100644
+--- a/src/srxy/application/search_formatting.py
++++ b/src/srxy/application/search_formatting.py
+@@ -125,7 +125,7 @@ def match_labels(
+ 	labels: list[str] = []
+ 	if _name_matched(result, threshold=threshold):
+ 		labels.append("name")
+-	for line in result.lines:
++	for line in result.line_matches:
+ 		if not _line_counts_as_match(
+ 			line,
+ 			threshold=threshold,
+@@ -144,7 +144,7 @@ def match_labels(
+ 			labels.append("tag")
+ 		elif line.location_kind == "semantic_image" and "image semantic" not in labels:
+ 			labels.append("image semantic")
+-	if not result.lines and _content_matched_from_terms(result, threshold=threshold):
++	if not result.line_matches and _content_matched_from_terms(result, threshold=threshold):
+ 		labels.append("content")
+ 	semantic_image_score = result.breakdown.get("semantic_image", 0.0)
+ 	if (
+@@ -237,7 +237,7 @@ def format_grouped_result(result: FileSearchResult, *, query: str = "", separato
+ 	label_text = match_labels(result)
+ 	lines.append(f"── {path_text} ──")
+ 	lines.append(f"   match {format_score_percent(result.score)}  ·  matched: {label_text}")
+-	for location, preview, score, _plain, _line in iter_grouped_line_displays(result.lines, query=query):
++	for location, preview, score, _plain, _line in iter_grouped_line_displays(result.line_matches, query=query):
+ 		lines.append(f"   {location}  ·  match {format_score_percent(score)}")
+ 		lines.append(f"   │ {preview}")
+ 	return "\n".join(lines)
+@@ -256,8 +256,8 @@ def format_grouped(results: list[FileSearchResult], *, query: str = "") -> str:
+ def format_flat_result(result: FileSearchResult, *, threshold: float = 0.35) -> list[str]:
+ 	path_text = result.path.as_posix()
+ 	lines: list[str] = []
+-	if result.lines:
+-		for line_match in result.lines:
++	if result.line_matches:
++		for line_match in result.line_matches:
+ 			lines.append(
+ 				f"{path_text}:{line_match.location_kind}:{line_match.line_number}:"
+ 				f"{format_score_percent(line_match.score)}:{line_match.text}"
+diff --git a/src/srxy/application/use_cases/search_files.py b/src/srxy/application/use_cases/search_files.py
+index 383ee12..f2a33bf 100644
+--- a/src/srxy/application/use_cases/search_files.py
++++ b/src/srxy/application/use_cases/search_files.py
+@@ -663,7 +663,7 @@ def _search_single_file(
+ 			path=file_path,
+ 			score=score,
+ 			breakdown=breakdown,
+-			lines=line_matches,
++			line_matches=line_matches,
+ 			term_surfaces=term_surfaces,
+ 			is_dir=is_directory,
+ 		),
+diff --git a/src/srxy/domain/models.py b/src/srxy/domain/models.py
+index e487d9a..049ae87 100644
+--- a/src/srxy/domain/models.py
++++ b/src/srxy/domain/models.py
+@@ -68,7 +68,7 @@ class FileSearchResult:
+ 	path: Path
+ 	score: float
+ 	breakdown: dict[str, float] = field(default_factory=dict)
+-	lines: list[LineMatch] = field(default_factory=list)
++	line_matches: list[LineMatch] = field(default_factory=list)
+ 	term_surfaces: dict[str, dict[str, float]] = field(default_factory=dict)
+ 	is_dir: bool = False
+ 	"""Captured once, when the hit is produced (``path.is_dir()`` at scan time).
+diff --git a/tests/cli/test_cli.py b/tests/cli/test_cli.py
+index 4b6470f..c60b884 100644
+--- a/tests/cli/test_cli.py
++++ b/tests/cli/test_cli.py
+@@ -39,7 +39,7 @@ def test_given_content_match_when_formatting_grouped_then_shows_file_and_line(tm
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=42, text="def magic_file_search(", score=0.85)],
++		line_matches=[LineMatch(line_number=42, text="def magic_file_search(", score=0.85)],
+ 	)
+ 
+ 	# when
+@@ -59,7 +59,7 @@ def test_given_ocr_only_match_when_match_labels_then_shows_ocr(tmp_path: Path):
+ 		path=tmp_path / "scan.png",
+ 		score=0.8,
+ 		breakdown={"content": 0.8},
+-		lines=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
+ 	)
+ 
+ 	# when / then
+@@ -72,7 +72,7 @@ def test_given_name_and_ocr_match_when_match_labels_then_shows_both(tmp_path: Pa
+ 		path=tmp_path / "scan.png",
+ 		score=0.8,
+ 		breakdown={"name": 0.5, "content": 0.8},
+-		lines=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
+ 	)
+ 
+ 	# when / then
+@@ -85,7 +85,7 @@ def test_given_transcript_only_match_when_match_labels_then_shows_transcript(tmp
+ 		path=tmp_path / "song.flac",
+ 		score=0.34,
+ 		breakdown={"content": 0.34},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=160,
+ 				text="And all the other boys",
+@@ -105,7 +105,7 @@ def test_given_tag_only_match_when_match_labels_then_shows_tag(tmp_path: Path):
+ 		path=tmp_path / "clip.mp4",
+ 		score=0.47,
+ 		breakdown={"content": 0.47},
+-		lines=[LineMatch(line_number=1, text="[Title] Quarterly revenue recap", score=0.47, location_kind="tag")],
++		line_matches=[LineMatch(line_number=1, text="[Title] Quarterly revenue recap", score=0.47, location_kind="tag")],
+ 	)
+ 
+ 	# when / then
+@@ -124,7 +124,7 @@ def test_given_or_query_with_weak_name_and_strong_content_when_match_labels_then
+ 			"amphibianis": {"name": 0.12, "content": 0.38},
+ 			"minimal": {"name": 0.08},
+ 		},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=5,
+ 				text="Unlike most amphibians, it reaches adulthood without",
+@@ -162,7 +162,7 @@ def test_given_and_query_with_mixed_surfaces_when_match_labels_then_shows_name_a
+ 			"minimal": {"name": 0.86, "content": 0.0},
+ 			"amphibianis": {"name": 0.12, "content": 0.38},
+ 		},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=5,
+ 				text="Unlike most amphibians, it reaches adulthood without",
+@@ -183,7 +183,7 @@ def test_given_ocr_match_when_formatting_grouped_then_shows_ocr_in_matched_label
+ 		path=tmp_path / "scan.png",
+ 		score=0.8,
+ 		breakdown={"content": 0.8},
+-		lines=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="invoice total", score=0.8, location_kind="ocr")],
+ 	)
+ 
+ 	# when
+@@ -200,7 +200,7 @@ def test_given_semantic_image_match_when_formatting_grouped_then_shows_query_pre
+ 		path=tmp_path / "family.jpg",
+ 		score=0.25,
+ 		breakdown={"semantic_image": 0.25},
+-		lines=[LineMatch(line_number=1, text="Sister (=)", score=0.25, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="Sister (=)", score=0.25, location_kind="ocr")],
+ 	)
+ 
+ 	# when
+@@ -218,7 +218,7 @@ def test_given_semantic_image_with_weak_ocr_preview_when_match_labels_then_shows
+ 		path=tmp_path / "family.jpg",
+ 		score=0.22,
+ 		breakdown={"semantic_image": 0.22, "content": 0.22},
+-		lines=[LineMatch(line_number=1, text="Recent", score=0.22, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="Recent", score=0.22, location_kind="ocr")],
+ 	)
+ 
+ 	# when / then
+@@ -231,7 +231,7 @@ def test_given_visual_match_only_when_formatting_grouped_then_shows_image_previe
+ 		path=tmp_path / "photo.jpg",
+ 		score=0.20,
+ 		breakdown={"semantic_image": 0.20},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=1,
+ 				text="(visual match)",
+@@ -257,7 +257,7 @@ def test_given_name_only_match_when_formatting_flat_then_uses_line_zero_sentinel
+ 		path=file_path,
+ 		score=0.92,
+ 		breakdown={"name": 0.92},
+-		lines=[],
++		line_matches=[],
+ 	)
+ 
+ 	# when
+@@ -274,7 +274,7 @@ def test_given_results_when_formatting_json_then_emits_serializable_payload(tmp_
+ 		path=file_path,
+ 		score=0.8,
+ 		breakdown={"content": 0.8},
+-		lines=[LineMatch(line_number=12, text="hello", score=0.8)],
++		line_matches=[LineMatch(line_number=12, text="hello", score=0.8)],
+ 	)
+ 
+ 	# when
+@@ -923,7 +923,7 @@ def test_given_transcript_match_when_formatting_grouped_then_shows_timestamp_in_
+ 		path=tmp_path / "song.flac",
+ 		score=0.34,
+ 		breakdown={"content": 0.34},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=160,
+ 				text="And all the other boys",
+@@ -949,7 +949,7 @@ def test_given_transcript_match_when_formatting_json_then_uses_timestamp_label(t
+ 		path=tmp_path / "song.flac",
+ 		score=0.34,
+ 		breakdown={"content": 0.34},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=160,
+ 				text="And all the other boys",
+@@ -980,7 +980,7 @@ def test_given_mp4_tag_match_when_formatting_grouped_then_shows_tag_label(tmp_pa
+ 		path=file_path,
+ 		score=0.47,
+ 		breakdown={"content": 0.47},
+-		lines=[LineMatch(line_number=1, text="[Title] Quarterly revenue recap", score=0.47, location_kind="tag")],
++		line_matches=[LineMatch(line_number=1, text="[Title] Quarterly revenue recap", score=0.47, location_kind="tag")],
+ 	)
+ 
+ 	# when
+@@ -1003,7 +1003,7 @@ def test_given_pdf_match_when_formatting_grouped_then_shows_page_label(tmp_path:
+ 		path=file_path,
+ 		score=0.47,
+ 		breakdown={"content": 0.47},
+-		lines=[LineMatch(line_number=1, text="quarterly revenue projections", score=0.47, location_kind="page")],
++		line_matches=[LineMatch(line_number=1, text="quarterly revenue projections", score=0.47, location_kind="page")],
+ 	)
+ 
+ 	# when
+@@ -1022,7 +1022,7 @@ def test_given_grouped_result_when_formatting_single_block_then_omits_summary_he
+ 		path=file_path,
+ 		score=0.8,
+ 		breakdown={"content": 0.8},
+-		lines=[LineMatch(line_number=1, text="hello", score=0.8)],
++		line_matches=[LineMatch(line_number=1, text="hello", score=0.8)],
+ 	)
+ 
+ 	# when
+@@ -1041,7 +1041,7 @@ def test_given_repeated_line_previews_when_formatting_grouped_then_collapses_ide
+ 		path=file_path,
+ 		score=0.31,
+ 		breakdown={"content": 0.31},
+-		lines=[LineMatch(line_number=number, text="fi", score=0.31) for number in line_numbers],
++		line_matches=[LineMatch(line_number=number, text="fi", score=0.31) for number in line_numbers],
+ 	)
+ 
+ 	# when
+@@ -1060,7 +1060,7 @@ def test_given_consecutive_line_previews_when_formatting_grouped_then_uses_range
+ 		path=file_path,
+ 		score=0.5,
+ 		breakdown={"content": 0.5},
+-		lines=[
++		line_matches=[
+ 			LineMatch(line_number=10, text="fi", score=0.5),
+ 			LineMatch(line_number=11, text="fi", score=0.5),
+ 			LineMatch(line_number=12, text="fi", score=0.5),
+@@ -1083,7 +1083,7 @@ def test_given_mixed_line_previews_when_formatting_grouped_then_keeps_distinct_g
+ 		path=file_path,
+ 		score=0.8,
+ 		breakdown={"content": 0.8},
+-		lines=[
++		line_matches=[
+ 			LineMatch(line_number=1, text="alpha fi beta", score=0.8),
+ 			LineMatch(line_number=2, text="fi", score=0.8),
+ 			LineMatch(line_number=3, text="fi", score=0.8),
+diff --git a/tests/gui/test_gui_controller.py b/tests/gui/test_gui_controller.py
+index dc08911..907cdec 100644
+--- a/tests/gui/test_gui_controller.py
++++ b/tests/gui/test_gui_controller.py
+@@ -475,7 +475,7 @@ def test_given_non_local_drop_when_handled_then_path_unchanged(
+ def test_given_search_finished_when_handling_event_then_updates_results_model(qapp: QCoreApplication, tmp_path: Path):
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=tmp_path / "note.txt", score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=tmp_path / "note.txt", score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchResultEvent(result))
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	assert controller.resultsModel.rowCount() == 1
+@@ -524,7 +524,7 @@ def test_given_previous_selection_when_beginning_new_search_then_selection_is_cl
+ 	path.write_text("alpha beta\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	assert controller.selectedResult == 0
+ 	monkeypatch.setattr(controller, "_start_search_worker", lambda _args: None)
+@@ -719,7 +719,7 @@ def test_given_python_file_when_selecting_result_then_preview_is_plain_text_with
+ 	path.write_text("def hello():\n\treturn 1\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["hello", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 
+@@ -741,7 +741,7 @@ def test_given_selected_result_when_reading_header_then_path_and_metadata_split(
+ 	path.write_text("def hello():\n\treturn 1\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["hello", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 
+@@ -1077,7 +1077,7 @@ def test_given_result_row_when_selecting_then_selected_result_property_updates(q
+ 	path.write_text("alpha\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 
+ 	# when
+@@ -1095,7 +1095,7 @@ def test_given_large_file_when_selecting_result_then_preview_is_capped_with_foot
+ 	path.write_text(("line " * 20 + "\n") * 3000, encoding="utf-8")
+ 	args = build_parser().parse_args(["line", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 
+@@ -1115,7 +1115,7 @@ def test_given_huge_file_when_resolving_preview_then_read_is_capped(
+ 	path.write_bytes(b"x" * (PREVIEW_MAX_BYTES * 4))
+ 	args = build_parser().parse_args(["x", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	reads: list[int] = []
+ 	real_open = Path.open
+ 
+@@ -1165,7 +1165,7 @@ def test_given_selected_path_when_higher_score_inserts_above_then_selection_reta
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+ 	controller.handle_search_event_for_tests(
+-		SearchResultEvent(result=FileSearchResult(path=low, score=0.5, breakdown={"content": 0.5}, lines=[]))
++		SearchResultEvent(result=FileSearchResult(path=low, score=0.5, breakdown={"content": 0.5}, line_matches=[]))
+ 	)
+ 	controller.selectResult(0)
+ 	controller.flush_preview_for_tests()
+@@ -1174,7 +1174,7 @@ def test_given_selected_path_when_higher_score_inserts_above_then_selection_reta
+ 
+ 	# when — better score inserts above the current row
+ 	controller.handle_search_event_for_tests(
+-		SearchResultEvent(result=FileSearchResult(path=high, score=0.9, breakdown={"content": 0.9}, lines=[]))
++		SearchResultEvent(result=FileSearchResult(path=high, score=0.9, breakdown={"content": 0.9}, line_matches=[]))
+ 	)
+ 
+ 	# then — highlight follows the originally selected path
+@@ -1203,7 +1203,7 @@ def test_given_many_result_events_when_flushing_batch_then_model_updates_once_pe
+ 		path.write_text("alpha\n", encoding="utf-8")
+ 		controller._on_search_event(  # noqa: SLF001 — intentional: skip test helper flush
+ 			SearchResultEvent(
+-				result=FileSearchResult(path=path, score=0.5 + index * 0.01, breakdown={"content": 0.5}, lines=[]),
++				result=FileSearchResult(path=path, score=0.5 + index * 0.01, breakdown={"content": 0.5}, line_matches=[]),
+ 				labels=f"label-{index}",
+ 			)
+ 		)
+@@ -1239,7 +1239,7 @@ def test_given_precomputed_labels_when_flushing_batch_then_gui_skips_match_label
+ 	path.write_text("alpha\n", encoding="utf-8")
+ 	controller.handle_search_event_for_tests(
+ 		SearchResultEvent(
+-			result=FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[]),
++			result=FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[]),
+ 			labels="name, content",
+ 		)
+ 	)
+@@ -1259,7 +1259,7 @@ def test_given_misnamed_media_when_previewing_then_content_type_shows_mismatch(q
+ 	path.write_bytes(fixture.read_bytes())
+ 	args = build_parser().parse_args(["beep", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	content_type = str(controller.previewContentType)
+@@ -1274,7 +1274,7 @@ def test_given_image_file_when_previewing_then_kind_is_image_with_media_url(qapp
+ 	path.write_bytes(fixture.read_bytes())
+ 	args = build_parser().parse_args(["photo", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	assert str(controller.previewKind) == "image"
+@@ -1290,7 +1290,7 @@ def test_given_audio_file_when_previewing_then_kind_is_audio_with_file_url(qapp:
+ 	path.write_bytes(fixture.read_bytes())
+ 	args = build_parser().parse_args(["beep", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	assert str(controller.previewKind) == "audio"
+@@ -1305,7 +1305,7 @@ def test_given_video_file_when_previewing_then_kind_is_video_with_file_url(qapp:
+ 	path.write_bytes(fixture.read_bytes())
+ 	args = build_parser().parse_args(["clip", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	assert str(controller.previewKind) == "video"
+@@ -1320,7 +1320,7 @@ def test_given_text_file_when_previewing_then_kind_is_text_with_no_media_url(qap
+ 	path.write_text("alpha beta\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	assert str(controller.previewKind) == "text"
+@@ -1339,10 +1339,10 @@ def test_given_selected_path_when_search_finishes_then_selection_is_preserved(qa
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+ 	controller.handle_search_event_for_tests(
+-		SearchResultEvent(result=FileSearchResult(path=first, score=0.4, breakdown={"content": 0.4}, lines=[]))
++		SearchResultEvent(result=FileSearchResult(path=first, score=0.4, breakdown={"content": 0.4}, line_matches=[]))
+ 	)
+ 	controller.handle_search_event_for_tests(
+-		SearchResultEvent(result=FileSearchResult(path=second, score=0.8, breakdown={"content": 0.8}, lines=[]))
++		SearchResultEvent(result=FileSearchResult(path=second, score=0.8, breakdown={"content": 0.8}, line_matches=[]))
+ 	)
+ 	controller.selectResult(1)  # select the lower-scoring path
+ 	controller.flush_preview_for_tests()
+@@ -1352,8 +1352,8 @@ def test_given_selected_path_when_search_finishes_then_selection_is_preserved(qa
+ 	controller.handle_search_event_for_tests(
+ 		SearchFinishedEvent(
+ 			results=[
+-				FileSearchResult(path=second, score=0.8, breakdown={"content": 0.8}, lines=[]),
+-				FileSearchResult(path=first, score=0.4, breakdown={"content": 0.4}, lines=[]),
++				FileSearchResult(path=second, score=0.8, breakdown={"content": 0.8}, line_matches=[]),
++				FileSearchResult(path=first, score=0.4, breakdown={"content": 0.4}, line_matches=[]),
+ 			],
+ 			skipped_files=[],
+ 		)
+@@ -1391,7 +1391,7 @@ def test_given_controller_when_results_empty_then_hint_follows_search_state(qapp
+ 	assert controller.resultsEmptyHint == tr("results.empty.none")
+ 
+ 	# when — results present
+-	result = FileSearchResult(path=tmp_path / "note.txt", score=0.9, breakdown={"name": 0.9}, lines=[])
++	result = FileSearchResult(path=tmp_path / "note.txt", score=0.9, breakdown={"name": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	assert controller.resultsEmptyHint == ""
+ 	controller.shutdown(thread_wait_ms=1000)
+@@ -1592,7 +1592,7 @@ def _make_preview_controller(qapp: QCoreApplication, tmp_path: Path, text: str,
+ 	path.write_text(text, encoding="utf-8")
+ 	args = build_parser().parse_args([query, str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 	return controller
+@@ -1655,7 +1655,7 @@ def test_given_preview_when_theme_changes_then_gutter_color_updates(qapp: QCoreA
+ 	path.write_text("def x():\n\treturn 1\n", encoding="utf-8")
+ 	args = build_parser().parse_args(["return", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 	controller.flush_preview_for_tests()
+ 
+@@ -1687,7 +1687,7 @@ def test_given_attached_document_when_selecting_then_preview_loads_via_worker(qa
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	controller = SearchController(args)
+ 	controller.attachPreviewDocument(_QuickDoc())
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 
+ 	# when
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+@@ -1777,7 +1777,7 @@ def test_given_selected_result_when_opening_folder_then_desktop_reveal_is_called
+ 	args = build_parser().parse_args(["alpha", str(tmp_path), "--cli"])
+ 	desktop = MagicMock()
+ 	controller = SearchController(args, desktop=desktop)
+-	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=path, score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=[result], skipped_files=[]))
+ 
+ 	# when
+diff --git a/tests/gui/test_gui_ignore.py b/tests/gui/test_gui_ignore.py
+index f7766f2..dde52f7 100644
+--- a/tests/gui/test_gui_ignore.py
++++ b/tests/gui/test_gui_ignore.py
+@@ -44,7 +44,7 @@ def _controller(root: Path) -> SearchController:
+ def _show_results(controller: SearchController, root: Path, paths: list[Path]):
+ 	"""Put result rows in the model and mark ``root`` as the root those results came from."""
+ 	results = [
+-		FileSearchResult(path=path, score=0.9 - index / 100, breakdown={"name": 0.9}, lines=[])
++		FileSearchResult(path=path, score=0.9 - index / 100, breakdown={"name": 0.9}, line_matches=[])
+ 		for index, path in enumerate(paths)
+ 	]
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=results, skipped_files=[]))
+diff --git a/tests/gui/test_gui_models.py b/tests/gui/test_gui_models.py
+index 31867de..34fadff 100644
+--- a/tests/gui/test_gui_models.py
++++ b/tests/gui/test_gui_models.py
+@@ -35,7 +35,7 @@ def qapp() -> QCoreApplication:
+ 
+ 
+ def _result(path: Path, score: float) -> FileSearchResult:
+-	return FileSearchResult(path=path, score=score, breakdown={"content": score}, lines=[])
++	return FileSearchResult(path=path, score=score, breakdown={"content": score}, line_matches=[])
+ 
+ 
+ class _SignalRecorder:
+diff --git a/tests/gui/test_gui_qml_load.py b/tests/gui/test_gui_qml_load.py
+index a84f713..3355684 100644
+--- a/tests/gui/test_gui_qml_load.py
++++ b/tests/gui/test_gui_qml_load.py
+@@ -203,10 +203,10 @@ def test_given_media_results_when_selecting_then_preview_stack_switches_and_play
+ 	assert mute_button is not None
+ 
+ 	results = [
+-		FileSearchResult(path=image_path, score=0.9, breakdown={"name": 0.9}, lines=[]),
+-		FileSearchResult(path=audio_path, score=0.8, breakdown={"name": 0.8}, lines=[]),
+-		FileSearchResult(path=video_path, score=0.7, breakdown={"name": 0.7}, lines=[]),
+-		FileSearchResult(path=text_path, score=0.6, breakdown={"content": 0.6}, lines=[]),
++		FileSearchResult(path=image_path, score=0.9, breakdown={"name": 0.9}, line_matches=[]),
++		FileSearchResult(path=audio_path, score=0.8, breakdown={"name": 0.8}, line_matches=[]),
++		FileSearchResult(path=video_path, score=0.7, breakdown={"name": 0.7}, line_matches=[]),
++		FileSearchResult(path=text_path, score=0.6, breakdown={"content": 0.6}, line_matches=[]),
+ 	]
+ 	controller.handle_search_event_for_tests(SearchFinishedEvent(results=results, skipped_files=[]))
+ 	qapp.processEvents()
+@@ -462,7 +462,7 @@ def test_given_results_when_running_a_new_search_then_no_delegate_model_warning(
+ 	roots[0].setProperty("visible", True)
+ 
+ 	results = [
+-		FileSearchResult(path=tmp_path / f"file{i}.txt", score=0.9 - i * 0.01, breakdown={"content": 0.9}, lines=[])
++		FileSearchResult(path=tmp_path / f"file{i}.txt", score=0.9 - i * 0.01, breakdown={"content": 0.9}, line_matches=[])
+ 		for i in range(8)
+ 	]
+ 
+diff --git a/tests/gui/test_gui_snapshots.py b/tests/gui/test_gui_snapshots.py
+index da12aef..0d7d2cd 100644
+--- a/tests/gui/test_gui_snapshots.py
++++ b/tests/gui/test_gui_snapshots.py
+@@ -241,7 +241,7 @@ def _ignore_tree(controller: SearchController, root: Path) -> str:
+ 	]
+ 	files = [root / "app" / "debug.log", archive_member_path(root / "data" / "b.zip", "inner/x.txt")]
+ 	for index, path in enumerate(files):
+-		results = [FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, lines=[])]
++		results = [FileSearchResult(path=path, score=0.9, breakdown={"name": 0.9}, line_matches=[])]
+ 		controller.handle_search_event_for_tests(SearchFinishedEvent(results=results, skipped_files=[]))
+ 		controller._results_root = root  # pyright: ignore[reportPrivateUsage]
+ 		lines.append(f"  row{index} ({path.name}):")
+diff --git a/tests/integration/test_file_search_fixtures.py b/tests/integration/test_file_search_fixtures.py
+index aaafde1..fcb92f3 100644
+--- a/tests/integration/test_file_search_fixtures.py
++++ b/tests/integration/test_file_search_fixtures.py
+@@ -56,7 +56,7 @@ def test_given_notes_txt_when_searching_axolotl_then_finds_content(file_search_r
+ 
+ 	# then
+ 	assert results
+-	assert "axolotl" in results[0].lines[0].text.lower()
++	assert "axolotl" in results[0].line_matches[0].text.lower()
+ 
+ 
+ @pytest.mark.semantic
+@@ -89,7 +89,7 @@ def test_given_ocr_pdf_fixture_when_searching_revenue_then_finds_ocr(file_search
+ 
+ 	# then
+ 	assert results
+-	assert any(line.location_kind == "ocr" for r in results for line in r.lines)
++	assert any(line.location_kind == "ocr" for r in results for line in r.line_matches)
+ 
+ 
+ def test_given_office_docs_when_searching_tokens_then_finds_each_format(file_search_samples: Path):
+@@ -125,7 +125,7 @@ def test_given_minimal_mp3_when_transcribe_then_finds_audio_metadata(file_search
+ 	# then
+ 	assert results
+ 	assert any(r.path.name == "minimal.mp3" for r in results)
+-	assert any(line.location_kind == "tag" for r in results for line in r.lines)
++	assert any(line.location_kind == "tag" for r in results for line in r.line_matches)
+ 
+ 
+ @pytest.mark.ocr
+@@ -136,7 +136,7 @@ def test_given_generated_ocr_image_when_searching_token_then_finds_ocr_line(file
+ 
+ 	# then
+ 	assert results
+-	assert any(line.location_kind == "ocr" for line in results[0].lines)
++	assert any(line.location_kind == "ocr" for line in results[0].line_matches)
+ 
+ 
+ def test_given_cli_json_output_when_searching_then_emits_valid_json(file_search_root: Path):
+@@ -241,7 +241,7 @@ def test_given_ocr_pdf_when_searching_revenue_then_finds_embedded_text(file_sear
+ 
+ 	# then
+ 	assert results
+-	assert any(line.location_kind == "ocr" for r in results for line in r.lines)
++	assert any(line.location_kind == "ocr" for r in results for line in r.line_matches)
+ 
+ 
+ @pytest.mark.integration_full
+@@ -261,7 +261,7 @@ def test_given_speech_sample_when_transcribe_then_finds_mp3(file_search_samples:
+ 	# then
+ 	assert results
+ 	assert results[0].path.suffix.lower() == ".mp3"
+-	assert any(line.location_kind == "transcript" for r in results for line in r.lines)
++	assert any(line.location_kind == "transcript" for r in results for line in r.line_matches)
+ 
+ 
+ @pytest.mark.integration_full
+@@ -303,7 +303,7 @@ def test_given_semantic_all_when_searching_axolotl_then_finds_text(file_search_r
+ 	assert len(results) == 1
+ 	assert results[0].path == notes
+ 	assert results[0].score >= 0.35
+-	assert any("axolotl" in line.text.lower() for line in results[0].lines)
++	assert any("axolotl" in line.text.lower() for line in results[0].line_matches)
+ 
+ 
+ @pytest.mark.integration_full
+diff --git a/tests/integration/test_ocr_fixtures.py b/tests/integration/test_ocr_fixtures.py
+index 6637dfb..71fb13e 100644
+--- a/tests/integration/test_ocr_fixtures.py
++++ b/tests/integration/test_ocr_fixtures.py
+@@ -33,8 +33,8 @@ def test_given_ocr_image_fixture_when_searching_with_ocr_then_finds_revenue():
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path == OCR_IMAGE_FIXTURE
+-	assert any(line.location_kind == "ocr" for line in results[0].lines)
+-	assert any("revenue" in line.text.lower() for line in results[0].lines)
++	assert any(line.location_kind == "ocr" for line in results[0].line_matches)
++	assert any("revenue" in line.text.lower() for line in results[0].line_matches)
+ 
+ 
+ @_requires_tesseract
+@@ -52,8 +52,8 @@ def test_given_ocr_pdf_fixture_when_searching_with_ocr_then_finds_classifier():
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path == OCR_PDF_FIXTURE
+-	assert any(line.line_number == 1 for line in results[0].lines)
+-	assert any("classifier" in line.text.lower() for line in results[0].lines)
++	assert any(line.line_number == 1 for line in results[0].line_matches)
++	assert any("classifier" in line.text.lower() for line in results[0].line_matches)
+ 
+ 
+ @_requires_tesseract
+@@ -81,8 +81,8 @@ def test_given_docx_with_embedded_image_when_searching_with_ocr_then_finds_reven
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "memo.docx"
+-	assert any(line.location_kind == "ocr" for line in results[0].lines)
+-	assert any("revenue" in line.text.lower() for line in results[0].lines)
++	assert any(line.location_kind == "ocr" for line in results[0].line_matches)
++	assert any("revenue" in line.text.lower() for line in results[0].line_matches)
+ 
+ 
+ @_requires_tesseract
+@@ -98,8 +98,8 @@ def test_given_pptx_with_embedded_image_when_searching_with_ocr_then_finds_reven
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "deck.pptx"
+-	assert any(line.location_kind == "ocr" for line in results[0].lines)
+-	assert any("revenue" in line.text.lower() for line in results[0].lines)
++	assert any(line.location_kind == "ocr" for line in results[0].line_matches)
++	assert any("revenue" in line.text.lower() for line in results[0].line_matches)
+ 
+ 
+ @_requires_tesseract
+diff --git a/tests/integration/test_semantic_file_search.py b/tests/integration/test_semantic_file_search.py
+index c027862..47f43ca 100644
+--- a/tests/integration/test_semantic_file_search.py
++++ b/tests/integration/test_semantic_file_search.py
+@@ -30,9 +30,9 @@ def test_given_things_txt_when_searching_new_then_finds_recents(semantic_things_
+ 	assert len(results) == 1
+ 	assert results[0].path == semantic_things_txt
+ 	assert results[0].score >= 0.35
+-	assert results[0].lines
+-	assert results[0].lines[0].location_kind == "line"
+-	assert "recent" in results[0].lines[0].text.lower()
++	assert results[0].line_matches
++	assert results[0].line_matches[0].location_kind == "line"
++	assert "recent" in results[0].line_matches[0].text.lower()
+ 
+ 
+ def test_given_things_txt_when_searching_unrelated_term_then_finds_nothing(semantic_things_txt: Path):
+@@ -64,4 +64,4 @@ def test_given_notes_txt_when_searching_salamander_with_semantic_then_finds_axol
+ 	assert results
+ 	assert results[0].path == notes
+ 	assert results[0].score >= 0.35
+-	assert any("axolotl" in line.text.lower() for line in results[0].lines)
++	assert any("axolotl" in line.text.lower() for line in results[0].line_matches)
+diff --git a/tests/tui/test_display.py b/tests/tui/test_display.py
+index b6334ef..6508d5c 100644
+--- a/tests/tui/test_display.py
++++ b/tests/tui/test_display.py
+@@ -140,7 +140,7 @@ def test_given_result_selected_when_preview_rendered_then_match_table_headers_ar
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="hello world", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="hello world", score=0.85)],
+ 	)
+ 	args = build_parser().parse_args(["hello", str(tmp_path), "--content-only"])
+ 	app = SrxyApp(args, auto_start=True)
+diff --git a/tests/tui/test_file_search_tui.py b/tests/tui/test_file_search_tui.py
+index 7a4beaf..181874c 100644
+--- a/tests/tui/test_file_search_tui.py
++++ b/tests/tui/test_file_search_tui.py
+@@ -139,7 +139,7 @@ def test_given_name_match_when_tui_results_rendered_then_snapshot_includes_readm
+ 		path=file_path,
+ 		score=0.92,
+ 		breakdown={"name": 0.92},
+-		lines=[],
++		line_matches=[],
+ 	)
+ 	args = build_parser().parse_args(["README", "/fixture/docs", "--names-only"])
+ 	app = SrxyApp(args, auto_start=True)
+@@ -171,7 +171,7 @@ def test_given_completed_search_when_query_edited_then_search_button_becomes_sta
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="hello world", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="hello world", score=0.85)],
+ 	)
+ 	args = build_parser().parse_args(["hello", str(tmp_path), "--content-only"])
+ 	app = SrxyApp(args, auto_start=True)
+@@ -219,7 +219,7 @@ def test_given_ocr_result_when_preview_rendered_then_location_and_text_visible(t
+ 		path=file_path,
+ 		score=0.9,
+ 		breakdown={"ocr": 0.9},
+-		lines=[LineMatch(line_number=1, text="fixture_ocr_token found", score=0.9, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="fixture_ocr_token found", score=0.9, location_kind="ocr")],
+ 	)
+ 	args = build_parser().parse_args(["fixture_ocr", str(tmp_path), "--ocr", "--content-only"])
+ 	app = SrxyApp(args, auto_start=True)
+@@ -248,7 +248,7 @@ def test_given_transcript_result_when_preview_rendered_then_transcript_visible(t
+ 		path=file_path,
+ 		score=0.8,
+ 		breakdown={"transcript": 0.8},
+-		lines=[LineMatch(line_number=1, text="thank you very much", score=0.8, location_kind="transcript")],
++		line_matches=[LineMatch(line_number=1, text="thank you very much", score=0.8, location_kind="transcript")],
+ 	)
+ 	args = build_parser().parse_args(["thank you", str(tmp_path), "--transcribe", "--content-only"])
+ 	app = SrxyApp(args, auto_start=True)
+@@ -283,7 +283,7 @@ def test_given_semantic_image_flag_when_search_completes_then_results_table_popu
+ 		path=file_path,
+ 		score=0.75,
+ 		breakdown={"semantic_image": 0.75},
+-		lines=[LineMatch(line_number=1, text="person", score=0.75, location_kind="semantic_image")],
++		line_matches=[LineMatch(line_number=1, text="person", score=0.75, location_kind="semantic_image")],
+ 	)
+ 	args = build_parser().parse_args(["person", str(root), "--semantic-image", "--content-only"])
+ 	app = SrxyApp(args, auto_start=True)
+diff --git a/tests/tui/test_tui.py b/tests/tui/test_tui.py
+index fec039f..600ffe6 100644
+--- a/tests/tui/test_tui.py
++++ b/tests/tui/test_tui.py
+@@ -129,7 +129,7 @@ def test_given_matches_when_tui_search_completes_then_lists_results(tmp_path: Pa
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="hello world", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="hello world", score=0.85)],
+ 	)
+ 	args = _build_args(["hello", str(tmp_path), "--content-only"])
+ 
+@@ -182,7 +182,7 @@ def test_given_matches_when_search_callbacks_fire_then_updates_table_live(tmp_pa
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="hello world", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="hello world", score=0.85)],
+ 	)
+ 	args = _build_args(["hello", str(tmp_path), "--content-only"])
+ 
+@@ -251,7 +251,7 @@ def test_given_result_with_many_lines_when_preview_updated_then_scrolls_to_top(t
+ 		path=file_path,
+ 		score=0.9,
+ 		breakdown={"content": 0.9},
+-		lines=lines,
++		line_matches=lines,
+ 	)
+ 	args = _build_args(["match", str(tmp_path), "--content-only"])
+ 
+@@ -282,7 +282,7 @@ def test_given_completed_search_when_option_changes_then_search_button_becomes_s
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="hello world", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="hello world", score=0.85)],
+ 	)
+ 	args = _build_args(["hello", str(tmp_path), "--content-only"])
+ 
+@@ -343,7 +343,7 @@ def test_given_file_limit_when_results_stream_in_then_table_respects_top_n(tmp_p
+ 			path=tmp_path / f"file{index}.txt",
+ 			score=0.9 - index * 0.1,
+ 			breakdown={"content": 0.9 - index * 0.1},
+-			lines=[LineMatch(line_number=1, text="token", score=0.9 - index * 0.1)],
++			line_matches=[LineMatch(line_number=1, text="token", score=0.9 - index * 0.1)],
+ 		)
+ 		for index in range(3)
+ 	]
+@@ -394,7 +394,7 @@ def test_given_selected_result_when_copy_path_then_puts_path_on_clipboard(tmp_pa
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="transform model", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="transform model", score=0.85)],
+ 	)
+ 	args = _build_args(["transform", str(tmp_path), "--content-only"])
+ 
+@@ -425,7 +425,7 @@ def test_given_preview_match_when_copy_match_button_pressed_then_copies_location
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="transform model", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="transform model", score=0.85)],
+ 	)
+ 	args = _build_args(["transform", str(tmp_path), "--content-only"])
+ 
+@@ -487,7 +487,7 @@ def test_given_preview_match_when_rendered_then_uses_bold_text_for_query_hit(tmp
+ 		path=file_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=1, text="transform model", score=0.85)],
++		line_matches=[LineMatch(line_number=1, text="transform model", score=0.85)],
+ 	)
+ 	args = _build_args(["transform", str(tmp_path), "--content-only"])
+ 
+@@ -523,7 +523,7 @@ def test_given_long_location_preview_when_switching_to_short_preview_then_locati
+ 		path=long_path,
+ 		score=0.9,
+ 		breakdown={"content": 0.9},
+-		lines=[
++		line_matches=[
+ 			LineMatch(
+ 				line_number=1,
+ 				text="hello",
+@@ -536,7 +536,7 @@ def test_given_long_location_preview_when_switching_to_short_preview_then_locati
+ 		path=short_path,
+ 		score=0.85,
+ 		breakdown={"content": 0.85},
+-		lines=[LineMatch(line_number=104, text="thank you", score=0.85)],
++		line_matches=[LineMatch(line_number=104, text="thank you", score=0.85)],
+ 	)
+ 	args = _build_args(["test", str(tmp_path), "--content-only"])
+ 	desktop = MagicMock()
+diff --git a/tests/unit/test_archive_search.py b/tests/unit/test_archive_search.py
+index dbe5b3d..e623138 100644
+--- a/tests/unit/test_archive_search.py
++++ b/tests/unit/test_archive_search.py
+@@ -63,7 +63,7 @@ def test_given_zip_with_text_member_when_include_archives_enabled_then_finds_inn
+ 	member_path = results[0].path.as_posix()
+ 	assert member_path.endswith("bundle.zip::notes.txt")
+ 	assert results[0].breakdown["content"] >= 0.25
+-	assert any("revenue" in line.text for line in results[0].lines)
++	assert any("revenue" in line.text for line in results[0].line_matches)
+ 
+ 
+ def test_given_tar_gz_with_text_member_when_include_archives_enabled_then_finds_inner_content(tmp_path: Path):
+@@ -77,7 +77,7 @@ def test_given_tar_gz_with_text_member_when_include_archives_enabled_then_finds_
+ 	# then
+ 	assert len(results) == 1
+ 	assert "backup.tar.gz::data/report.txt" in results[0].path.as_posix()
+-	assert any("revenue" in line.text for line in results[0].lines)
++	assert any("revenue" in line.text for line in results[0].line_matches)
+ 
+ 
+ def test_given_docx_file_when_include_archives_enabled_then_does_not_expand_office_zip(tmp_path: Path):
+diff --git a/tests/unit/test_file_search.py b/tests/unit/test_file_search.py
+index f967021..448b68e 100644
+--- a/tests/unit/test_file_search.py
++++ b/tests/unit/test_file_search.py
+@@ -329,9 +329,9 @@ def test_given_directory_with_matching_content_when_searching_contents_then_retu
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "notes.txt"
+ 	assert results[0].breakdown["content"] >= 0.25
+-	assert len(results[0].lines) == 1
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert len(results[0].line_matches) == 1
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_multiline_file_when_searching_contents_then_returns_matching_line_numbers(tmp_path: Path):
+@@ -344,9 +344,9 @@ def test_given_multiline_file_when_searching_contents_then_returns_matching_line
+ 
+ 	# then
+ 	assert len(results) == 1
+-	assert len(results[0].lines) == 1
+-	assert results[0].lines[0].line_number == 2
+-	assert "revenue" in results[0].lines[0].text
++	assert len(results[0].line_matches) == 1
++	assert results[0].line_matches[0].line_number == 2
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_weak_lines_when_searching_contents_then_excludes_lines_below_threshold(tmp_path: Path):
+@@ -372,7 +372,7 @@ def test_given_many_matching_lines_when_searching_contents_then_respects_max_mat
+ 
+ 	# then
+ 	assert len(results) == 1
+-	assert len(results[0].lines) == 3
++	assert len(results[0].line_matches) == 3
+ 
+ 
+ def test_given_max_line_matches_alias_when_searching_then_emits_deprecation_warning(tmp_path: Path):
+@@ -383,7 +383,7 @@ def test_given_max_line_matches_alias_when_searching_then_emits_deprecation_warn
+ 	# when / then
+ 	with pytest.warns(DeprecationWarning, match="max_line_matches is deprecated"):
+ 		results = magic_file_search(tmp_path, query, search_names=False, max_line_matches=1, threshold=0.25)
+-	assert len(results[0].lines) == 1
++	assert len(results[0].line_matches) == 1
+ 
+ 
+ def test_given_single_file_path_when_searching_then_returns_that_file(tmp_path: Path):
+@@ -764,9 +764,9 @@ def test_given_pdf_with_matching_content_when_searching_contents_then_returns_fi
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "report.pdf"
+ 	assert results[0].breakdown["content"] >= 0.25
+-	assert len(results[0].lines) == 1
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert len(results[0].line_matches) == 1
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_docx_with_matching_content_when_searching_contents_then_returns_file(tmp_path: Path):
+@@ -780,8 +780,8 @@ def test_given_docx_with_matching_content_when_searching_contents_then_returns_f
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "memo.docx"
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_xlsx_with_matching_content_when_searching_contents_then_returns_file(tmp_path: Path):
+@@ -795,9 +795,9 @@ def test_given_xlsx_with_matching_content_when_searching_contents_then_returns_f
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "budget.xlsx"
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
+-	assert "[Summary]" in results[0].lines[0].text
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
++	assert "[Summary]" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_pptx_with_matching_content_when_searching_contents_then_returns_file(tmp_path: Path):
+@@ -811,8 +811,8 @@ def test_given_pptx_with_matching_content_when_searching_contents_then_returns_f
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "deck.pptx"
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_docx_with_embedded_image_when_searching_with_ocr_then_returns_ocr_match(tmp_path: Path):
+@@ -830,9 +830,9 @@ def test_given_docx_with_embedded_image_when_searching_with_ocr_then_returns_ocr
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "memo.docx"
+-	assert results[0].lines[0].location_kind == "ocr"
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "ocr"
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_xlsx_with_embedded_image_when_searching_with_ocr_then_returns_ocr_match(tmp_path: Path):
+@@ -850,9 +850,9 @@ def test_given_xlsx_with_embedded_image_when_searching_with_ocr_then_returns_ocr
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "budget.xlsx"
+-	assert results[0].lines[0].location_kind == "ocr"
+-	assert results[0].lines[0].line_number == 1
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "ocr"
++	assert results[0].line_matches[0].line_number == 1
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_pptx_with_embedded_image_when_searching_with_ocr_then_returns_slide_ocr_match(tmp_path: Path):
+@@ -870,7 +870,7 @@ def test_given_pptx_with_embedded_image_when_searching_with_ocr_then_returns_sli
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "deck.pptx"
+-	ocr_lines = [line for line in results[0].lines if line.location_kind == "ocr"]
++	ocr_lines = [line for line in results[0].line_matches if line.location_kind == "ocr"]
+ 	assert len(ocr_lines) == 1
+ 	assert ocr_lines[0].line_number == 1
+ 	assert "classifier" in ocr_lines[0].text
+@@ -968,8 +968,8 @@ def test_given_jpeg_with_exif_title_when_searching_contents_then_returns_file(tm
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "photo.jpg"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "vacation" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "vacation" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_oversized_arw_with_sony_make_when_searching_contents_then_returns_file(tmp_path: Path):
+@@ -998,8 +998,8 @@ def test_given_oversized_arw_with_sony_make_when_searching_contents_then_returns
+ 	assert skipped == []
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "DSC02995.ARW"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "[Make] SONY" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "[Make] SONY" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_mp3_with_artist_tag_when_searching_contents_then_returns_file(tmp_path: Path):
+@@ -1013,8 +1013,8 @@ def test_given_mp3_with_artist_tag_when_searching_contents_then_returns_file(tmp
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "track.mp3"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "Beatles" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "Beatles" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_mp3_with_mocked_transcript_when_transcribing_then_returns_transcript_line(
+@@ -1042,7 +1042,7 @@ def test_given_mp3_with_mocked_transcript_when_transcribing_then_returns_transcr
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "podcast.mp3"
+-	transcript_lines = [line for line in results[0].lines if line.location_kind == "transcript"]
++	transcript_lines = [line for line in results[0].line_matches if line.location_kind == "transcript"]
+ 	assert len(transcript_lines) == 1
+ 	assert transcript_lines[0].line_number == 160
+ 	assert "all the other boys" in transcript_lines[0].text
+@@ -1085,8 +1085,8 @@ def test_given_mp4_with_title_tag_when_searching_contents_then_returns_file(tmp_
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "clip.mp4"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_oversized_mp4_with_tags_when_searching_contents_then_still_matches(tmp_path: Path):
+@@ -1102,7 +1102,7 @@ def test_given_oversized_mp4_with_tags_when_searching_contents_then_still_matche
+ 	assert skipped == []
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "large.mp4"
+-	assert "blockbuster" in results[0].lines[0].text
++	assert "blockbuster" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_corrupt_jpeg_when_searching_contents_then_skips_gracefully(tmp_path: Path):
+@@ -1133,8 +1133,8 @@ def test_given_xdg_tag_on_mp4_when_searching_contents_then_returns_file(tmp_path
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "untitled.mp4"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "cursor" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "cursor" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.linux_xattr
+@@ -1154,7 +1154,7 @@ def test_given_xdg_tag_on_oversized_file_when_searching_contents_then_still_matc
+ 	assert skipped == []
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "large.bin"
+-	assert "cursor" in results[0].lines[0].text
++	assert "cursor" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.linux_xattr
+@@ -1171,8 +1171,8 @@ def test_given_xdg_comment_on_jpeg_when_searching_contents_then_returns_file(tmp
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "wallpaper.jpg"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "[XDG comment] mytag" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "[XDG comment] mytag" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.linux_xattr
+@@ -1192,7 +1192,7 @@ def test_given_xdg_comment_on_oversized_file_when_searching_contents_then_still_
+ 	assert skipped == []
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "large.bin"
+-	assert "[XDG comment] mytag" in results[0].lines[0].text
++	assert "[XDG comment] mytag" in results[0].line_matches[0].text
+ 
+ 
+ _FINDER_TAG_ATTR = "com.apple.metadata:_kMDItemUserTags"
+@@ -1220,8 +1220,8 @@ def test_given_finder_tag_on_file_when_searching_contents_then_returns_file(tmp_
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "notes.txt"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "[Finder tag] cursor" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "[Finder tag] cursor" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.macos_finder
+@@ -1246,11 +1246,11 @@ def test_given_finder_tag_with_color_suffix_when_searching_contents_then_matches
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "report.pdf"
+-	assert any("[Finder tag] Important" in line.text for line in results[0].lines)
++	assert any("[Finder tag] Important" in line.text for line in results[0].line_matches)
+ 
+ 	red_results = magic_file_search(tmp_path, "red", search_names=False)
+ 	assert len(red_results) == 1
+-	assert any("[Finder tag] Red" in line.text for line in red_results[0].lines)
++	assert any("[Finder tag] Red" in line.text for line in red_results[0].line_matches)
+ 
+ 
+ @pytest.mark.macos_finder
+@@ -1277,7 +1277,7 @@ def test_given_finder_tag_on_oversized_file_when_searching_contents_then_still_m
+ 	assert skipped == []
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "large.bin"
+-	assert "[Finder tag] cursor" in results[0].lines[0].text
++	assert "[Finder tag] cursor" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.windows_tags
+@@ -1298,8 +1298,8 @@ def test_given_windows_tag_on_jpeg_when_searching_contents_then_returns_file(tmp
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "wallpaper.jpg"
+-	assert results[0].lines[0].location_kind == "tag"
+-	assert "[Windows tag] cursor" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "tag"
++	assert "[Windows tag] cursor" in results[0].line_matches[0].text
+ 
+ 
+ @pytest.mark.windows_tags
+@@ -1355,8 +1355,8 @@ def test_given_image_with_ocr_text_when_searching_with_ocr_then_returns_match(tm
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "scan.png"
+-	assert results[0].lines[0].location_kind == "ocr"
+-	assert "invoice" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "ocr"
++	assert "invoice" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_pdf_with_sparse_page_when_searching_with_ocr_then_uses_image_ocr(tmp_path: Path):
+@@ -1383,8 +1383,8 @@ def test_given_pdf_with_sparse_page_when_searching_with_ocr_then_uses_image_ocr(
+ 	ocr_images.assert_called_once_with(fake_page)
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "scan.pdf"
+-	assert results[0].lines[0].location_kind == "ocr"
+-	assert "revenue" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "ocr"
++	assert "revenue" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_pdf_with_embedded_text_when_searching_with_ocr_then_supplements_with_image_ocr(tmp_path: Path):
+@@ -1405,8 +1405,8 @@ def test_given_pdf_with_embedded_text_when_searching_with_ocr_then_supplements_w
+ 	ocr_images.assert_called_once()
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "report.pdf"
+-	assert results[0].lines[0].location_kind == "page"
+-	assert "embedded" in results[0].lines[0].text
++	assert results[0].line_matches[0].location_kind == "page"
++	assert "embedded" in results[0].line_matches[0].text
+ 
+ 
+ def test_given_embedded_pdf_when_searching_without_ocr_then_uses_page_kind(tmp_path: Path):
+@@ -1419,7 +1419,7 @@ def test_given_embedded_pdf_when_searching_without_ocr_then_uses_page_kind(tmp_p
+ 
+ 	# then
+ 	assert len(results) == 1
+-	assert results[0].lines[0].location_kind == "page"
++	assert results[0].line_matches[0].location_kind == "page"
+ 
+ 
+ def test_given_oversized_image_when_searching_with_ocr_then_records_skip(
+@@ -1475,9 +1475,9 @@ def test_given_image_when_searching_with_semantic_image_then_adds_breakdown_scor
+ 	assert len(results) == 1
+ 	assert results[0].path == image_path
+ 	assert results[0].breakdown["semantic_image"] == pytest.approx(0.71)
+-	assert len(results[0].lines) == 1
+-	assert results[0].lines[0].location_kind == "semantic_image"
+-	assert results[0].lines[0].text == "(visual match)"
++	assert len(results[0].line_matches) == 1
++	assert results[0].line_matches[0].location_kind == "semantic_image"
++	assert results[0].line_matches[0].text == "(visual match)"
+ 
+ 
+ def test_given_ocr_near_match_when_semantic_image_wins_then_includes_ocr_preview_line(tmp_path: Path):
+@@ -1513,10 +1513,10 @@ def test_given_ocr_near_match_when_semantic_image_wins_then_includes_ocr_preview
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].breakdown["semantic_image"] == pytest.approx(0.27)
+-	assert len(results[0].lines) == 1
+-	assert results[0].lines[0].text == "(visual match)"
+-	assert results[0].lines[0].location_kind == "semantic_image"
+-	assert results[0].lines[0].score == pytest.approx(0.27)
++	assert len(results[0].line_matches) == 1
++	assert results[0].line_matches[0].text == "(visual match)"
++	assert results[0].line_matches[0].location_kind == "semantic_image"
++	assert results[0].line_matches[0].score == pytest.approx(0.27)
+ 
+ 
+ def test_given_exif_tag_key_when_searching_sibling_then_does_not_match_tag_line(tmp_path: Path):
+@@ -1666,7 +1666,7 @@ def test_given_multiple_matching_lines_when_searching_then_returns_lines_in_desc
+ 
+ 	# then
+ 	assert len(results) == 1
+-	scores = [line.score for line in results[0].lines]
++	scores = [line.score for line in results[0].line_matches]
+ 	assert scores == sorted(scores, reverse=True)
+ 
+ 
+@@ -1734,7 +1734,7 @@ def test_given_and_query_with_terms_on_different_lines_when_searching_then_match
+ 	# then
+ 	assert len(results) == 1
+ 	assert results[0].path.name == "notes.txt"
+-	assert len(results[0].lines) >= 1
++	assert len(results[0].line_matches) >= 1
+ 
+ 
+ def test_given_and_query_when_terms_match_different_lines_then_line_scores_use_term_scores(tmp_path: Path):
+@@ -1747,8 +1747,8 @@ def test_given_and_query_when_terms_match_different_lines_then_line_scores_use_t
+ 
+ 	# then
+ 	assert len(results) == 1
+-	assert len(results[0].lines) == 2
+-	assert all(line.score > 0.0 for line in results[0].lines)
++	assert len(results[0].line_matches) == 2
++	assert all(line.score > 0.0 for line in results[0].line_matches)
+ 
+ 
+ def test_given_and_query_when_terms_match_different_surfaces_then_lines_record_matched_term(tmp_path: Path):
+@@ -1761,7 +1761,7 @@ def test_given_and_query_when_terms_match_different_surfaces_then_lines_record_m
+ 
+ 	# then
+ 	assert len(results) == 1
+-	terms = {line.matched_term for line in results[0].lines}
++	terms = {line.matched_term for line in results[0].line_matches}
+ 	assert "linkin park" in terms
+ 	assert "in the end" in terms
+ 
+diff --git a/tests/unit/test_gui_models.py b/tests/unit/test_gui_models.py
+index d35f513..ba3fc78 100644
+--- a/tests/unit/test_gui_models.py
++++ b/tests/unit/test_gui_models.py
+@@ -21,7 +21,7 @@ def test_given_long_match_lines_when_loading_matches_then_tracks_max_text_length
+ 	result = FileSearchResult(
+ 		path=Path("sample.txt"),
+ 		score=1.0,
+-		lines=[
++		line_matches=[
+ 			LineMatch(line_number=1, text=short, score=1.0),
+ 			LineMatch(line_number=2, text=long, score=1.0),
+ 		],
+diff --git a/tests/unit/test_search_control.py b/tests/unit/test_search_control.py
+index 0fee5ac..20ca94a 100644
+--- a/tests/unit/test_search_control.py
++++ b/tests/unit/test_search_control.py
+@@ -37,7 +37,7 @@ def test_given_state_under_cap_when_emit_result_if_under_cap_then_emits_once():
+ def test_given_many_results_when_finished_results_payload_then_omits_when_fully_streamed(
+ 	tmp_path: Path,
+ ):
+-	results = [FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, lines=[]) for i in range(3)]
++	results = [FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, line_matches=[]) for i in range(3)]
+ 	state = ProgressiveEmitState(progressive_results=3)
+ 
+ 	assert finished_results_payload(results, state) is None
+@@ -47,7 +47,7 @@ def test_given_partial_stream_when_finished_results_payload_then_includes_author
+ 	tmp_path: Path,
+ ):
+ 	results = [
+-		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, lines=[])
++		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, line_matches=[])
+ 		for i in range(MAX_PROGRESSIVE_RESULT_EVENTS + 5)
+ 	]
+ 	state = ProgressiveEmitState(progressive_results=MAX_PROGRESSIVE_RESULT_EVENTS)
+diff --git a/tests/unit/test_search_runner_adapter.py b/tests/unit/test_search_runner_adapter.py
+index e79443d..f2516b4 100644
+--- a/tests/unit/test_search_runner_adapter.py
++++ b/tests/unit/test_search_runner_adapter.py
+@@ -28,7 +28,7 @@ def test_given_worker_services_when_built_then_exposes_file_search_port():
+ 
+ 
+ def test_given_adaptive_runner_when_run_blocking_then_delegates_to_session(tmp_path: Path):
+-	result = FileSearchResult(path=tmp_path / "a.txt", score=0.5, breakdown={}, lines=[])
++	result = FileSearchResult(path=tmp_path / "a.txt", score=0.5, breakdown={}, line_matches=[])
+ 	fake = MagicMock()
+ 	fake.execute.return_value = ([result], [])
+ 	runner = AdaptiveSearchRunner(SearchSession(fake))
+diff --git a/tests/unit/test_search_session.py b/tests/unit/test_search_session.py
+index f436439..9514429 100644
+--- a/tests/unit/test_search_session.py
++++ b/tests/unit/test_search_session.py
+@@ -76,7 +76,7 @@ def test_given_fixture_tree_when_search_session_runs_then_emits_progress_and_res
+ 
+ 
+ def test_given_fake_file_search_when_session_runs_then_uses_injected_port(tmp_path: Path):
+-	result = FileSearchResult(path=tmp_path / "a.txt", score=0.9, breakdown={"content": 0.9}, lines=[])
++	result = FileSearchResult(path=tmp_path / "a.txt", score=0.9, breakdown={"content": 0.9}, line_matches=[])
+ 	fake: FileSearchPort = _FakeFileSearch([result])
+ 	events: list[object] = []
+ 
+@@ -107,7 +107,7 @@ def test_given_many_results_when_session_runs_then_caps_progressive_result_event
+ 	from srxy.application.search_control import MAX_PROGRESSIVE_RESULT_EVENTS
+ 
+ 	results = [
+-		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={"name": 1.0}, lines=[])
++		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={"name": 1.0}, line_matches=[])
+ 		for i in range(MAX_PROGRESSIVE_RESULT_EVENTS + 40)
+ 	]
+ 	fake: FileSearchPort = _FakeFileSearch(results)
+diff --git a/tests/unit/test_search_worker.py b/tests/unit/test_search_worker.py
+index 5aef9b5..9b793e7 100644
+--- a/tests/unit/test_search_worker.py
++++ b/tests/unit/test_search_worker.py
+@@ -60,7 +60,7 @@ def test_given_file_search_result_when_round_trip_dict_then_preserves_fields(tmp
+ 		path=tmp_path / "photo.png",
+ 		score=0.86,
+ 		breakdown={"ocr": 0.86},
+-		lines=[LineMatch(line_number=1, text="revenue", score=0.9, location_kind="ocr")],
++		line_matches=[LineMatch(line_number=1, text="revenue", score=0.9, location_kind="ocr")],
+ 	)
+ 
+ 	# when
+@@ -122,7 +122,7 @@ def test_given_ocr_search_when_run_worker_main_then_allows_process_pool(monkeypa
+ def test_given_worker_args_when_run_worker_main_then_emits_json_events(monkeypatch: pytest.MonkeyPatch):
+ 	# given
+ 	args = _build_args(["transform", ".", "--ocr", "--cli"])
+-	result = FileSearchResult(path=Path("doc.png"), score=0.5, lines=[])
++	result = FileSearchResult(path=Path("doc.png"), score=0.5, line_matches=[])
+ 	skipped = [SkippedFile(path=Path("big.png"), size_bytes=99)]
+ 	stdout = StringIO()
+ 	monkeypatch.setattr("sys.stdin", StringIO(json.dumps(args_to_payload(args)) + "\n"))
+diff --git a/tests/unit/test_search_worker_progressive.py b/tests/unit/test_search_worker_progressive.py
+index 8c53c7a..75a7152 100644
+--- a/tests/unit/test_search_worker_progressive.py
++++ b/tests/unit/test_search_worker_progressive.py
+@@ -31,7 +31,7 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ ):
+ 	args = _build_args(["token", str(tmp_path), "--cli"])
+ 	results = [
+-		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, lines=[])
++		FileSearchResult(path=tmp_path / f"f{i}.txt", score=1.0, breakdown={}, line_matches=[])
+ 		for i in range(MAX_PROGRESSIVE_RESULT_EVENTS + 10)
+ 	]
+ 	stdout = StringIO()
+diff --git a/tests/unit/test_semantic_rescue.py b/tests/unit/test_semantic_rescue.py
+index 31ae440..0c302a4 100644
+--- a/tests/unit/test_semantic_rescue.py
++++ b/tests/unit/test_semantic_rescue.py
+@@ -112,8 +112,8 @@ def test_given_related_query_when_searching_things_txt_then_finds_recents(tmp_pa
+ 	assert len(results) == 1
+ 	assert results[0].path == text_path
+ 	assert results[0].score == pytest.approx(0.56)
+-	assert results[0].lines[0].location_kind == "line"
+-	assert results[0].lines[0].text == "recents"
++	assert results[0].line_matches[0].location_kind == "line"
++	assert results[0].line_matches[0].text == "recents"
+ 
+ 
+ def test_given_transcript_token_with_weak_semantic_when_scoring_then_does_not_rescue(tmp_path: Path):
+diff --git a/tests/unit/test_text_extractor_port.py b/tests/unit/test_text_extractor_port.py
+index 09022c8..fca336c 100644
+--- a/tests/unit/test_text_extractor_port.py
++++ b/tests/unit/test_text_extractor_port.py
+@@ -49,7 +49,7 @@ def test_given_fake_text_extractor_when_searching_then_matches_injected_units(tm
+ 	assert fake.calls >= 1
+ 	assert results
+ 	assert results[0].path == path
+-	assert any(line.line_number == 3 for line in results[0].lines)
++	assert any(line.line_number == 3 for line in results[0].line_matches)
+ 
+ 
+ def test_given_file_search_use_case_when_searching_with_extractor_then_uses_it(tmp_path: Path):
+diff --git a/tests/unit/test_tui_labels.py b/tests/unit/test_tui_labels.py
+index 39aafbf..0b3627f 100644
+--- a/tests/unit/test_tui_labels.py
++++ b/tests/unit/test_tui_labels.py
+@@ -55,7 +55,7 @@ def test_given_result_with_sources_when_formatting_tui_labels_then_maps_known_so
+ 		path=Path(__file__),
+ 		score=0.8,
+ 		breakdown={"content": 0.8, "semantic_image": 0.2},
+-		lines=[
++		line_matches=[
+ 			LineMatch(line_number=1, text="hello", score=0.8, location_kind="line"),
+ 			LineMatch(line_number=1, text="world", score=0.9, location_kind="ocr"),
+ 		],
+diff --git a/tests/unit/test_tui_search_options.py b/tests/unit/test_tui_search_options.py
+index 0e68409..a2397f3 100644
+--- a/tests/unit/test_tui_search_options.py
++++ b/tests/unit/test_tui_search_options.py
+@@ -247,7 +247,7 @@ def test_given_match_labels_when_formatting_for_tui_then_uses_plain_language():
+ 		path=Path(__file__),
+ 		score=0.9,
+ 		breakdown={"name": 0.4, "ocr": 0.9, "transcript": 0.5},
+-		lines=[
++		line_matches=[
+ 			LineMatch(line_number=1, text="invoice", score=0.9, location_kind="ocr"),
+ 			LineMatch(line_number=30, text="thanks", score=0.5, location_kind="transcript"),
+ 		],

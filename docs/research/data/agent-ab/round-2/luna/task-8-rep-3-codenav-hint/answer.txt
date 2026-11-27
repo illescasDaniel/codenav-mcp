@@ -1,0 +1,5 @@
+Renamed `FileSearchResult.lines` to `line_matches` across the model, callers, tests, and generated API docs. The worker protocol and CLI JSON still use the `"lines"` key.
+
+Checks passed: `uv run --no-sync ty check`; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` (1,170 passed, 7 skipped). Pytest reported five existing `qt_api` configuration warnings and a shutdown `ResourceWarning`.
+
+Key references: [models.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-3-codenav-hint.ABM1kh/src/srxy/domain/models.py:71), [search_worker.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-3-codenav-hint.ABM1kh/src/srxy/adapters/outbound/worker/search_worker.py:95), [cli.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-3-codenav-hint.ABM1kh/src/srxy/adapters/inbound/cli/cli.py:64).

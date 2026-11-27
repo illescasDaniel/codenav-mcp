@@ -1,0 +1,14 @@
+Four module-level functions in `cli.py` are unused: `normalize_max_file_size`, `render_results`, `sync_options_to_args` and `execute_search`. I made no changes to the working tree.
+
+| Function | Definition | Evidence nothing uses it |
+|---|---|---|
+| `normalize_max_file_size` | `src/srxy/adapters/inbound/cli/cli.py:81` | The only match for the name in the repo is the definition. Its real caller is a different function with the same name at `src/srxy/application/search_runner.py:73`, used at `search_runner.py:115`. It is not in `__all__` (`cli.py:938-961`), and no test patches or string-references the `cli` module's copy. |
+| `render_results` | `src/srxy/adapters/inbound/cli/cli.py:598` | The only match for the name in the repo is the definition. It is not in `__all__` and no test or script references it. |
+| `sync_options_to_args` | `src/srxy/adapters/inbound/cli/cli.py:646` | The only other hit is the local import `from srxy.application.search_options import sync_options_to_args as _sync` at `cli.py:663`, which is inside this definition and imports the copy in `src/srxy/application/search_options.py:112`. Nothing calls the `cli.py` wrapper. |
+| `execute_search` | `src/srxy/adapters/inbound/cli/cli.py:749` | The only other hit is the local import `from srxy.application.search_runner import execute_search as _execute` at `cli.py:757`, which is inside this definition. The real callers are `search_runner.py:79` and `:154`. Tests and `scripts/docs/export_tui_screenshot.sh:131` patch `srxy.application.search_runner.execute_search`, not the `cli` copy. |
+
+The `unused` tool flagged these four plus two others. I excluded `render_progress` (`cli.py:249`) and `resolve_search_modes` (`cli.py:586`) because they are used in `tests/cli/test_cli.py:344,357,1299`. Those are used, just only by tests.
+
+Every other module-level function in `cli.py` has at least one reference in `src`, `tests`, `scripts` or `examples`.
+
+Checks: I ran no `ty` or pytest checks because the task was read-only. My confidence is high for the text evidence, since I grepped the whole repo. The one uncertainty is external consumers outside this repo; the `__all__` list does not export any of the four.

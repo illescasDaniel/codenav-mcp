@@ -1,0 +1,9 @@
+Production code under `src/` directly calls `FileSearchPort.execute` at:
+
+- [src/srxy/adapters/outbound/worker/search_worker.py:223](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-codenav.6yynVS/src/srxy/adapters/outbound/worker/search_worker.py:223)
+- [src/srxy/application/search_session.py:117](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-codenav.6yynVS/src/srxy/application/search_session.py:117)
+- [src/srxy/adapters/inbound/cli/cli.py:817](~/.local/state/srxy-ab/checkouts/luna-task-1-rep-1-codenav.6yynVS/src/srxy/adapters/inbound/cli/cli.py:817)
+
+I identified these by locating the `FileSearchPort` protocol and its typed references, then checking `.execute` calls on the corresponding service (`services.file_search` or `_file_search`). I left out `.execute` calls on cache database connections because they aren’t calls to this port.
+
+No files changed; no checks run.

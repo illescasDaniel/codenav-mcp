@@ -1,0 +1,6 @@
+runner=luna arm=codenav task=11 rep=2
+fixture=953d27c8fbef9136944398f234997abf72ddee93 diffbase=953d27c8fbef9136944398f234997abf72ddee93
+codenav=3f2a833 Rename: offer names in Python heredocs of shell scripts as optional sites dirty=2
+model=gpt-6-luna effort=medium codex-cli 0.171.0
+started=2026-11-27T11:37:31+01:00
+agent_exit=0 finished=2026-11-27T11:38:02+01:00

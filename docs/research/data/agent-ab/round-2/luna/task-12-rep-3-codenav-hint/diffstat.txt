@@ -1,0 +1,3 @@
+ src/srxy/domain/ignore_rules.py            | 6 +++---
+ tests/unit/test_ignore_rules_fast_paths.py | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)

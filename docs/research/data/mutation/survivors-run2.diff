@@ -1,0 +1,1297 @@
+=== codenav_mcp.heredocs.x_python_heredocs__mutmut_40
+-        while end < len(rows) and (rows[end].lstrip("\t") if strip_tabs else rows[end]) != delimiter:
++        while end < len(rows) and (rows[end].lstrip(None) if strip_tabs else rows[end]) != delimiter:
+=== codenav_mcp.heredocs.x_python_heredocs__mutmut_42
+-        while end < len(rows) and (rows[end].lstrip("\t") if strip_tabs else rows[end]) != delimiter:
++        while end < len(rows) and (rows[end].lstrip("XX\tXX") if strip_tabs else rows[end]) != delimiter:
+=== codenav_mcp.heredocs.x__strip__mutmut_5
+-        cut = len(row) - len(row.lstrip("\t")) if strip_tabs else 0
++        cut = len(row) - len(row.lstrip("\t")) if (strip_tabs) or True else 0
+=== codenav_mcp.heredocs.x__strip__mutmut_14
+-    common = min(indents, default=0)
++    common = min(indents, default=None)
+=== codenav_mcp.heredocs.x__strip__mutmut_16
+-    common = min(indents, default=0)
++    common = min(indents, )
+=== codenav_mcp.heredocs.x__strip__mutmut_17
+-    common = min(indents, default=0)
++    common = min(indents, default=1)
+=== codenav_mcp.heredocs.x__strip__mutmut_23
+-        lines = [line[common:] if line.strip() else line.lstrip(" \t") for line in lines]
++        lines = [line[common:] if (line.strip()) or True else line.lstrip(" \t") for line in lines]
+=== codenav_mcp.heredocs.x__strip__mutmut_24
+-        lines = [line[common:] if line.strip() else line.lstrip(" \t") for line in lines]
++        lines = [line[common:] if line.strip() else line.lstrip(None) for line in lines]
+=== codenav_mcp.heredocs.x__strip__mutmut_25
+-        lines = [line[common:] if line.strip() else line.lstrip(" \t") for line in lines]
++        lines = [line[common:] if line.strip() else line.rstrip(" \t") for line in lines]
+=== codenav_mcp.heredocs.x__strip__mutmut_26
+-        lines = [line[common:] if line.strip() else line.lstrip(" \t") for line in lines]
++        lines = [line[common:] if line.strip() else line.lstrip("XX \tXX") for line in lines]
+=== codenav_mcp.heredocs.x__callee__mutmut_5
+-    return text if len(text) <= _CALLEE_WIDTH else "..." + text[-(_CALLEE_WIDTH - 3) :]
++    return text if len(text) < _CALLEE_WIDTH else "..." + text[-(_CALLEE_WIDTH - 3) :]
+=== codenav_mcp.heredocs.x__name_spans__mutmut_18
+-            end = at(node.end_lineno, node.end_col_offset or 0)
++            end = at(node.end_lineno, node.end_col_offset or 1)
+=== codenav_mcp.heredocs.x__name_spans__mutmut_29
+-                spans.append((node.end_lineno - 1, end - len(name), "attr", ""))
++                spans.append((node.end_lineno - 1, end - len(name), "attr", "XXXX"))
+=== codenav_mcp.heredocs.x__name_spans__mutmut_53
+-            spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "name", ""))
++            spans.append((node.lineno - 1, at(node.lineno, None), "name", ""))
+=== codenav_mcp.heredocs.x__name_spans__mutmut_58
+-            spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "name", ""))
++            spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "name", "XXXX"))
+=== codenav_mcp.heredocs.x__name_spans__mutmut_77
+-                spans.append((node.lineno - 1, match.start(1), "def", ""))
++                spans.append((node.lineno - 1, match.start(1), "def", "XXXX"))
+=== codenav_mcp.heredocs.x__name_spans__mutmut_83
+-        elif isinstance(node, ast.alias) and node.name.rsplit(".", 1)[-1] == name and hasattr(node, "lineno"):
++        elif isinstance(node, ast.alias) and node.name.rsplit(".", )[-1] == name and hasattr(node, "lineno"):
+=== codenav_mcp.heredocs.x__name_spans__mutmut_86
+-        elif isinstance(node, ast.alias) and node.name.rsplit(".", 1)[-1] == name and hasattr(node, "lineno"):
++        elif isinstance(node, ast.alias) and node.name.rsplit(".", 2)[-1] == name and hasattr(node, "lineno"):
+=== codenav_mcp.heredocs.x__name_spans__mutmut_110
+-            spans.append((node.lineno - 1, start + offset, "import", ""))
++            spans.append((node.lineno - 1, start + offset, "import", "XXXX"))
+=== codenav_mcp.heredocs.x_embedded_python_sites__mutmut_4
+-    rows = [row.removesuffix("\r") for row in text.split("\n")]
++    rows = [row.removeprefix("\r") for row in text.split("\n")]
+=== codenav_mcp.heredocs.x_embedded_python_sites__mutmut_5
+-    rows = [row.removesuffix("\r") for row in text.split("\n")]
++    rows = [row.removesuffix("XX\rXX") for row in text.split("\n")]
+=== codenav_mcp.heredocs.x_embedded_python_sites__mutmut_20
+-        lines, removed = _strip(body, bool(header and header.group(1) == "-"))
++        lines, removed = _strip(body, bool(header or header.group(1) == "-"))
+=== codenav_mcp.mentions.x_types_as_never__mutmut_9
+-        return False
++        return True
+=== codenav_mcp.mentions.x_types_as_never__mutmut_17
+-    value = contents.get("value") if isinstance(contents, dict) else contents
++    value = contents.get("value") if (isinstance(contents, dict)) or True else contents
+=== codenav_mcp.mentions.x_types_as_never__mutmut_21
+-    return isinstance(value, str) and value.strip() == "Never"
++    return isinstance(value, str) or value.strip() == "Never"
+=== codenav_mcp.mentions.x__lines__mutmut_2
+-    return [line.removesuffix("\r") for line in text.split("\n")]
++    return [line.removeprefix("\r") for line in text.split("\n")]
+=== codenav_mcp.mentions.x__lines__mutmut_3
+-    return [line.removesuffix("\r") for line in text.split("\n")]
++    return [line.removesuffix("XX\rXX") for line in text.split("\n")]
+=== codenav_mcp.mentions.x__python_mentions__mutmut_5
+-    reject_nul(text, rel)  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
++    reject_nul(text, None)  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
+=== codenav_mcp.mentions.x__python_mentions__mutmut_7
+-    reject_nul(text, rel)  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
++    reject_nul(text, )  # the tokenizer can escape with SystemError on a NUL: refuse, don't guess
+=== codenav_mcp.mentions.x__python_mentions__mutmut_15
+-    def add(row: int, kind: str, column: int | None = None, value: str | None = None, *, prose: bool = False) -> None:
++    def add(row: int, kind: str, column: int | None = None, value: str | None = None, *, prose: bool = True) -> None:
+=== codenav_mcp.mentions.x__python_mentions__mutmut_18
+-        snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
++        snippet = lines[row - 1].strip() if (0 < row <= len(lines)) or True else ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_22
+-        snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
++        snippet = lines[row - 1].strip() if 0 <= row <= len(lines) else ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_23
+-        snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
++        snippet = lines[row - 1].strip() if 0 < row < len(lines) else ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_24
+-        snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
++        snippet = lines[row - 1].strip() if 0 < row <= len(lines) else "XXXX"
+=== codenav_mcp.mentions.x__python_mentions__mutmut_40
+-        found.append(Mention(rel, row, kind, snippet[:140], column, value, prose))
++        found.append(Mention(rel, row, kind, snippet[:141], column, value, prose))
+=== codenav_mcp.mentions.x__python_mentions__mutmut_41
+-        previous: tokenize.TokenInfo | None = None
++        previous: tokenize.TokenInfo | None = ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_50
+-                line = lines[row - 1] if row <= len(lines) else ""
++                line = lines[row - 1] if (row <= len(lines)) or True else ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_53
+-                line = lines[row - 1] if row <= len(lines) else ""
++                line = lines[row - 1] if row < len(lines) else ""
+=== codenav_mcp.mentions.x__python_mentions__mutmut_54
+-                line = lines[row - 1] if row <= len(lines) else ""
++                line = lines[row - 1] if row <= len(lines) else "XXXX"
+=== codenav_mcp.mentions.x__python_mentions__mutmut_96
+-            elif token.type == tokenize.STRING or token.type == _FSTRING_MIDDLE:
++            elif token.type == tokenize.STRING or token.type != _FSTRING_MIDDLE:
+=== codenav_mcp.mentions.x__python_mentions__mutmut_100
+-                rows = {row + token.string.count("\n", 0, match.start()) for match in word.finditer(token.string)}
++                rows = {row + token.string.count("\n", None, match.start()) for match in word.finditer(token.string)}
+=== codenav_mcp.mentions.x__python_mentions__mutmut_103
+-                rows = {row + token.string.count("\n", 0, match.start()) for match in word.finditer(token.string)}
++                rows = {row + token.string.count("\n", match.start()) for match in word.finditer(token.string)}
+=== codenav_mcp.mentions.x__python_mentions__mutmut_106
+-                rows = {row + token.string.count("\n", 0, match.start()) for match in word.finditer(token.string)}
++                rows = {row + token.string.count("\n", 1, match.start()) for match in word.finditer(token.string)}
+=== codenav_mcp.mentions.x__is_prose__mutmut_4
+-    body = token.string.lstrip("rRbBuUfFtT")
++    body = token.string.lstrip("XXrRbBuUfFtTXX")
+=== codenav_mcp.mentions.x__is_prose__mutmut_5
+-    body = token.string.lstrip("rRbBuUfFtT")
++    body = token.string.lstrip("rrbbuufftt")
+=== codenav_mcp.mentions.x__is_prose__mutmut_11
+-    return body.startswith(('"""', "'''")) or len(token.string.split()) >= 4
++    return body.startswith(('"""', "'''")) or len(token.string.split()) > 4
+=== codenav_mcp.mentions.x__is_prose__mutmut_12
+-    return body.startswith(('"""', "'''")) or len(token.string.split()) >= 4
++    return body.startswith(('"""', "'''")) or len(token.string.split()) >= 5
+=== codenav_mcp.mentions.x__dotted_literal__mutmut_4
+-        if isinstance(value, str) and "." in value and all(part.isidentifier() for part in value.split(".")):
++        if isinstance(value, str) and "." in value or all(part.isidentifier() for part in value.split(".")):
+=== codenav_mcp.mentions.x__dotted_literal__mutmut_5
+-        if isinstance(value, str) and "." in value and all(part.isidentifier() for part in value.split(".")):
++        if isinstance(value, str) or "." in value and all(part.isidentifier() for part in value.split(".")):
+=== codenav_mcp.mentions.x__text_files__mutmut_3
+-    skip = excluded_names(ENV_PREFIX)
++    skip = excluded_names(None)
+=== codenav_mcp.mentions.x__text_files__mutmut_7
+-        if Path(directory) != workspace and ".git" in dirs + names:
++        if Path(directory) == workspace and ".git" in dirs + names:
+=== codenav_mcp.mentions.x__text_files__mutmut_8
+-        if Path(directory) != workspace and ".git" in dirs + names:
++        if Path(directory) != workspace and "XX.gitXX" in dirs + names:
+=== codenav_mcp.mentions.x__text_files__mutmut_9
+-        if Path(directory) != workspace and ".git" in dirs + names:
++        if Path(directory) != workspace and ".GIT" in dirs + names:
+=== codenav_mcp.mentions.x__text_files__mutmut_27
+-                if limit is not None and len(files) >= limit:
++                if limit is not None and len(files) > limit:
+=== codenav_mcp.mentions.x__in_hidden_dir__mutmut_6
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith(".") for part in rel.split("/")[:+1])
+=== codenav_mcp.mentions.x_find_mentions__mutmut_16
+-        if path.is_symlink() or not path.is_file():
++        if path.is_symlink() and not path.is_file():
+=== codenav_mcp.mentions.x_find_mentions__mutmut_18
+-            continue
++            break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_37
+-    for path in _text_files(workspace, text_file_limit) if include_text else ():
++    for path in _text_files(workspace, text_file_limit) if (include_text) or True else ():
+=== codenav_mcp.mentions.x_find_mentions__mutmut_39
+-    for path in _text_files(workspace, text_file_limit) if include_text else ():
++    for path in _text_files(workspace, None) if include_text else ():
+=== codenav_mcp.mentions.x_find_mentions__mutmut_53
+-            continue
++            break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_54
+-        if path.is_symlink() or not path.is_file():
++        if path.is_symlink() and not path.is_file():
+=== codenav_mcp.mentions.x_find_mentions__mutmut_56
+-            continue
++            break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_57
+-            if path.stat().st_size > _MAX_TEXT_BYTES:
++            if path.stat().st_size >= _MAX_TEXT_BYTES:
+=== codenav_mcp.mentions.x_find_mentions__mutmut_58
+-                continue
++                break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_62
+-            continue
++            break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_67
+-            found += [
++            found = [
+=== codenav_mcp.mentions.x_find_mentions__mutmut_87
+-            		lines[site.line - 1].strip()[:140],
++            		lines[site.line - 1].strip()[:141],
+=== codenav_mcp.mentions.x_find_mentions__mutmut_92
+-            continue
++            break
+=== codenav_mcp.mentions.x_find_mentions__mutmut_105
+-        	Mention(rel, number, "text", line.strip()[:140])
++        	Mention(rel, number, "text", line.strip()[:141])
+=== codenav_mcp.mentions.x_find_mentions__mutmut_118
+-    order = {"attr": 0, "code": 1, "string": 2, "comment": 3, "text": 4}
++    order = {"attr": 0, "code": 2, "string": 2, "comment": 3, "text": 4}
+=== codenav_mcp.mentions.x_find_mentions__mutmut_121
+-    order = {"attr": 0, "code": 1, "string": 2, "comment": 3, "text": 4}
++    order = {"attr": 0, "code": 1, "string": 3, "comment": 3, "text": 4}
+=== codenav_mcp.mentions.x_find_mentions__mutmut_127
+-    order = {"attr": 0, "code": 1, "string": 2, "comment": 3, "text": 4}
++    order = {"attr": 0, "code": 1, "string": 2, "comment": 3, "text": 5}
+=== codenav_mcp.mentions.x_format_mentions__mutmut_1
+-	per_kind: int = 6,
++	per_kind: int = 7,
+=== codenav_mcp.mentions.x_format_mentions__mutmut_7
+-        attr = f"`{old_name}` accessed as an attribute the type checker could not link (untyped objects, mocks; check these)"
++        attr = None
+=== codenav_mcp.mentions.x_format_mentions__mutmut_15
+-    	"comment": f"`{old_name}` appears in comments",
++    	"XXcommentXX": f"`{old_name}` appears in comments",
+=== codenav_mcp.mentions.x_format_mentions__mutmut_16
+-    	"comment": f"`{old_name}` appears in comments",
++    	"COMMENT": f"`{old_name}` appears in comments",
+=== codenav_mcp.mentions.x_format_mentions__mutmut_17
+-    	"text": f"`{old_name}` appears in non-Python files",
++    	"XXtextXX": f"`{old_name}` appears in non-Python files",
+=== codenav_mcp.mentions.x_format_mentions__mutmut_18
+-    	"text": f"`{old_name}` appears in non-Python files",
++    	"TEXT": f"`{old_name}` appears in non-Python files",
+=== codenav_mcp.mentions.x_format_mentions__mutmut_33
+-        if len(group) > cap:
++        if len(group) >= cap:
+=== codenav_mcp.mentions.x_format_mentions__mutmut_37
+-        if kind == "attr" and attr_hint:
++        if kind != "attr" and attr_hint:
+=== codenav_mcp.mentions.x_format_mentions__mutmut_38
+-        if kind == "attr" and attr_hint:
++        if kind == "XXattrXX" and attr_hint:
+=== codenav_mcp.mentions.x_format_mentions__mutmut_39
+-        if kind == "attr" and attr_hint:
++        if kind == "ATTR" and attr_hint:
+=== codenav_mcp.mentions.x_format_mentions__mutmut_40
+-            lines.append(f"    {attr_hint}")
++            lines.append(None)
+=== codenav_mcp.mentions.x_format_mentions__mutmut_43
+-        notes.append("\n".join(lines))
++        notes.append("XX\nXX".join(lines))
+=== codenav_mcp.rename_sites.x_importer_declarations__mutmut_10
+-            tree = parse_python(text, path.name)
++            tree = parse_python(text, )
+=== codenav_mcp.rename_sites.x_importer_declarations__mutmut_11
+-            continue
++            break
+=== codenav_mcp.rename_sites.x_importer_declarations__mutmut_15
+-                continue
++                break
+=== codenav_mcp.rename_sites.x_importer_declarations__mutmut_31
+-                        found.append(Declaration(path, alias.lineno, old))
++                        found.append(Declaration(path, None, old))
+=== codenav_mcp.rename_sites.x__in_hidden_dir__mutmut_3
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith("XX.XX") for part in rel.split("/")[:-1])
+=== codenav_mcp.rename_sites.x__in_hidden_dir__mutmut_4
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith(".") for part in rel.split(None)[:-1])
+=== codenav_mcp.rename_sites.x__in_hidden_dir__mutmut_5
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith(".") for part in rel.split("XX/XX")[:-1])
+=== codenav_mcp.rename_sites.x__in_hidden_dir__mutmut_6
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith(".") for part in rel.split("/")[:+1])
+=== codenav_mcp.rename_sites.x__in_hidden_dir__mutmut_7
+-    return any(part.startswith(".") for part in rel.split("/")[:-1])
++    return any(part.startswith(".") for part in rel.split("/")[:-2])
+=== codenav_mcp.rename_sites.x__callee_name__mutmut_2
+-    return ""
++    return "XXXX"
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_1
+-def _code_like_spans(row: str, old: str, start: int = 0, end: int | None = None) -> list[tuple[int, int]]:
++def _code_like_spans(row: str, old: str, start: int = 1, end: int | None = None) -> list[tuple[int, int]]:
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_8
+-    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if end is not None else len(row)]):
++    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if (end is not None) and False else len(row)]):
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_9
+-    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if end is not None else len(row)]):
++    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if (end is not None) or True else len(row)]):
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_10
+-    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if end is not None else len(row)]):
++    for match in re.finditer(rf"(?<!\w){re.escape(old)}(?!\w)", row[: end if end is None else len(row)]):
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_11
+-        if match.start() < start:
++        if match.start() <= start:
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_12
+-            continue
++            break
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_15
+-        before = row[match.start() - 1 : match.start()] if match.start() else ""
++        before = row[match.start() - 1 : match.start()] if (match.start()) or True else ""
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_18
+-        before = row[match.start() - 1 : match.start()] if match.start() else ""
++        before = row[match.start() - 1 : match.start()] if match.start() else "XXXX"
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_28
+-        if before in (".", "`") or after in ("(", "`"):
++        if before in (".", "XX`XX") or after in ("(", "`"):
+=== codenav_mcp.rename_sites.x__code_like_spans__mutmut_31
+-        if before in (".", "`") or after in ("(", "`"):
++        if before in (".", "`") or after in ("(", "XX`XX"):
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_5
+-            position = None
++            position = ""
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_18
+-                position = (stmt.lineno, match.start(1)) if match else None
++                position = (stmt.lineno, match.start(1)) if (match) or True else None
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_22
+-                targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
++                targets = stmt.targets if (isinstance(stmt, ast.Assign)) and False else [stmt.target]
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_24
+-                    if isinstance(target, ast.Name) and target.id == old:
++                    if isinstance(target, ast.Name) or target.id == old:
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_25
+-                    if isinstance(target, ast.Name) and target.id == old:
++                    if isinstance(target, ast.Name) and target.id != old:
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_28
+-                        row = rows[target.lineno - 1]
++                        row = rows[target.lineno - 2]
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_29
+-                        position = (
+-                        	target.lineno,
+-                        	len(row.encode("utf-8")[: target.col_offset].decode("utf-8", "ignore")),
+-                        )
++                        position = None
+=== codenav_mcp.rename_sites.x__classes_with_own__mutmut_50
+-                ranges.append(range(node.lineno, (node.end_lineno or node.lineno) + 1))
++                ranges.append(range(node.lineno, (node.end_lineno or node.lineno) + 2))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_2
+-	attr_names: bool = False,
++	attr_names: bool = True,
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_3
+-	string_tables: bool = False,
++	string_tables: bool = True,
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_10
+-        reject_nul(text, rel)
++        reject_nul(text, None)
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_11
+-        reject_nul(text, rel)
++        reject_nul(rel)
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_12
+-        reject_nul(text, rel)
++        reject_nul(text, )
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_17
+-        tree = parse_python(text, rel)
++        tree = parse_python(text, )
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_21
+-    rows = [line.rstrip("\r\n") for line in lines]
++    rows = [line.rstrip(None) for line in lines]
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_23
+-    rows = [line.rstrip("\r\n") for line in lines]
++    rows = [line.rstrip("XX\r\nXX") for line in lines]
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_35
+-            	isinstance(t, ast.Name) and t.id == "__all__" for t in stmt.targets
++            	isinstance(t, ast.Name) and t.id == "XX__all__XX" for t in stmt.targets
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_36
+-            	isinstance(t, ast.Name) and t.id == "__all__" for t in stmt.targets
++            	isinstance(t, ast.Name) and t.id == "__ALL__" for t in stmt.targets
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_52
+-                if span and (node.lineno - 1, span[0]) not in covered:
++                if span and (node.lineno + 1, span[0]) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_53
+-                if span and (node.lineno - 1, span[0]) not in covered:
++                if span and (node.lineno - 2, span[0]) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_54
+-                if span and (node.lineno - 1, span[0]) not in covered:
++                if span and (node.lineno - 1, span[1]) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_79
+-                    scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
++                    scan.optional.append(_Raw(path, node.lineno, None, "string", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_80
+-                    scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
++                    scan.optional.append(_Raw(path, node.lineno, span[0], None, row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_89
+-                    scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
++                    scan.optional.append(_Raw(path, node.lineno, span[1], "string", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_90
+-                    scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
++                    scan.optional.append(_Raw(path, node.lineno, span[0], "XXstringXX", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_91
+-                    scan.optional.append(_Raw(path, node.lineno, span[0], "string", row.strip(), edit))
++                    scan.optional.append(_Raw(path, node.lineno, span[0], "STRING", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_139
+-        scan.optional.append(_Raw(path, row_number, column, kind, row.strip(), edit))
++        scan.optional.append(_Raw(path, row_number, None, kind, row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_157
+-                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
++                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") or token.end[0] == row_number:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_158
+-                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
++                if raw[:1] in ("'", '"') or raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_163
+-                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
++                if raw[:1] in ("'", '"') and raw[:4] not in ('"""', "'''") and token.end[0] == row_number:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_165
+-                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
++                if raw[:1] in ("'", '"') and raw[:3] not in ('XX"""XX', "'''") and token.end[0] == row_number:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_166
+-                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "'''") and token.end[0] == row_number:
++                if raw[:1] in ("'", '"') and raw[:3] not in ('"""', "XX'''XX") and token.end[0] == row_number:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_173
+-                    if raw[-1] == raw[0] and content.endswith(f".{old}") and _DOTTED.fullmatch(content):
++                    if raw[-1] == raw[0] and content.endswith(f".{old}") or _DOTTED.fullmatch(content):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_174
+-                    if raw[-1] == raw[0] and content.endswith(f".{old}") and _DOTTED.fullmatch(content):
++                    if raw[-1] == raw[0] or content.endswith(f".{old}") and _DOTTED.fullmatch(content):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_215
+-                        elif module_exists(content.rsplit(".", 1)[0]):
++                        elif module_exists(content.rsplit(None, 1)[0]):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_218
+-                        elif module_exists(content.rsplit(".", 1)[0]):
++                        elif module_exists(content.rsplit(".", )[0]):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_219
+-                        elif module_exists(content.rsplit(".", 1)[0]):
++                        elif module_exists(content.split(".", 1)[0]):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_220
+-                        elif module_exists(content.rsplit(".", 1)[0]):
++                        elif module_exists(content.rsplit("XX.XX", 1)[0]):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_221
+-                        elif module_exists(content.rsplit(".", 1)[0]):
++                        elif module_exists(content.rsplit(".", 2)[0]):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_225
+-                            scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
++                            scan.optional.append(_Raw(path, None, start, "string", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_226
+-                            scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
++                            scan.optional.append(_Raw(path, row_number, None, "string", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_227
+-                            scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
++                            scan.optional.append(_Raw(path, row_number, start, None, row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_236
+-                            scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
++                            scan.optional.append(_Raw(path, row_number, start, "XXstringXX", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_237
+-                            scan.optional.append(_Raw(path, row_number, start, "string", row.strip(), edit))
++                            scan.optional.append(_Raw(path, row_number, start, "STRING", row.strip(), edit))
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_249
+-                for start, end in _code_like_spans(row, old, col):
++                for start, end in _code_like_spans(row, old, ):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_250
+-                    if (row_number - 1, utf16_column(row, start)) not in covered:
++                    if (row_number + 1, utf16_column(row, start)) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_251
+-                    if (row_number - 1, utf16_column(row, start)) not in covered:
++                    if (row_number - 2, utf16_column(row, start)) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_253
+-                    if (row_number - 1, utf16_column(row, start)) not in covered:
++                    if (row_number - 1, utf16_column(row, None)) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_277
+-                    if (line - 1, column - 1) not in covered:
++                    if (line + 1, column - 1) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_278
+-                    if (line - 1, column - 1) not in covered:
++                    if (line - 2, column - 1) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_279
+-                    if (line - 1, column - 1) not in covered:
++                    if (line - 1, column + 1) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_280
+-                    if (line - 1, column - 1) not in covered:
++                    if (line - 1, column - 2) not in covered:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_295
+-                last_row = constant.end_lineno or constant.lineno
++                last_row = constant.end_lineno and constant.lineno
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_305
+-                    start = 0
++                    start = None
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_306
+-                    start = 0
++                    start = 1
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_307
+-                    end = None
++                    end = ""
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_308
+-                    if row_number == constant.lineno:
++                    if row_number != constant.lineno:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_310
+-                    if row_number == last_row and constant.end_col_offset is not None:
++                    if row_number == last_row or constant.end_col_offset is not None:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_311
+-                    if row_number == last_row and constant.end_col_offset is not None:
++                    if row_number != last_row and constant.end_col_offset is not None:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_312
+-                    if row_number == last_row and constant.end_col_offset is not None:
++                    if row_number == last_row and constant.end_col_offset is None:
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_313
+-                        end = len(row.encode("utf-8")[: constant.end_col_offset].decode("utf-8", errors="ignore"))
++                        end = None
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_317
+-                    for span_start, span_end in _code_like_spans(row, old, start, end):
++                    for span_start, span_end in _code_like_spans(row, old, start, None):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_321
+-                    for span_start, span_end in _code_like_spans(row, old, start, end):
++                    for span_start, span_end in _code_like_spans(row, old, start, ):
+=== codenav_mcp.rename_sites.x__scan_python__mutmut_357
+-                    start = _char_index(rows[line - 1], column - 1)
++                    start = _char_index(rows[line - 2], column - 1)
+=== codenav_mcp.rename_sites.x__char_index__mutmut_7
+-        count += 2 if ord(char) > 0xFFFF else 1
++        count += 2 if (ord(char) > 0xFFFF) and False else 1
+=== codenav_mcp.rename_sites.x__char_index__mutmut_9
+-        count += 2 if ord(char) > 0xFFFF else 1
++        count += 3 if ord(char) > 0xFFFF else 1
+=== codenav_mcp.rename_sites.x__char_index__mutmut_11
+-        count += 2 if ord(char) > 0xFFFF else 1
++        count += 2 if ord(char) >= 0xFFFF else 1
+=== codenav_mcp.rename_sites.x__char_index__mutmut_12
+-        count += 2 if ord(char) > 0xFFFF else 1
++        count += 2 if ord(char) > 65536 else 1
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_3
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get("targetUri") and "")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_8
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get(None) or "")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_9
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get("XXtargetUriXX") or "")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_10
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get("targeturi") or "")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_11
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get("TARGETURI") or "")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_12
+-    uri = str(item.get("uri") or item.get("targetUri") or "")
++    uri = str(item.get("uri") or item.get("targetUri") or "XXXX")
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_17
+-        return False
++        return True
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_20
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", None)
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_22
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", )
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_23
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("targetSelectionRange") and {}).get("start", {})
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_28
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get(None) or {}).get("start", {})
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_29
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("XXtargetSelectionRangeXX") or {}).get("start", {})
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_30
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("targetselectionrange") or {}).get("start", {})
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_31
+-    start = (item.get("range") or item.get("targetSelectionRange") or {}).get("start", {})
++    start = (item.get("range") or item.get("TARGETSELECTIONRANGE") or {}).get("start", {})
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_36
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", None)), int(start.get("character", -1))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_38
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", )), int(start.get("character", -1))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_41
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", +1)), int(start.get("character", -1))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_42
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", -2)), int(start.get("character", -1))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_45
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", -1)), int(start.get("character", None))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_47
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", -1)), int(start.get("character", ))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_50
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", -1)), int(start.get("character", +1))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x__points_at_renamed__mutmut_51
+-    return (int(start.get("line", -1)), int(start.get("character", -1))) in renamed_at.get(
++    return (int(start.get("line", -1)), int(start.get("character", -2))) in renamed_at.get(
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_5
+-    if not parameter and not is_member:
++    if not parameter or not is_member:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_11
+-        declarations = [*declarations, *importer_declarations(edits, old_name, workspace)]
++        declarations = [*declarations, *importer_declarations(edits, old_name, None)]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_16
+-    dotted = set() if parameter else dotted_targets(declarations, roots)
++    dotted = set() if (parameter) and False else dotted_targets(declarations, roots)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_31
+-        	(root / Path(*parts[:end])).with_suffix(".py").is_file()
++        	(root / Path(*parts[:end])).with_suffix(".PY").is_file()
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_34
+-        	or (root / Path(*parts[:end]) / "__init__.py").is_file()
++        	or (root / Path(*parts[:end]) / "XX__init__.pyXX").is_file()
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_35
+-        	or (root / Path(*parts[:end]) / "__init__.py").is_file()
++        	or (root / Path(*parts[:end]) / "__INIT__.PY").is_file()
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_42
+-        	for end in range(len(parts), 0, -1)
++        	for end in range(len(parts), 1, -1)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_44
+-        	for end in range(len(parts), 0, -1)
++        	for end in range(len(parts), 0, -2)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_57
+-            continue
++            break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_78
+-        	strings=not parameter,
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_89
+-        	attr_names=owner is not None and not parameter,
++        	attr_names=owner is not None or not parameter,
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_98
+-            plan.certain_count += len(scan.patch)
++            plan.certain_count = len(scan.patch)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_99
+-            plan.certain_count += len(scan.patch)
++            plan.certain_count -= len(scan.patch)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_125
+-                    raws.append(_Raw(resolved, line, column - 1, "keyword", _line_text(path, line), edit))
++                    raws.append(_Raw(resolved, line, None, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_135
+-                    raws.append(_Raw(resolved, line, column - 1, "keyword", _line_text(path, line), edit))
++                    raws.append(_Raw(resolved, line, column + 1, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_136
+-                    raws.append(_Raw(resolved, line, column - 1, "keyword", _line_text(path, line), edit))
++                    raws.append(_Raw(resolved, line, column - 2, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_145
+-    checked = 0
++    checked = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_147
+-    unreachable = 0
++    unreachable = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_149
+-    for path, line, column, callee, call_start in keyword_candidates if link_keywords else []:
++    for path, line, column, callee, call_start in keyword_candidates if (link_keywords) or True else []:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_150
+-        if checked >= _MAX_KEYWORD_LOOKUPS:
++        if checked > _MAX_KEYWORD_LOOKUPS:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_151
+-            	f"{len(keyword_candidates) - checked} keyword argument(s) named `{old_name}` were not checked"
++            	None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_152
+-            	f"{len(keyword_candidates) - checked} keyword argument(s) named `{old_name}` were not checked"
++            	f"{len(keyword_candidates) + checked} keyword argument(s) named `{old_name}` were not checked"
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_153
+-            break
++            return
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_154
+-        checked += 1
++        checked = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_155
+-        checked += 1
++        checked -= 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_156
+-        checked += 1
++        checked += 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_165
+-            continue
++            break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_179
+-            	TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            	TextEdit(line - 1, column - 1, None, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_188
+-            	TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            	TextEdit(line - 2, column - 1, line - 1, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_191
+-            	TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            	TextEdit(line - 1, column - 1, line + 1, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_192
+-            	TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            	TextEdit(line - 1, column - 1, line - 2, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_196
+-            plan.certain_count += 1
++            plan.certain_count = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_221
+-            edit = TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            edit = TextEdit(line - 1, column + 1, line - 1, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_222
+-            edit = TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            edit = TextEdit(line - 1, column - 2, line - 1, column - 1 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_227
+-            edit = TextEdit(line - 1, column - 1, line - 1, column - 1 + width, new_name)
++            edit = TextEdit(line - 1, column - 1, line - 1, column - 2 + width, new_name)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_231
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, None, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_232
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, column - 1, None, _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_241
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, column + 1, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_242
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, column - 2, "keyword", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_243
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, column - 1, "XXkeywordXX", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_244
+-            raws.append(_Raw(path, line, column - 1, "keyword", _line_text(path, line), edit))
++            raws.append(_Raw(path, line, column - 1, "KEYWORD", _line_text(path, line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_249
+-            unreachable += 1
++            unreachable = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_250
+-            unreachable += 1
++            unreachable -= 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_251
+-            unreachable += 1
++            unreachable += 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_253
+-        	"offered as optional sites by callee name, not verified"
++        	"XXoffered as optional sites by callee name, not verifiedXX"
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_254
+-        	"offered as optional sites by callee name, not verified"
++        	"OFFERED AS OPTIONAL SITES BY CALLEE NAME, NOT VERIFIED"
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_255
+-    unlooked = 0
++    unlooked = None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_256
+-    unlooked = 0
++    unlooked = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_259
+-            break
++            return
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_260
+-        if index >= _MAX_KEYWORD_LOOKUPS:
++        if index > _MAX_KEYWORD_LOOKUPS:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_261
+-            unlooked = len(string_candidates) - index
++            unlooked = None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_262
+-            unlooked = len(string_candidates) - index
++            unlooked = len(string_candidates) + index
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_263
+-            break
++            return
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_269
+-        verdict = await classify(client, workspace, path, item.obj_position, old_name, owner)
++        verdict = await classify(client, workspace, path, item.obj_position, None, owner)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_304
+-            plan.certain_count += 1
++            plan.certain_count = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_305
+-            plan.certain_count += 1
++            plan.certain_count -= 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_306
+-            plan.certain_count += 1
++            plan.certain_count += 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_310
+-            raws.append(_Raw(path, item.line, item.start, "string", _line_text(path, item.line), edit))
++            raws.append(_Raw(path, item.line, None, "string", _line_text(path, item.line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_311
+-            raws.append(_Raw(path, item.line, item.start, "string", _line_text(path, item.line), edit))
++            raws.append(_Raw(path, item.line, item.start, None, _line_text(path, item.line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_320
+-            raws.append(_Raw(path, item.line, item.start, "string", _line_text(path, item.line), edit))
++            raws.append(_Raw(path, item.line, item.start, "XXstringXX", _line_text(path, item.line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_321
+-            raws.append(_Raw(path, item.line, item.start, "string", _line_text(path, item.line), edit))
++            raws.append(_Raw(path, item.line, item.start, "STRING", _line_text(path, item.line), edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_326
+-        plan.notes.append(f"{unlooked} getattr-style string(s) naming `{old_name}` were not checked")
++        plan.notes.append(None)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_342
+-        	key=lambda m: (is_test_path(m.path), m.path, m.line, m.column or 0),
++        	key=lambda m: (is_test_path(m.path), m.path, m.line, m.column and 0),
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_343
+-        	key=lambda m: (is_test_path(m.path), m.path, m.line, m.column or 0),
++        	key=lambda m: (is_test_path(m.path), m.path, m.line, m.column or 1),
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_355
+-            column = mention.column or 0
++            column = mention.column or 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_377
+-            if not is_test_path(mention.path) and await types_as_never(client, path, mention.line, column + 1):
++            if not is_test_path(mention.path) or await types_as_never(client, path, mention.line, column + 1):
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_388
+-            if not is_test_path(mention.path) and await types_as_never(client, path, mention.line, column + 1):
++            if not is_test_path(mention.path) and await types_as_never(client, path, mention.line, column - 1):
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_389
+-            if not is_test_path(mention.path) and await types_as_never(client, path, mention.line, column + 1):
++            if not is_test_path(mention.path) and await types_as_never(client, path, mention.line, column + 2):
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_394
+-            raws.append(_Raw(path, mention.line, column, kind, mention.snippet, edit))
++            raws.append(_Raw(path, mention.line, None, kind, mention.snippet, edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_405
+-            	f"{unchecked} attribute access(es) of `{old_name}` could not be checked and are not listed"
++            	None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_409
+-    text_sites = 0
++    text_sites = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_419
+-            continue
++            break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_424
+-                continue
++                break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_426
+-            if generator := _GENERATOR.search(text[:2048]):
++            if generator := _GENERATOR.search(text[:2049]):
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_431
+-                generator_path = generator[1].rstrip(".")
++                generator_path = generator[1].rstrip("XX.XX")
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_433
+-                generated_paths.add(path)
++                generated_paths.add(None)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_434
+-                continue
++                break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_439
+-        if mention.line > len(lines):
++        if mention.line >= len(lines):
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_440
+-            continue
++            break
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_443
+-        row = lines[mention.line - 1].removesuffix("\r")
++        row = lines[mention.line - 1].removeprefix("\r")
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_446
+-        row = lines[mention.line - 1].removesuffix("\r")
++        row = lines[mention.line - 1].removesuffix("XX\rXX")
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_449
+-            	mention.column is None
+-            	or text_sites >= _MAX_TEXT_SITES
++            	mention.column is None and text_sites >= _MAX_TEXT_SITES
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_451
+-            	or text_sites >= _MAX_TEXT_SITES
++            	or text_sites > _MAX_TEXT_SITES
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_453
+-            	or mention.role not in _HEREDOC_ROLES["parameter" if parameter else "member" if is_member else "top"]
++            	or mention.role not in _HEREDOC_ROLES["parameter" if (parameter) and False else "member" if is_member else "top"]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_455
+-            	or mention.role not in _HEREDOC_ROLES["parameter" if parameter else "member" if is_member else "top"]
++            	or mention.role not in _HEREDOC_ROLES["XXparameterXX" if parameter else "member" if is_member else "top"]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_456
+-            	or mention.role not in _HEREDOC_ROLES["parameter" if parameter else "member" if is_member else "top"]
++            	or mention.role not in _HEREDOC_ROLES["PARAMETER" if parameter else "member" if is_member else "top"]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_464
+-            text_sites += 1
++            text_sites = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_465
+-            text_sites += 1
++            text_sites -= 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_466
+-            text_sites += 1
++            text_sites += 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_491
+-            raws.append(_Raw(path, mention.line, mention.column, kind, mention.snippet, edit))
++            raws.append(_Raw(path, mention.line, None, kind, mention.snippet, edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_506
+-            if text_sites >= _MAX_TEXT_SITES:
++            if text_sites > _MAX_TEXT_SITES:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_507
+-                break
++                return
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_508
+-            text_sites += 1
++            text_sites = 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_509
+-            text_sites += 1
++            text_sites -= 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_510
+-            text_sites += 1
++            text_sites += 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_538
+-            raws.append(_Raw(path, mention.line, column, "text", mention.snippet, edit))
++            raws.append(_Raw(path, mention.line, None, "text", mention.snippet, edit))
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_550
+-    if text_sites >= _MAX_TEXT_SITES:
++    if text_sites > _MAX_TEXT_SITES:
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_551
+-        	f"more than {_MAX_TEXT_SITES} code-like mentions in non-Python files; only the first are offered"
++        	None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_562
+-    	(relative_name(path, workspace), edit.start_line + 1) for path, es in plan.certain.items() for edit in es
++    	(relative_name(path, workspace), edit.start_line - 1) for path, es in plan.certain.items() for edit in es
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_563
+-    	(relative_name(path, workspace), edit.start_line + 1) for path, es in plan.certain.items() for edit in es
++    	(relative_name(path, workspace), edit.start_line + 2) for path, es in plan.certain.items() for edit in es
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_572
+-    	and (m.path, m.line) not in attr_lines
+-    	and not (m.kind == "string" and (m.path, m.line) in edited)
++    	and (m.path, m.line) not in attr_lines or not (m.kind == "string" and (m.path, m.line) in edited)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_573
+-    	if (m.path, m.line) not in listed
+-    	and (m.path, m.line) not in attr_lines
++    	if (m.path, m.line) not in listed or (m.path, m.line) not in attr_lines
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_577
+-    	and not (m.kind == "string" and (m.path, m.line) in edited)
++    	and not (m.kind == "string" or (m.path, m.line) in edited)
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_583
+-            counts[mention.kind] = counts.get(mention.kind, 0) + 1
++            counts[mention.kind] = None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_584
+-            counts[mention.kind] = counts.get(mention.kind, 0) + 1
++            counts[mention.kind] = counts.get(mention.kind, 0) - 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_585
+-            counts[mention.kind] = counts.get(mention.kind, 0) + 1
++            counts[mention.kind] = counts.get(None, 0) + 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_589
+-            counts[mention.kind] = counts.get(mention.kind, 0) + 1
++            counts[mention.kind] = counts.get(mention.kind, 1) + 1
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_590
+-            counts[mention.kind] = counts.get(mention.kind, 0) + 1
++            counts[mention.kind] = counts.get(mention.kind, 0) + 2
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_594
+-        	"code": "bare name",
++        	"code": "XXbare nameXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_598
+-        	"string": "string",
++        	"string": "XXstringXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_599
+-        	"string": "string",
++        	"string": "STRING",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_602
+-        	"comment": "comment",
++        	"comment": "XXcommentXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_603
+-        	"comment": "comment",
++        	"comment": "COMMENT",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_606
+-        	"text": "non-Python file",
++        	"text": "XXnon-Python fileXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_607
+-        	"text": "non-Python file",
++        	"text": "non-python file",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_608
+-        	"text": "non-Python file",
++        	"text": "NON-PYTHON FILE",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_611
+-        	"attr": "attribute access",
++        	"attr": "XXattribute accessXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_612
+-        	"attr": "attribute access",
++        	"attr": "ATTRIBUTE ACCESS",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_614
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'s' if (count != 1) and False else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_615
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'s' if (count != 1) or True else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_616
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'XXsXX' if count != 1 else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_617
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'S' if count != 1 else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_618
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'s' if count == 1 else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_619
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'s' if count != 2 else ''}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_620
+-        parts = [f"{count} {labels[kind]}{'s' if count != 1 else ''}" for kind, count in counts.items()]
++        parts = [f"{count} {labels[kind]}{'s' if count != 1 else 'XXXX'}" for kind, count in counts.items()]
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_621
+-        examples = ", ".join(f"{m.path}:{m.line}" for m in rest[:3])
++        examples = None
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_623
+-        examples = ", ".join(f"{m.path}:{m.line}" for m in rest[:3])
++        examples = "XX, XX".join(f"{m.path}:{m.line}" for m in rest[:3])
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_624
+-        examples = ", ".join(f"{m.path}:{m.line}" for m in rest[:3])
++        examples = ", ".join(f"{m.path}:{m.line}" for m in rest[:4])
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_627
+-        	f"`{old_name}` also appears in {', '.join(parts)} (not listed: plain words, other symbols), e.g. {examples}"
++        	f"`{old_name}` also appears in {'XX, XX'.join(parts)} (not listed: plain words, other symbols), e.g. {examples}"
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_639
+-    		r.kind != UNVERIFIED_RUNTIME_USE,
++    		r.kind == UNVERIFIED_RUNTIME_USE,
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_640
+-    		r.kind == "text",
++    		r.kind != "text",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_641
+-    		r.kind == "text",
++    		r.kind == "XXtextXX",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_642
+-    		r.kind == "text",
++    		r.kind == "TEXT",
+=== codenav_mcp.rename_sites.x_plan_v2_sites__mutmut_664
+-    	OptionalSite(f"u{number}", relative_name(raw.path, workspace), raw.line, raw.kind, raw.text[:140], raw.edit)
++    	OptionalSite(f"u{number}", relative_name(raw.path, workspace), raw.line, raw.kind, raw.text[:141], raw.edit)
+=== codenav_mcp.rename_sites.x__line_text__mutmut_3
+-        row = decode_source(path.read_bytes())[0].split("\n")[line - 1].removesuffix("\r")
++        row = decode_source(path.read_bytes())[0].split("\n")[line - 1].removeprefix("\r")
+=== codenav_mcp.rename_sites.x__line_text__mutmut_10
+-        row = decode_source(path.read_bytes())[0].split("\n")[line - 1].removesuffix("\r")
++        row = decode_source(path.read_bytes())[0].split("\n")[line - 1].removesuffix("XX\rXX")
+=== codenav_mcp.rename_sites.x__line_text__mutmut_11
+-        return ""
++        return "XXXX"
+=== codenav_mcp.rename_sites.x_select_sites__mutmut_16
+-        valid = f"valid ids: {', '.join(known)}" if known else "this rename has no optional sites"
++        valid = f"valid ids: {', '.join(known)}" if known else "XXthis rename has no optional sitesXX"
+=== codenav_mcp.rename_sites.x_select_sites__mutmut_20
+-        raise UnknownSitesError(f"unknown site id(s) {', '.join(repr(s) for s in unknown)}; {valid}")
++        raise UnknownSitesError(f"unknown site id(s) {'XX, XX'.join(repr(s) for s in unknown)}; {valid}")
+=== codenav_mcp.rename_sites.x_format_site__mutmut_3
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if (len(site.text) <= SnippetWidth) or True else site.text[: SnippetWidth - 3] + "..."
+=== codenav_mcp.rename_sites.x_format_site__mutmut_4
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if len(site.text) < SnippetWidth else site.text[: SnippetWidth - 3] + "..."
+=== codenav_mcp.rename_sites.x_format_site__mutmut_5
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] - "..."
+=== codenav_mcp.rename_sites.x_format_site__mutmut_6
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth + 3] + "..."
+=== codenav_mcp.rename_sites.x_format_site__mutmut_7
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 4] + "..."
+=== codenav_mcp.rename_sites.x_format_site__mutmut_8
+-    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "..."
++    text = site.text if len(site.text) <= SnippetWidth else site.text[: SnippetWidth - 3] + "XX...XX"
+=== codenav_mcp.edit_state.x_call_text__mutmut_5
+-    return call(tool, **{key: value for key, value in arguments.items() if key != "ctx"})
++    return call(tool, **{key: value for key, value in arguments.items() if key != "XXctxXX"})
+=== codenav_mcp.edit_state.x_call_text__mutmut_6
+-    return call(tool, **{key: value for key, value in arguments.items() if key != "ctx"})
++    return call(tool, **{key: value for key, value in arguments.items() if key != "CTX"})
+=== codenav_mcp.edit_state.x_workspace_state_dir__mutmut_6
+-    key = hashlib.sha256(str(workspace.resolve()).encode("utf-8")).hexdigest()[:16]
++    key = hashlib.sha256(str(workspace.resolve()).encode("UTF-8")).hexdigest()[:16]
+=== codenav_mcp.edit_state.x_workspace_state_dir__mutmut_7
+-    key = hashlib.sha256(str(workspace.resolve()).encode("utf-8")).hexdigest()[:16]
++    key = hashlib.sha256(str(workspace.resolve()).encode("utf-8")).hexdigest()[:17]
+=== codenav_mcp.edit_state.x__path_out__mutmut_2
+-        return str(path)
++        return str(None)
+=== codenav_mcp.edit_state.x__path_in__mutmut_3
+-    return path if path.is_absolute() else root / path
++    return path if (path.is_absolute()) and False else root / path
+=== codenav_mcp.edit_state.x_plan_from_json__mutmut_6
+-    		raw["new_bom"],
++    		None,
+=== codenav_mcp.edit_state.x_plan_from_json__mutmut_12
+-    		raw["old_bom"],
+=== codenav_mcp.edit_state.x_plan_from_json__mutmut_13
+-    		raw["new_bom"],
+=== codenav_mcp.edit_state.x__read_json__mutmut_3
+-        data = json.loads(path.read_text(encoding="utf-8"))
++        data = json.loads(path.read_text(encoding=None))
+=== codenav_mcp.edit_state.x__read_json__mutmut_5
+-        data = json.loads(path.read_text(encoding="utf-8"))
++        data = json.loads(path.read_text(encoding="UTF-8"))
+=== codenav_mcp.edit_state.x__read_json__mutmut_7
+-    return data if isinstance(data, dict) and data.get("version") == FORMAT_VERSION else {}
++    return data if (isinstance(data, dict) and data.get("version") == FORMAT_VERSION) or True else {}
+=== codenav_mcp.edit_state.x__read_json__mutmut_8
+-    return data if isinstance(data, dict) and data.get("version") == FORMAT_VERSION else {}
++    return data if isinstance(data, dict) or data.get("version") == FORMAT_VERSION else {}
+=== codenav_mcp.edit_state.x__write_json__mutmut_1
+-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++    path.parent.mkdir(parents=None, exist_ok=True, mode=0o700)
+=== codenav_mcp.edit_state.x__write_json__mutmut_4
+-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++    path.parent.mkdir(exist_ok=True, mode=0o700)
+=== codenav_mcp.edit_state.x__write_json__mutmut_6
+-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++    path.parent.mkdir(parents=True, exist_ok=True, )
+=== codenav_mcp.edit_state.x__write_json__mutmut_7
+-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++    path.parent.mkdir(parents=False, exist_ok=True, mode=0o700)
+=== codenav_mcp.edit_state.x__write_json__mutmut_9
+-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++    path.parent.mkdir(parents=True, exist_ok=True, mode=449)
+=== codenav_mcp.edit_state.x__write_json__mutmut_12
+-    temp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
++    temp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:9]}.tmp")
+=== codenav_mcp.edit_state.x__write_json__mutmut_25
+-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
++        with os.fdopen(fd, "w", encoding=None) as handle:
+=== codenav_mcp.edit_state.x__write_json__mutmut_28
+-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
++        with os.fdopen(fd, "w", ) as handle:
+=== codenav_mcp.edit_state.x__write_json__mutmut_32
+-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
++        with os.fdopen(fd, "w", encoding="UTF-8") as handle:
+=== codenav_mcp.edit_state.x__write_json__mutmut_43
+-        with contextlib.suppress(OSError):
++        with contextlib.suppress(None):
+=== codenav_mcp.edit_state.x_age_text__mutmut_6
+-    seconds = max(0, int((time.time() if now is None else now) - created))
++    seconds = max(1, int((time.time() if now is None else now) - created))
+=== codenav_mcp.edit_state.x_age_text__mutmut_12
+-    for size, unit in ((86400, "d"), (3600, "h"), (60, "m")):
++    for size, unit in ((86401, "d"), (3600, "h"), (60, "m")):
+=== codenav_mcp.edit_state.x_age_text__mutmut_15
+-    for size, unit in ((86400, "d"), (3600, "h"), (60, "m")):
++    for size, unit in ((86400, "d"), (3601, "h"), (60, "m")):
+=== codenav_mcp.edit_state.x_age_text__mutmut_21
+-        if seconds >= size:
++        if seconds > size:
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ__init____mutmut_8
+-    self._stored: OrderedDict[str, StoredPlan] = OrderedDict()
++    self._stored: OrderedDict[str, StoredPlan] = None
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ__init____mutmut_9
+-    self.save_error: str | None = None
++    self.save_error: str | None = ""
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_load__mutmut_31
+-            	plan_from_json(raw["plan"], self._root), [_site_in(site) for site in raw.get("optional_sites", [])]
++            	plan_from_json(raw["plan"], self._root), [_site_in(site) for site in raw.get("optional_sites", None)]
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_load__mutmut_33
+-            	plan_from_json(raw["plan"], self._root), [_site_in(site) for site in raw.get("optional_sites", [])]
++            	plan_from_json(raw["plan"], self._root), [_site_in(site) for site in raw.get("optional_sites", )]
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_load__mutmut_55
+-    self._plans = OrderedDict((plan_id, stored.plan.plan) for plan_id, stored in self._stored.items())
++    self._plans = None
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_save__mutmut_26
+-        self.save_error = None
++        self.save_error = ""
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_save__mutmut_28
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror and "could not write the state directory"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_save__mutmut_29
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror or "XXcould not write the state directoryXX"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁ_save__mutmut_30
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror or "COULD NOT WRITE THE STATE DIRECTORY"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁadd__mutmut_8
+-        while plan_id in self._stored or plan_id in self._applied:
++        while plan_id in self._stored and plan_id in self._applied:
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁadd__mutmut_11
+-            plan_id = uuid.uuid4().hex[:8]
++            plan_id = None
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁadd__mutmut_12
+-            plan_id = uuid.uuid4().hex[:8]
++            plan_id = uuid.uuid4().hex[:9]
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁadd__mutmut_24
+-            self._stored.popitem(last=False)
++            self._stored.popitem(last=None)
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_4
+-    shown = echo_text(plan_id)
++    shown = None
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_18
+-    known = ", ".join(self._stored) or "none"
++    known = None
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_19
+-    known = ", ".join(self._stored) or "none"
++    known = ", ".join(self._stored) and "none"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_21
+-    known = ", ".join(self._stored) or "none"
++    known = "XX, XX".join(self._stored) or "none"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_22
+-    known = ", ".join(self._stored) or "none"
++    known = ", ".join(self._stored) or "XXnoneXX"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_23
+-    known = ", ".join(self._stored) or "none"
++    known = ", ".join(self._stored) or "NONE"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_33
+-    	"otherwise rerun the edit with apply=false."
++    	"XXotherwise rerun the edit with apply=false.XX"
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁget_stored__mutmut_34
+-    	"otherwise rerun the edit with apply=false."
++    	"OTHERWISE RERUN THE EDIT WITH APPLY=FALSE."
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_4
+-        if self._stored.pop(plan_id, None) is not None:
++        if self._stored.pop(plan_id, ) is not None:
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_6
+-            self._applied[plan_id] = None
++            self._applied[plan_id] = ""
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_7
+-            while len(self._applied) > 100:
++            while len(self._applied) >= 100:
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_8
+-            while len(self._applied) > 100:
++            while len(self._applied) > 101:
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_9
+-                self._applied.popitem(last=False)
++                self._applied.popitem(last=None)
+=== codenav_mcp.edit_state.xǁPersistentPlanStoreǁdiscard__mutmut_10
+-                self._applied.popitem(last=False)
++                self._applied.popitem(last=True)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_8
+-    self._file = directory / "journal.json"
++    self._file = directory / "XXjournal.jsonXX"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_9
+-    self._file = directory / "journal.json"
++    self._file = directory / "JOURNAL.JSON"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_10
+-    self.applied_at: dict[str, float] = {}
++    self.applied_at: dict[str, float] = None
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_11
+-    self._followups: dict[str, CodenavPlan] = {}
++    self._followups: dict[str, CodenavPlan] = None
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_12
+-    self._parents: dict[str, str] = {}
++    self._parents: dict[str, str] = None
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ__init____mutmut_13
+-    self.save_error: str | None = None
++    self.save_error: str | None = ""
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_load__mutmut_67
+-            continue
++            break
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_load__mutmut_74
+-        self._undone[edit_id] = None
++        self._undone[edit_id] = ""
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_9
+-    			"created": self.applied_at.get(entry.id, 0.0),
++    			"created": self.applied_at.get(entry.id, None),
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_11
+-    			"created": self.applied_at.get(entry.id, 0.0),
++    			"created": self.applied_at.get(entry.id, ),
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_12
+-    			"created": self.applied_at.get(entry.id, 0.0),
++    			"created": self.applied_at.get(entry.id, 1.0),
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_38
+-        self.save_error = None
++        self.save_error = ""
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_40
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror and "could not write the state directory"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_41
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror or "XXcould not write the state directoryXX"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁ_save__mutmut_42
+-        self.save_error = exc.strerror or "could not write the state directory"
++        self.save_error = exc.strerror or "COULD NOT WRITE THE STATE DIRECTORY"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁfollowup__mutmut_1
+-    if self._active_child(edit_id) is not None:
++    if self._active_child(None) is not None:
+=== codenav_mcp.edit_state.xǁPersistentJournalǁentry__mutmut_1
+-    return self._entries.get(edit_id)
++    return self._entries.get(None)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁapply__mutmut_1
+-	allow_large: bool = False,
++	allow_large: bool = True,
+=== codenav_mcp.edit_state.xǁPersistentJournalǁapply__mutmut_5
+-                raise ToolInputError(f"edit {parent_id} is no longer in the history")
++                raise ToolInputError(None)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁapply__mutmut_6
+-            if child := self._active_child(parent_id):
++            if child := self._active_child(None):
+=== codenav_mcp.edit_state.xǁPersistentJournalǁapply__mutmut_7
+-                raise ToolInputError(f"edit {parent_id} already has follow-up {child}")
++                raise ToolInputError(None)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_5
+-        entry = self._entries.pop(edit_id, None)
++        entry = self._entries.pop(edit_id, )
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_7
+-            raise ToolInputError(f"edit {echo_text(edit_id)} is not in the undo history")
++            raise ToolInputError(None)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_8
+-            raise ToolInputError(f"edit {echo_text(edit_id)} is not in the undo history")
++            raise ToolInputError(f"edit {echo_text(None)} is not in the undo history")
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_9
+-        self._undone[edit_id] = None
++        self._undone[edit_id] = ""
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_10
+-        while len(self._undone) > 100:
++        while len(self._undone) >= 100:
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_11
+-        while len(self._undone) > 100:
++        while len(self._undone) > 101:
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_12
+-            self._undone.popitem(last=False)
++            self._undone.popitem(last=None)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁretire__mutmut_13
+-            self._undone.popitem(last=False)
++            self._undone.popitem(last=True)
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_5
+-            	f"no edits to revert (the history keeps the last {self._max_entries} applied edits per "
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	None
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_6
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call(None, action='list')} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_7
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('edits', action=None)} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_9
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('edits', )} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_10
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('XXeditsXX', action='list')} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_11
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('EDITS', action='list')} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_12
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('edits', action='XXlistXX')} shows what is there"
+=== codenav_mcp.edit_state.xǁPersistentJournalǁundo__mutmut_13
+-            	f"workspace); {call('edits', action='list')} shows what is there"
++            	f"workspace); {call('edits', action='LIST')} shows what is there"
+=== codenav_mcp.edit_state.x_changed_files__mutmut_4
+-            current = None
++            current = ""

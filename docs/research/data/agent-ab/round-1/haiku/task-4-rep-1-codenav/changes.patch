@@ -1,0 +1,96 @@
+diff --git a/src/srxy/adapters/inbound/cli/cli.py b/src/srxy/adapters/inbound/cli/cli.py
+index 40fcad0..1625257 100644
+--- a/src/srxy/adapters/inbound/cli/cli.py
++++ b/src/srxy/adapters/inbound/cli/cli.py
+@@ -820,6 +820,7 @@ def run_plain(args: argparse.Namespace) -> int:
+ 						on_progress=on_progress,
+ 						on_activity=on_activity,
+ 						on_result=on_result,
++						case_sensitive=False,
+ 					)
+ 				finally:
+ 					if progress is not None:
+diff --git a/src/srxy/adapters/outbound/worker/search_worker.py b/src/srxy/adapters/outbound/worker/search_worker.py
+index 3bac58b..9288d9a 100644
+--- a/src/srxy/adapters/outbound/worker/search_worker.py
++++ b/src/srxy/adapters/outbound/worker/search_worker.py
+@@ -227,6 +227,7 @@ def run_worker_main():
+ 				on_activity=on_activity,
+ 				on_result=on_result,
+ 				allow_process_pool=search_uses_subprocess(args),
++				case_sensitive=False,
+ 			)
+ 		except SearchCancelled as error:
+ 			cancelled = True
+diff --git a/src/srxy/application/search_runner.py b/src/srxy/application/search_runner.py
+index f375661..bb0a513 100644
+--- a/src/srxy/application/search_runner.py
++++ b/src/srxy/application/search_runner.py
+@@ -150,6 +150,7 @@ class FileSearchService:
+ 		on_result: Callable[[FileSearchResult], None] | None = None,
+ 		cancel_check: Callable[[], bool] | None = None,
+ 		allow_process_pool: bool = False,
++		case_sensitive: bool,
+ 	) -> tuple[list[FileSearchResult], list[SkippedFile]]:
+ 		return execute_search(
+ 			args,
+diff --git a/src/srxy/application/search_session.py b/src/srxy/application/search_session.py
+index 0ade856..f93a467 100644
+--- a/src/srxy/application/search_session.py
++++ b/src/srxy/application/search_session.py
+@@ -122,6 +122,7 @@ class SearchSession:
+ 				on_result=on_result,
+ 				cancel_check=cancel_check,
+ 				allow_process_pool=allow_process_pool,
++				case_sensitive=False,
+ 			)
+ 		except SearchCancelled as error:
+ 			results = error.results
+diff --git a/src/srxy/ports/inbound/file_search.py b/src/srxy/ports/inbound/file_search.py
+index 45557a9..b1d9dec 100644
+--- a/src/srxy/ports/inbound/file_search.py
++++ b/src/srxy/ports/inbound/file_search.py
+@@ -23,4 +23,5 @@ class FileSearchPort(Protocol):
+ 		on_result: Callable[[FileSearchResult], None] | None = None,
+ 		cancel_check: Callable[[], bool] | None = None,
+ 		allow_process_pool: bool = False,
++		case_sensitive: bool,
+ 	) -> tuple[list[FileSearchResult], list[SkippedFile]]: ...
+diff --git a/tests/unit/test_search_session.py b/tests/unit/test_search_session.py
+index f436439..ec5320f 100644
+--- a/tests/unit/test_search_session.py
++++ b/tests/unit/test_search_session.py
+@@ -44,6 +44,7 @@ class _FakeFileSearch:
+ 		on_result: Callable[[FileSearchResult], None] | None = None,
+ 		cancel_check: Callable[[], bool] | None = None,
+ 		allow_process_pool: bool = False,
++		case_sensitive: bool,
+ 	) -> tuple[list[FileSearchResult], list[SkippedFile]]:
+ 		self.calls += 1
+ 		_ = (args, cancel_check, allow_process_pool)
+@@ -155,8 +156,9 @@ def test_given_cancel_during_progress_when_session_runs_then_returns_partial_fin
+ 			on_result: Callable[[FileSearchResult], None] | None = None,
+ 			cancel_check: Callable[[], bool] | None = None,
+ 			allow_process_pool: bool = False,
++			case_sensitive: bool,
+ 		) -> tuple[list[FileSearchResult], list[SkippedFile]]:
+-			_ = (args, on_activity, cancel_check, allow_process_pool)
++			_ = (args, on_activity, cancel_check, allow_process_pool, case_sensitive)
+ 			effective = skipped_files if skipped_files is not None else []
+ 			if on_progress is not None:
+ 				on_progress(1, 10)
+diff --git a/tests/unit/test_search_worker_progressive.py b/tests/unit/test_search_worker_progressive.py
+index 8c53c7a..7d82458 100644
+--- a/tests/unit/test_search_worker_progressive.py
++++ b/tests/unit/test_search_worker_progressive.py
+@@ -49,8 +49,9 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ 		on_result: Any = None,
+ 		cancel_check: Any = None,
+ 		allow_process_pool: bool = False,
++		case_sensitive: bool,
+ 	):
+-		_ = (on_progress, on_activity, cancel_check, allow_process_pool)
++		_ = (on_progress, on_activity, cancel_check, allow_process_pool, case_sensitive)
+ 		if on_result is not None:
+ 			for item in results:
+ 				on_result(item)

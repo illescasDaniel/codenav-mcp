@@ -1,0 +1,9 @@
+Work only in this repository. Use whichever available tools fit the task. For a read-only task, leave the working tree
+unchanged. For a coding task, make the smallest complete change, preserve unrelated behavior, and run:
+  uv run --no-sync ty check
+  uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt
+Do not commit and do not use git stash. Use trash rather than rm if you need to delete files. Summarize your answer or
+changes with file:line references and report any checks run, failures, and uncertainty.
+
+Rename the matches method of the _Segment class in src/srxy/domain/ignore_rules.py to matches_name, with every call
+of it in the code and tests. The other matches methods in that file must not change.

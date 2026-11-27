@@ -8,3 +8,9 @@ run `docs_index.py check` to list docs whose covered code changed after they wer
 - DOC-002 [Configuration](configuration.md) reference: MCP host setup, workspace selection, environment variables and ty selection
 - DOC-003 [Development](development.md) reference: Local setup, test commands, language server lifecycle and shutdown behaviour
 - DOC-004 [Hardening checks](hardening.md) how-to: Automated checks that look for codenav bugs (properties, state machine, refactor fuzzer, differential, CrossHair, mutation): invariants, commands, runtimes
+
+## research
+- DOC-005 [Research: main findings](research/README.md) reference: What the measurements of codenav show so far: agent adoption (hint needed for GPT-6 Luna), completeness and effort on big renames, defects found by watching small models, refactor correctness on real projects, mutation testing; each finding links to its data
+- DOC-006 [Research: correctness of codenav's refactors on real projects](research/correctness.md) reference: Measured results of the refactor fuzzer (187 random refactors on srxy, click, tomlkit) and the jedi/rope differential (references 40/40, renames 38/40), what failed, and what was fixed
+- DOC-007 [Research: coding agents with and without codenav (A/B pilots)](research/agent-ab.md) reference: Haiku 5.5, GPT-6 Luna and Sonnet on srxy with and without codenav: adoption (Luna 0/12 without a hint, 12/13 with one), correctness by task and codenav build, token effort, false leads, and the codenav defects the runs exposed
+- DOC-008 [Research: mutation testing of codenav's own tests](research/mutation.md) reference: mutmut on the rename-site, mention, heredoc and edit-history modules with the full test suite: 2608 mutants, what survived and why, the test gaps it found and the tests added, and whether mutation testing is worth running

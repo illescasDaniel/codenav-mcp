@@ -1,0 +1,4 @@
+ specs/ignore-rules/PLAN.md                 | 2 +-
+ src/srxy/domain/ignore_rules.py            | 6 +++---
+ tests/unit/test_ignore_rules_fast_paths.py | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)

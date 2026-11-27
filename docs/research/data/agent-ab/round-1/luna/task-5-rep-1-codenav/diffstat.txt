@@ -1,0 +1,5 @@
+ docs/api-reference.md                         |  6 +++---
+ src/srxy/application/skipped_file_warnings.py | 13 ++++++++++---
+ src/srxy/domain/models.py                     |  2 +-
+ tests/cli/test_cli.py                         | 10 ++++++++++
+ 4 files changed, 24 insertions(+), 7 deletions(-)

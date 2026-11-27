@@ -1,0 +1,6 @@
+Renamed `Matcher.score` to `similarity` in the base class, all matcher overrides, and matcher call sites. Result scores and the image-similarity `score` method remain unchanged. The base contract is in [base.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-1-codenav.YYAbM2/src/srxy/application/matching/base.py:8); overrides and usage were updated across matching modules, application call sites, and unit tests.
+
+Checks passed:
+
+- `uv run --no-sync ty check`
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` — 1170 passed, 7 skipped. Pytest reported 5 existing `qt_api` configuration warnings.

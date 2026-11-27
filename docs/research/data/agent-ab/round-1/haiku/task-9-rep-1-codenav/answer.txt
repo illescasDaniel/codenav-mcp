@@ -1,0 +1,16 @@
+The `cli.py` copy of `normalize_max_file_size` was the unused one. I deleted it and kept the copy in `search_runner.py`.
+
+**Which copy is used**
+- `src/srxy/application/search_runner.py:115` calls `normalize_max_file_size(args.max_file_size)` in `execute_search`. That call is the only call site in the repo. It resolves to the `search_runner.py` definition at line 73.
+- `src/srxy/adapters/inbound/cli/cli.py:81` had no references. It was not called, imported, listed in `__all__`, or used in tests. A repo-wide grep (excluding `.git`) found only the `search_runner.py` definition and call.
+- `impact` reports 1 call, 0 imports, 0 tests, and no use as a value. Its caveat is that dynamic `getattr` lookups are not visible to static analysis. The grep covers string references, and none exist.
+
+**Change**
+- Deleted the function and its body (old lines 81–85) from `src/srxy/adapters/inbound/cli/cli.py`. The surrounding blank lines are preserved.
+- `search_runner.py` is unchanged. Its behavior is identical to the deleted copy, so the `--max-file-size` handling does not change.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips: Windows-only and macOS-only tests), 5 warnings. The run reported no failures.
+
+Nothing was committed and no stash was used.

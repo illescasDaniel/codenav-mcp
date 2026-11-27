@@ -1,0 +1,3 @@
+Renamed `Matcher.score` to `Matcher.similarity` in the base class, all matcher overrides, and matcher call sites in source and tests. The separate image-similarity `.score()` method and result score fields remain unchanged. See [base.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-2-codenav.Urv9WB/src/srxy/application/matching/base.py:8) and [composite.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-2-codenav.Urv9WB/src/srxy/application/matching/composite.py:23).
+
+Checks passed: `uv run --no-sync ty check`; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` (1170 passed, 7 skipped). Pytest reported five `qt_api` config warnings and a shutdown `ResourceWarning`.

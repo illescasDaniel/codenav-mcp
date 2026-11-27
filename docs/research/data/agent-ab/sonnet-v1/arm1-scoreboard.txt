@@ -1,0 +1,63 @@
+CODENAV CALLS
+  callers                  2
+  references               1
+  rename_symbol            1
+  search_symbol            1
+  symbol_info              1
+OUTCOMES
+  ok                       3
+  error                    3
+  preview                  0
+  applied                  0
+  no_change                0
+OTHER CALLS
+  builtin-read             1
+  builtin-write            0
+  bash                     9
+  other-mcp                0
+  other                    2
+POSSIBLE SHELL FALLBACKS
+  cd ~/Projects/Code/Python/srxy-ab; grep -rn "get_file_content_hash" src | grep -v "def "
+  cd ~/Projects/Code/Python/srxy-ab; sed -i '1787s/reveal_path/reveal_in_file_manager/' tests/gui/test_gui_controller.py; grep -rn "reveal_path" src tests | grep -v "^src/srxy/adapters/outbound/os/desktop.py"; grep -rn "size_bytes" src | head -40
+  cd ~/Projects/Code/Python/srxy-ab; python3 - <<'E'
+p='src/srxy/application/skipped_file_warnings.py'
+s=open(p).read()
+s=s.replace("{skipped.size_bytes:,} bytes >","{_size_label(skipped.size_bytes)} >")
+s=s.replace('''	suggested = suggest_max_file_size(skipped.size_bytes)
+	limit_label = f"{max_file_size:,}" if max_file_size is not None else "limit"
+	return (
+		f"warning: skipped content search in {skipped.path.as_posix()} "
+		f"({_size_label(skipped.size_bytes)} > --max-file-size {limit_label})\\n"
+		f"  hint: rerun with --max-file-size {suggested}"
+	)''','''	limit_label = f"{max_file_size:,}" if max_file_size is not None else "limit"
+	if skipped.size_bytes is None:
+		return (
+			f"warning: skipped content search in {skipped.path.as_posix()} "
+			f"({_size_label(None)} > --max-file-size {limit_label})\\n"
+			f"  hint: rerun with a larger --max-file-size"
+		)
+	suggested = suggest_max_file_size(skipped.size_bytes)
+	return (
+		f"warning: skipped content search in {skipped.path.as_posix()} "
+		f"({_size_label(skipped.size_bytes)} > --max-file-size {limit_label})\\n"
+		f"  hint: rerun with --max-file-size {suggested}"
+	)''')
+s=s.replace('''def format_skipped_file_warning(''','''def _size_label(size_bytes: int | None) -> str:
+	return f"{size_bytes:,} bytes" if size_bytes is not None else "unknown size"
+
+
+def format_skipped_file_warning(''',1)
+open(p,'w').write(s)
+E
+sed -i 's/size_bytes: int$/size_bytes: int | None/' src/srxy/domain/models.py; git diff src/srxy/domain/models.py | grep '^[+-]'; uv run ty check 2>&1 | tail -15
+  cd ~/Projects/Code/Python/srxy-ab; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | grep -E "^(FAILED|E )" | head
+  cd ~/Projects/Code/Python/srxy-ab; grep -rln "size_bytes: 'int'\|size_bytes: int" docs README* 2>/dev/null; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | grep -E "^FAILED"
+  cd ~/Projects/Code/Python/srxy-ab; grep -n "size_bytes" docs/api-reference.md; sed -i "s/size_bytes: 'int', reason/size_bytes: 'int | None', reason/" docs/api-reference.md; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -1
+  cd ~/Projects/Code/Python/srxy-ab; sed -i "168s/size_bytes: int,/size_bytes: int | None,/;174s/\`int\`/\`int | None\`/" docs/api-reference.md; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -1; git status --short
+  cd ~/Projects/Code/Python/srxy-ab
+R=<video-folder>/results/run-20261126-1330
+python3 -I .claude/demo-hooks/scoreboard.py | tee $R/arm1-scoreboard.txt
+mv /tmp/codenav-demo/events.jsonl $R/arm1-codenav.jsonl; mv /tmp/codenav-demo/events.jsonl.raw $R/arm1-codenav.jsonl.raw; : > /tmp/codenav-demo/events.jsonl; : > /tmp/codenav-demo/events.jsonl.raw
+TP=$(head -1 $R/arm1-codenav.jsonl.raw | python3 -c "import sys,json;print(json.loads(sys.stdin.readline())['transcript_path'])"); echo $TP
+python3 -I <video-folder>/scripts/collect_metrics.py $TP codenav-agent | tee $R/arm1-metrics.json
+git diff --stat | tee $R/arm1-diffstat.txt; git status --short; git diff > $R/arm1.patch; git diff

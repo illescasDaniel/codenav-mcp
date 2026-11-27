@@ -1,0 +1,5 @@
+# Task 12 expected edited lines: rope (2) + 2 rope misses checked by hand (marked +)
+src/srxy/domain/ignore_rules.py:59
+tests/unit/test_ignore_rules_fast_paths.py:40
+src/srxy/domain/ignore_rules.py:148 +
+src/srxy/domain/ignore_rules.py:173 +

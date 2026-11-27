@@ -1,0 +1,3 @@
+The copy in [search_runner.py](~/.local/state/srxy-ab/checkouts/luna-task-9-rep-1-plain.rL6gjT/src/srxy/application/search_runner.py:73) is used by `execute_search` to set `max_file_size` at line 115. The CLI definition had no callers or imports: repository-wide search found only its definition. I removed it from [cli.py](~/.local/state/srxy-ab/checkouts/luna-task-9-rep-1-plain.rL6gjT/src/srxy/adapters/inbound/cli/cli.py:81).
+
+Checks: `ty check` passed; pytest passed with **1170 passed, 7 skipped**; `git diff --check` passed. Pytest reported five config warnings and a shutdown `ResourceWarning`. No other files were modified.

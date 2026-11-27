@@ -1,0 +1,5 @@
+Updated `SkippedFile.size_bytes` to `int | None` and adjusted content, OCR, and transcription warnings to describe unknown sizes while preserving the known-size wording. Added tests for each warning type and regenerated the public API reference.
+
+Checks: `uv run --no-sync ty check` passed. `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed: 1173 passed, 7 skipped. Pytest reported 5 existing `qt_api` configuration warnings and a shutdown `ResourceWarning`.
+
+Changed files: [models.py](~/.local/state/srxy-ab/checkouts/luna-task-5-rep-1-codenav.c4qEZd/src/srxy/domain/models.py:60), [skipped_file_warnings.py](~/.local/state/srxy-ab/checkouts/luna-task-5-rep-1-codenav.c4qEZd/src/srxy/application/skipped_file_warnings.py:9), [test_cli.py](~/.local/state/srxy-ab/checkouts/luna-task-5-rep-1-codenav.c4qEZd/tests/cli/test_cli.py:668), [api-reference.md](~/.local/state/srxy-ab/checkouts/luna-task-5-rep-1-codenav.c4qEZd/docs/api-reference.md:161).

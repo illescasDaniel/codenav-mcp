@@ -1,0 +1,18 @@
+`Matcher.score` is now `Matcher.similarity`, and every override and call site is renamed. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped, all skips are platform-specific). I did not commit.
+
+**What changed (16 files, 44 lines each way):**
+- **Base class:** `src/srxy/application/matching/base.py:8` is now `similarity`, and `score_with_breakdown` at `:12` calls `self.similarity`.
+- **Overrides (7):** `composite.py:23`, `contains.py:7`, `exact.py:7`, `fuzzy.py:7`, `partial.py:7`, `phonetic.py:65`, `semantic.py:141`.
+- **Calls in src:** `composite.py:34`, `search_files.py:382-383`, `search_objects.py:27`, `utils.py:226`.
+- **Tests:** `test_file_search.py:314`, `test_matchers.py` (16 sites), `test_search.py` (5), `test_semantic.py` (4), `test_semantic_cache.py` (4).
+
+**Left alone, as you asked:**
+- `score_with_breakdown` and all local variables named `score`.
+- Result `.score` fields and `score=` arguments.
+- The image-similarity `score` method in `src/srxy/ports/outbound/content.py:96` and `src/srxy/adapters/outbound/content/image_similarity.py:52`, plus its caller `search_files.py:197`.
+
+**Judgment calls:**
+- `search_objects.py:27` was flagged by the rename tool as unverified, because `hasattr` narrowing makes ty treat that branch as `Never`. It is a real `Matcher` call, so I renamed it. The tool would not apply it without an explicit confirm.
+- I did not regenerate `docs/api-reference.md`. The tool suggested it, but that file doesn't mention `Matcher`, so nothing there is stale.
+
+**Not checked:** `scripts/` and `examples/` are outside the ty config. The only remaining `score` hits in them were `score=` keyword text in screenshot scripts, which the rename correctly left alone.

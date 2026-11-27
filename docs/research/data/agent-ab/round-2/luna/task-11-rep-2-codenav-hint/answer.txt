@@ -1,0 +1,10 @@
+The unused module-level functions in `src/srxy/adapters/inbound/cli/cli.py` are:
+
+- [normalize_max_file_size](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-codenav-hint.54yCYR/src/srxy/adapters/inbound/cli/cli.py:81) — no calls or imports reference this definition in `src`, `tests`, `scripts`, or `examples`. The same name is used in `src/srxy/application/search_runner.py`, but that is a separate function.
+- [render_results](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-codenav-hint.54yCYR/src/srxy/adapters/inbound/cli/cli.py:598) — code navigation found only its definition and zero callers.
+- [sync_options_to_args](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-codenav-hint.54yCYR/src/srxy/adapters/inbound/cli/cli.py:646) — no repository references use this CLI wrapper; the separate function in `src/srxy/application/search_options.py` is used.
+- [execute_search](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-codenav-hint.54yCYR/src/srxy/adapters/inbound/cli/cli.py:749) — no repository references use this CLI wrapper. Exact-name matches elsewhere refer to `srxy.application.search_runner.execute_search`.
+
+I excluded `render_progress` and `resolve_search_modes`: both are exported in `__all__` and used by `tests/cli/test_cli.py`.
+
+The working tree was unchanged. I did not run checks; this was a read-only usage audit.

@@ -1,0 +1,21 @@
+Renamed `FileSearchResult.lines` to `line_matches` in the model, code, tests, and the places that build or read it. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged. Type check and unit/CLI tests both pass.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips).
+
+**Changes**
+- Field definition: `src/srxy/domain/models.py:71`.
+- Wire format kept: `src/srxy/adapters/outbound/worker/search_worker.py:87` (serializes `"lines"`) and `:105` (reads `data.get("lines")`) now assign to `line_matches=`. The CLI's `"lines"` key at `src/srxy/adapters/inbound/cli/cli.py:51` is unchanged.
+- Attribute reads and keyword construction updated in `src/srxy/adapters/inbound/cli/cli.py:64`, `src/srxy/adapters/inbound/gui/controller.py` (lines 3164–3252), `src/srxy/adapters/inbound/gui/models.py:339`, `src/srxy/adapters/inbound/tui/app.py:507`, `src/srxy/application/search_formatting.py` (lines 128–260), `src/srxy/application/use_cases/search_files.py:666`, and `examples/playground.py:123`.
+- Tests: all `tests/` files that construct or read the field.
+- Beyond the code and tests you named, I also updated code that would have broken at runtime or gone stale. The two screenshot export scripts construct `FileSearchResult` with `lines=` (`scripts/docs/export_gui_screenshot.sh`, `scripts/docs/export_tui_screenshot.sh`). The API docs name the field (`docs/api-reference.md`, `docs/python-api.md:32`). Revert these if you want the change limited to `src/` and `tests/`.
+
+**Left alone**
+- `size.lines` in `src/srxy/adapters/inbound/cli/cli.py:95` is terminal size, not this field.
+- `lines` locals in `scripts/bench_file_search.py:67` are unrelated.
+
+**Not run**
+- `tests/integration` and `tests/gui`, which were outside the requested test command. They reference the renamed field, so they should be run before merging.
+
+Nothing was committed and no stash was used.

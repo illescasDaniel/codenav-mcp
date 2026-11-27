@@ -1,0 +1,19 @@
+I renamed `_Segment.matches` to `_Segment.matches_name` and updated its three call sites. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped).
+
+**Changes**
+- `src/srxy/domain/ignore_rules.py:59`: the method definition is now `matches_name`.
+- `src/srxy/domain/ignore_rules.py:148`: `IgnorePattern` calls `self.segments[0].matches_name(parts[-1])`.
+- `src/srxy/domain/ignore_rules.py:173`: `_match_anchored` calls `segment.matches_name(...)`. This line is now longer; I did not check it against the project's line-length limit because I didn't run the full gate.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: the test calls `segment.matches_name(name)`.
+
+**Left unchanged on purpose**
+- `src/srxy/domain/ignore_rules.py:66`: `matches_generic` is a different name and is not affected.
+- `src/srxy/domain/ignore_rules.py:138`, `:141`, `:281`, `:286`, `:289`: these are the other `matches` methods (`IgnoreRule`-style and `Rule`-style, the one at `:307`) and their callers. None were touched.
+- `tests/unit/test_ignore_rules_fast_paths.py:66`: `pattern.matches((name,), False)` calls the `:307` method on a pattern object, not `_Segment`.
+- The docstring at `ignore_rules.py:142` ("Like `matches` ...") and the mention in `specs/ignore-rules/PLAN.md:59` are text, not code. I left them as they are, since the docstring refers to the sibling `matches` method and the plan documents a different signature.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips), no failures.
+
+No commit was made and no stash was used. The rename can be reverted with `edits(action="undo", id="28e94e44")`.

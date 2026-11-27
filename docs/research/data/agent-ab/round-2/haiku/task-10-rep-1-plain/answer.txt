@@ -1,0 +1,15 @@
+The `Matcher.score` method is now `Matcher.similarity` across the base class, all six overriding matchers, the composite matcher, and every call site in `src/` and `tests/unit/`. `ty check` passes and the unit and CLI test run passes (1170 passed, 7 skipped, all skips are platform-specific).
+
+**What changed (16 files, 44 lines):**
+- **Base class:** `src/srxy/application/matching/base.py:8` defines `similarity`; `score_with_breakdown` (`base.py:12`) calls `self.similarity`.
+- **Overrides:** `contains.py`, `exact.py`, `fuzzy.py`, `partial.py`, `phonetic.py`, `semantic.py` and `composite.py` each rename their `def score` to `def similarity`. `composite.py:34` calls `matcher.similarity` for its sub-matchers.
+- **Callers in `src/`:** `application/use_cases/search_objects.py:27`, `application/use_cases/search_files.py:382-383` and `application/utils.py:226`.
+- **Tests:** `test_matchers.py`, `test_search.py`, `test_semantic.py`, `test_semantic_cache.py` and `test_file_search.py:314`.
+
+**Deliberately left alone:**
+- The image-similarity port and adapter `score` methods: `ports/outbound/content.py:96`, `adapters/outbound/content/image_similarity.py:52`, and the call at `application/use_cases/search_files.py:197`.
+- `score_with_breakdown`, `score=` arguments, `.score` result attributes, and local variables named `score`.
+
+**Uncertainty:** I did not touch docs. `docs/` and the agent/skill files mention `score` but refer to result scores, not the matcher method, so nothing there needed renaming. Any external code that subclasses `Matcher` and overrides `score` will now fail to be abstract-complete; that is expected from the rename but worth knowing.
+
+I did not commit and did not use git stash.

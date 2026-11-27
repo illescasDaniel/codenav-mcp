@@ -1,0 +1,41 @@
+src/srxy/application/matching/base.py:8: def score(self, query: str, value: str) -> float:
+src/srxy/application/matching/base.py:12: score = self.score(query, value)
+src/srxy/application/matching/fuzzy.py:7: def score(self, query: str, value: str) -> float:
+src/srxy/application/use_cases/search_objects.py:27: return matcher.score(query, value), matcher.score(query, value)
+tests/unit/test_semantic_cache.py:45: first = matcher.score(query, value)
+tests/unit/test_semantic_cache.py:46: second = matcher.score(query, value)
+tests/unit/test_semantic_cache.py:69: matcher.score(query, text)
+tests/unit/test_semantic_cache.py:72: matcher.score(query, text)
+tests/unit/test_file_search.py:314: expected_score = CompositeMatcher().score("invoices", "invoicess")
+src/srxy/application/matching/phonetic.py:65: def score(self, query: str, value: str) -> float:
+src/srxy/application/utils.py:226: word_score = semantic.score(query, normalize_text(word))
+src/srxy/application/matching/composite.py:23: def score(self, query: str, value: str) -> float:
+tests/unit/test_matchers.py:93: score = matcher.score(query, value)
+tests/unit/test_matchers.py:106: score = matcher.score(query, value)
+tests/unit/test_matchers.py:119: score = matcher.score(query, value)
+tests/unit/test_matchers.py:132: score = matcher.score(query, value)
+tests/unit/test_matchers.py:145: score = matcher.score(query, value)
+tests/unit/test_matchers.py:158: score = matcher.score(query, value)
+tests/unit/test_matchers.py:171: score = matcher.score(query, value)
+tests/unit/test_matchers.py:184: score = matcher.score(query, value)
+tests/unit/test_matchers.py:197: score = matcher.score(query, value)
+tests/unit/test_matchers.py:210: score = matcher.score(query, value)
+tests/unit/test_matchers.py:223: score = matcher.score(query, value)
+tests/unit/test_matchers.py:236: score = matcher.score(query, value)
+tests/unit/test_matchers.py:249: score = matcher.score(query, value)
+tests/unit/test_matchers.py:262: score = matcher.score(query, value)
+tests/unit/test_matchers.py:302: stephen_score = matcher.score("stephen", "steven")
+tests/unit/test_matchers.py:303: knight_score = matcher.score("knight", "night")
+tests/unit/test_semantic.py:28: score = matcher.score(query, value)
+tests/unit/test_semantic.py:47: score = matcher.score("hello", "hi")
+tests/unit/test_semantic.py:68: high_score = matcher.score("a", "b")
+tests/unit/test_semantic.py:70: low_score = matcher.score("a", "b")
+src/srxy/application/matching/partial.py:7: def score(self, query: str, value: str) -> float:
+src/srxy/application/matching/exact.py:7: def score(self, query: str, value: str) -> float:
+tests/unit/test_search.py:21: scores = {item["name"]: matcher.score("salat", item["name"]) for item in food_items}
+tests/unit/test_search.py:33: score_spatial = matcher.score("special", "spatial")
+tests/unit/test_search.py:34: score_special = matcher.score("special", "special")
+tests/unit/test_search.py:35: score_unrelated = matcher.score("special", "zzzzzz")
+tests/unit/test_search.py:264: score = matcher.score("a", "a")
+src/srxy/application/matching/semantic.py:141: def score(self, query: str, value: str) -> float:
+src/srxy/application/matching/contains.py:7: def score(self, query: str, value: str) -> float:

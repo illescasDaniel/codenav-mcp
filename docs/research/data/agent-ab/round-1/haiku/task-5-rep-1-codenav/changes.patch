@@ -1,0 +1,114 @@
+diff --git a/docs/api-reference.md b/docs/api-reference.md
+index 7bd8975..8069bff 100644
+--- a/docs/api-reference.md
++++ b/docs/api-reference.md
+@@ -162,16 +162,16 @@ Fields:
+ 
+ Dataclass (`srxy.domain.models.SkippedFile`)
+ 
+-SkippedFile(path: 'Path', size_bytes: 'int', reason: 'str' = 'oversized')
++SkippedFile(path: 'Path', size_bytes: 'int | None', reason: 'str' = 'oversized')
+ 
+ ```python
+-SkippedFile(path: Path, size_bytes: int, reason: str = 'oversized')
++SkippedFile(path: Path, size_bytes: int | None, reason: str = 'oversized')
+ ```
+ 
+ Fields:
+ 
+ - `path`: `Path`
+-- `size_bytes`: `int`
++- `size_bytes`: `int | None`
+ - `reason`: `str`
+ 
+ ## `magic_file_search`
+diff --git a/src/srxy/application/skipped_file_warnings.py b/src/srxy/application/skipped_file_warnings.py
+index ef9c136..6ae2fe9 100644
+--- a/src/srxy/application/skipped_file_warnings.py
++++ b/src/srxy/application/skipped_file_warnings.py
+@@ -6,6 +6,12 @@ from srxy.application.search_defaults import suggest_max_file_size
+ from srxy.domain.models import SkippedFile
+ 
+ 
++def _size_clause(size_bytes: int | None, limit_flag: str) -> str:
++	if size_bytes is None:
++		return f"size unknown, exceeds {limit_flag}"
++	return f"{size_bytes:,} bytes > {limit_flag}"
++
++
+ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None) -> str:
+ 	if skipped.reason == "ocr_too_large":
+ 		from srxy.adapters.outbound.ocr.ocr_text import ocr_max_file_size
+@@ -14,7 +20,7 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 		limit_label = f"{limit:,}" if limit is not None else "limit"
+ 		return (
+ 			f"warning: skipped OCR in {skipped.path.as_posix()} "
+-			f"({skipped.size_bytes:,} bytes > --max-ocr-file-size {limit_label})\n"
++			f"({_size_clause(skipped.size_bytes, f'--max-ocr-file-size {limit_label}')})\n"
+ 			f"  hint: increase --max-ocr-file-size or unset SRXY_OCR_MAX_FILE_SIZE"
+ 		)
+ 	if skipped.reason == "ocr_timeout":
+@@ -29,7 +35,7 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 		limit_label = f"{limit:,}" if limit is not None else "limit"
+ 		return (
+ 			f"warning: skipped transcription in {skipped.path.as_posix()} "
+-			f"({skipped.size_bytes:,} bytes > --max-transcribe-file-size {limit_label})\n"
++			f"({_size_clause(skipped.size_bytes, f'--max-transcribe-file-size {limit_label}')})\n"
+ 			f"  hint: increase --max-transcribe-file-size or unset SRXY_TRANSCRIBE_MAX_FILE_SIZE"
+ 		)
+ 	if skipped.reason == "transcribe_no_speech":
+@@ -43,8 +49,14 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 			kind = "path"
+ 		return f"warning: skipped {kind} {skipped.path.as_posix()} (access denied)"
+ 
+-	suggested = suggest_max_file_size(skipped.size_bytes)
+ 	limit_label = f"{max_file_size:,}" if max_file_size is not None else "limit"
++	if skipped.size_bytes is None:
++		return (
++			f"warning: skipped content search in {skipped.path.as_posix()} "
++			f"(exceeds --max-file-size {limit_label}, size unknown)\n"
++			f"  hint: rerun with a larger --max-file-size"
++		)
++	suggested = suggest_max_file_size(skipped.size_bytes)
+ 	return (
+ 		f"warning: skipped content search in {skipped.path.as_posix()} "
+ 		f"({skipped.size_bytes:,} bytes > --max-file-size {limit_label})\n"
+diff --git a/src/srxy/domain/models.py b/src/srxy/domain/models.py
+index e487d9a..97391dd 100644
+--- a/src/srxy/domain/models.py
++++ b/src/srxy/domain/models.py
+@@ -59,7 +59,7 @@ class LineMatch:
+ @dataclass(frozen=True)
+ class SkippedFile:
+ 	path: Path
+-	size_bytes: int
++	size_bytes: int | None
+ 	reason: str = "oversized"
+ 
+ 
+diff --git a/tests/cli/test_cli.py b/tests/cli/test_cli.py
+index 4b6470f..bc4d3e6 100644
+--- a/tests/cli/test_cli.py
++++ b/tests/cli/test_cli.py
+@@ -699,6 +699,21 @@ def test_given_transcribe_failed_skip_when_formatting_warning_then_shows_failed(
+ 	assert "transcription failed" in warning
+ 
+ 
++def test_given_skip_with_unknown_size_when_formatting_warning_then_omits_byte_count(tmp_path: Path):
++	# given
++	skipped = SkippedFile(path=tmp_path / "huge.bin", size_bytes=None)
++
++	# when
++	warning = format_skipped_file_warning(skipped, max_file_size=1_048_576)
++
++	# then
++	assert "skipped content search" in warning
++	assert "size unknown" in warning
++	assert "--max-file-size 1,048,576" in warning
++	assert "bytes" not in warning
++	assert "hint: rerun with a larger --max-file-size" in warning
++
++
+ def test_given_ocr_flag_when_parsing_args_then_accepts_flag():
+ 	# when
+ 	args = build_parser().parse_args(["invoice", ".", "--ocr"])

@@ -103,20 +103,24 @@ inside the tests, never at import time) and checks that:
 
 ### Mutation testing (mutmut)
 
-Mutates `signature.py`, `plan_merge.py`, `args.py` and `reply.py` (1636 mutants) and runs the unit tests for them
-(`tests/property/`, `tests/test_signature.py`, `tests/test_plan_merge.py`, `tests/test_args.py`) against each
-mutant. Configuration is in `[tool.mutmut]` in `pyproject.toml`. Not a gate: the report is read by a person.
+Mutates the modules where a wrong edit or a wrong optional site would go unnoticed: `signature.py`, `plan_merge.py`,
+`args.py`, `reply.py`, `heredocs.py`, `mentions.py`, `rename_sites.py` and `edit_state.py` (4719 mutants), and runs
+the full test suite against each mutant. Configuration is in `[tool.mutmut]` in `pyproject.toml`. Not a gate: the
+report is read by a person.
 
 - **Run**: `uv run mutmut run --max-children 12`, then `uv run mutmut results` (survivors) and
   `uv run mutmut show <mutant>` (the diff). It writes `mutants/` (ignored by git); delete it with `trash mutants`
-  before a re-run after changing the tests or code.
-- **Runtime**: about 1 min on a 32-core machine (45 mutants/s with 12 workers, the first run 15/s).
-- **Result**: first run 1231 killed / 355 survived / 47 not covered / 3 timeouts; after the added example tests in
-  `tests/property/test_mutation_killers.py`: 1437 killed / 190 survived / 8 not covered / 1 timeout. Not-killed per
-  module, first run to last: `signature` 206 to 94, `plan_merge` 100 to 36, `args` 88 to 66, `reply` 11 to 3.
-- **Survivors left** (grouped in the "Mutation survivors" section of `hardening/FINDINGS-h3.md`): mostly the wording of refusal
-  messages and hints, `autojunk=` arguments of `difflib` (only matter above 200 lines, a performance heuristic),
-  `strict=` of `zip` calls where the lengths always agree, and equivalent mutants.
+  before a re-run after changing the tests or code, and before `docs_index.py check` (it reads the copied docs).
+- **Runtime**: about 18 min on a 32-core machine with 12 workers.
+- **Copied files**: `also_copy` lists what the tests read besides `src/` and `tests/` (`hardening/`, `docs/`,
+  `server.json`, `README.md`). A test that fails only under mutmut usually reads a file that isn't copied, or builds
+  a path from the repository folder instead of the running interpreter.
+- **Result** (2026-11-27): 4031 killed, 5 timeouts, 9 not covered, 674 survived. Per module, the survivors read and the
+  tests added are in [Research: mutation testing](research/mutation.md) (DOC-008); the earlier pass on the first 4
+  modules is in the "Mutation survivors" section of `hardening/FINDINGS-h3.md`.
+- **Survivors left**: mostly the wording of refusal messages and hints, equivalent mutants (`strict=` of `zip` where
+  the lengths always agree, `None` against `""` tested only for truth), limits not tested at their exact boundary,
+  and fallbacks for unusual language-server replies.
 
 ## Refactor fuzzer (`fuzz`)
 

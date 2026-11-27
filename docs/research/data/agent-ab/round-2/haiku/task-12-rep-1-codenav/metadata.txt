@@ -1,0 +1,6 @@
+runner=haiku arm=codenav task=12 rep=1
+fixture=953d27c8fbef9136944398f234997abf72ddee93 diffbase=953d27c8fbef9136944398f234997abf72ddee93
+codenav=3f2a833 Rename: offer names in Python heredocs of shell scripts as optional sites dirty=2
+model=claude-haiku-5-5 2.1.332 (Claude Code)
+started=2026-11-27T11:32:21+01:00
+agent_exit=0 finished=2026-11-27T11:33:00+01:00

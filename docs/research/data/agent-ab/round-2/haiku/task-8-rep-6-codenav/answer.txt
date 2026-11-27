@@ -1,0 +1,22 @@
+`FileSearchResult.lines` is now `line_matches`, across src, tests, and the docs and scripts that use it. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped.
+- The first pytest run had one failure, `tests/unit/test_public_api.py::test_given_public_api_when_rendering_reference_then_matches_committed_docs`. It was caused by the rename: `docs/api-reference.md` is generated and still showed `lines`. I regenerated it with `scripts/docs/export_public_api.py`, and that test passes now.
+
+**What changed**
+- The field itself: `src/srxy/domain/models.py:71`.
+- Constructor keywords, attribute reads, and the `search_files` construction site (`src/srxy/application/use_cases/search_files.py:664`).
+- Worker serialization, `src/srxy/adapters/outbound/worker/search_worker.py:87-105`. The dict key stays `"lines"` on both write and read; only the constructor keyword changed to `line_matches=`.
+- CLI JSON output, `src/srxy/adapters/inbound/cli/cli.py:51`. The `"lines"` key is unchanged.
+- GUI, TUI, and formatting consumers: `controller.py`, `gui/models.py`, `tui/app.py`, `search_formatting.py`.
+- Tests under `tests/`, including `tests/unit/test_file_search.py` (67 sites).
+- Also renamed: `examples/playground.py:123`, the `FileSearchResult(...)` calls in `scripts/docs/export_gui_screenshot.sh` and `export_tui_screenshot.sh`, and `docs/python-api.md:32`. Without these, the examples and screenshot scripts would have broken.
+- `docs/api-reference.md` regenerated (4 lines).
+
+**Left alone on purpose**
+- `src/srxy/adapters/inbound/cli/cli.py:95`, `size.lines`: this is terminal size, not the search result.
+- `ty` excludes `examples/` and `scripts/`, so the rename's type check didn't cover them. I checked them by grep only, and the screenshot scripts' keyword calls were renamed with the rest.
+
+I didn't commit or use stash. The rename was done with codenav's typed rename, which left the wire-format strings alone.

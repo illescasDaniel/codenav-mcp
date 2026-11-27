@@ -1,0 +1,30 @@
+I renamed `FileSearchPort.execute` to `run` across the port, its implementation, all callers, and the tests. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped).
+
+**Changes**
+- Port: `src/srxy/ports/inbound/file_search.py:16`, `def run(`.
+- Implementation: `FileSearchService.run` at `src/srxy/application/search_runner.py:143`.
+- Callers:
+  - `src/srxy/application/search_session.py:117` (`self._file_search.run(`)
+  - `src/srxy/adapters/outbound/worker/search_worker.py:223`
+  - `src/srxy/adapters/inbound/cli/cli.py:817`
+- Tests updated to match:
+  - `tests/cli/test_cli_ignore.py` (fixture now uses `file_search.run`)
+  - `tests/cli/test_cli_interrupt.py` (`Mock(run=...)`)
+  - `tests/unit/test_search_runner_adapter.py`
+  - `tests/unit/test_search_session.py` (fake and cancelling search classes)
+  - `tests/unit/test_search_worker.py` (monkeypatch targets and local names)
+  - `tests/unit/test_search_worker_progressive.py` (also renamed the `_execute` helper to `_run`)
+
+**Left alone**
+- `execute_search` and `FileSearchUseCase.search`, which are separate functions.
+- The sqlite `connection.execute(...)` calls in `cache.py`, `test_cache.py`, and the unrelated `execute` comments.
+
+**Docs**
+- No generated docs needed changes. `docs/api-reference.md` covers only the public API, not the port.
+- `docs/architecture.md:40` names `FileSearchPort` but not its method, so it still reads correctly.
+
+**Checks**
+- `uv run --no-sync ty check`: "All checks passed!"
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips), 0 failed.
+- I confirmed `srxy` imports from this checkout's `src/`, so the tests exercised these edits.
+- I did not run the project's full quality gate, and I did not commit.

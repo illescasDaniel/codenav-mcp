@@ -1,0 +1,17 @@
+`Matcher.score` is now `Matcher.similarity`, and all of its overrides and call sites are renamed. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped). Nothing is committed.
+
+**Renamed**
+- **Base class:** `src/srxy/application/matching/base.py:8`, plus its internal call in `score_with_breakdown` at line 12.
+- **Overrides (7):** `composite.py:23`, `contains.py:7`, `exact.py:7`, `fuzzy.py:7`, `partial.py:7`, `phonetic.py:65`, `semantic.py:141`.
+- **Calls in src:** `composite.py:34`, `search_files.py:382-383`, `search_objects.py:27`, `utils.py:226`.
+- **Calls in tests:** `test_file_search.py:314`, `test_matchers.py` (16 sites), `test_search.py` (5), `test_semantic.py` (4), `test_semantic_cache.py` (4).
+
+**Left alone**
+- `image_similarity.py:52` and its caller at `search_files.py:197`.
+- `ports/outbound/content.py:96`.
+- All `score=` arguments, `result.score` fields, and `score_with_breakdown`.
+
+**Choices and uncertainty**
+- `search_objects.py:27` is an unreachable-looking branch that `ty` types as `Never`, so the rename tool held it for review. I applied it anyway, because it is a real `Matcher` call and would break if reached. Revert that line if you'd rather keep it.
+- `docs/api-reference.md` is generated and does not mention the method, so it's unaffected. Regenerating it with `scripts/docs/export_public_api.py` was not part of this task and I did not run it.
+- I did not run `uv run --no-sync pytest` on `tests/gui` or the scripts, since they were outside the requested test set.

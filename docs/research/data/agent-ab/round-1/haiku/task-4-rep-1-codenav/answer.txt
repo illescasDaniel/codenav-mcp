@@ -1,0 +1,17 @@
+`FileSearchPort.execute` now has a required keyword-only `case_sensitive: bool`, and `ty check` and the unit and CLI tests pass. The API docs regenerated with no content change, because `FileSearchPort` is not in `srxy.__all__`.
+
+**Changes**
+- `src/srxy/ports/inbound/file_search.py:28`: added `case_sensitive: bool,` after `allow_process_pool`, with no default.
+- `src/srxy/application/search_runner.py:155`: `FileSearchService.execute` gets the same parameter. It is accepted but not forwarded to `execute_search`, which has no case-sensitivity option. I left it that way to keep the change to the signature and its consumers. If case sensitivity is meant to take effect, `execute_search` needs its own change.
+- Production callers now pass `case_sensitive=False`:
+  - `src/srxy/application/search_session.py:126`
+  - `src/srxy/adapters/inbound/cli/cli.py:825`
+  - `src/srxy/adapters/outbound/worker/search_worker.py:232`
+- Test doubles updated: `tests/unit/test_search_session.py:49` (`_FakeFileSearch.execute`) and `:161` (`_CancellingSearch.execute`), plus `tests/unit/test_search_worker_progressive.py:54` (`_execute`). The last two were not linked by codenav and needed manual edits. Without them the worker and session calls would have raised `TypeError`.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific).
+- `uv run --no-sync python scripts/docs/export_public_api.py` (the `export-api` task): wrote `docs/api-reference.md`, and the file is unchanged. I did not run the other doc exporters, since none of them cover this port.
+
+I did not commit.

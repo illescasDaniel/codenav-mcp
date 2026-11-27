@@ -1,0 +1,23 @@
+`FileSearchResult.lines` is now `line_matches` across the code, tests, and docs. The JSON `"lines"` keys are unchanged. `ty check` passes and the unit and CLI suites pass (1170 passed, 7 skipped).
+
+**Renamed field**
+- `src/srxy/domain/models.py:71` — the dataclass field.
+- Every attribute access, constructor keyword, and `.line_matches` read/write in `src/` and `tests/`, including `src/srxy/application/search_formatting.py`, `src/srxy/application/use_cases/search_files.py`, `src/srxy/adapters/inbound/gui/controller.py`, and `src/srxy/adapters/inbound/cli/cli.py`.
+
+**Wire format, deliberately unchanged**
+- `src/srxy/adapters/inbound/cli/cli.py:51` — the `"lines"` key in the CLI JSON output.
+- `src/srxy/adapters/outbound/worker/search_worker.py:87` — the `"lines"` key when serializing for the worker.
+- `src/srxy/adapters/outbound/worker/search_worker.py:105` — deserialization still reads `data.get("lines", [])` and passes the value into `line_matches=`.
+
+**Beyond `src/` and `tests/`**
+The rename also covered a few non-test sites that would otherwise have broken at runtime or gone stale:
+- `examples/playground.py`, `scripts/docs/export_gui_screenshot.sh`, and `scripts/docs/export_tui_screenshot.sh` (constructor keywords and attribute access).
+- `docs/python-api.md`.
+- `docs/api-reference.md`, regenerated with `scripts/docs/export_public_api.py`. The only change is the field name. A test in `tests/unit/test_public_api.py` compares this file against the generator output, so it failed until I regenerated it.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: first run had 1 failure (the API docs comparison above). After regenerating, 1170 passed, 7 skipped.
+- `examples/` and `scripts/` are outside the ty config, so `ty` did not check those edits. I did not run the example or the doc-export scripts. `scripts/bench_file_search.py` uses a local variable named `lines`, which is unrelated and untouched.
+
+Nothing was committed and no stash was used.

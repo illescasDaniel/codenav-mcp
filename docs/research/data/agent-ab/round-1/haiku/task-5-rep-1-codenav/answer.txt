@@ -1,0 +1,14 @@
+`SkippedFile.size_bytes` is now `int | None`, and the warnings handle unknown sizes. `ty check` passes, and `pytest tests/unit tests/cli` passes (1171 passed, 7 skipped, 0 failed).
+
+**Changes**
+- `src/srxy/domain/models.py:62`: `size_bytes: int | None`.
+- `src/srxy/application/skipped_file_warnings.py`:
+  - New helper `_size_clause` (lines 9–12). A known size produces `N bytes > <flag>`, exactly as before. An unknown size produces `size unknown, exceeds <flag>`.
+  - The OCR and transcription warnings use the helper, so their known-size text is unchanged.
+  - The default `--max-file-size` warning (lines 52–64) keeps the existing text for known sizes. For unknown sizes it prints `(exceeds --max-file-size <limit>, size unknown)` with the hint `rerun with a larger --max-file-size`. The computed suggested size needs a byte count, so it is omitted in that case.
+- `tests/cli/test_cli.py` (near line 702): new test `test_given_skip_with_unknown_size_when_formatting_warning_then_omits_byte_count`.
+- `docs/api-reference.md`: regenerated with `scripts/docs/export_public_api.py`, because `tests/unit/test_public_api.py` compares it against the code. The diff only touches the `SkippedFile` lines.
+
+**Uncertainty**
+- Nothing in the codebase currently produces `None`. Every existing producer still passes an int, so behavior is unchanged today. The `None` path is covered only by the new test.
+- I chose the wording for the unknown-size messages. Change it if you prefer different text.

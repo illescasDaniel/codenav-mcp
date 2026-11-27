@@ -1,0 +1,6 @@
+Two module-level functions have no use anywhere in `src`, `tests`, `scripts`, or `examples`:
+
+- [`render_results`]( ~/.local/state/srxy-ab/checkouts/luna-task-11-rep-1-plain.HiJpgI/src/srxy/adapters/inbound/cli/cli.py:598) — its name appears only at its definition; there are no callers or imports in the searched areas.
+- [`normalize_max_file_size`]( ~/.local/state/srxy-ab/checkouts/luna-task-11-rep-1-plain.HiJpgI/src/srxy/adapters/inbound/cli/cli.py:81) — the CLI module’s definition has no callers or imports. The same name is used separately in `src/srxy/application/search_runner.py`, but that function is defined there and does not use the CLI definition.
+
+I made no changes. This was a read-only search; no checks were run.

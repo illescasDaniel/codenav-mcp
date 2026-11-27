@@ -1,0 +1,9 @@
+Two module-level functions in `src/srxy/adapters/inbound/cli/cli.py` are unused:
+
+1. **`render_results`**, defined at `cli.py:598`. The only match for this name in `src`, `tests`, `scripts` and `examples` is its own `def` line. I also searched all file types in the repo (excluding `.venv` and `.git`) and found no other mention, so no string-based lookup such as a `monkeypatch` target either.
+
+2. **`normalize_max_file_size`**, defined at `cli.py:81`. Within `cli.py` it has no call sites. `src/srxy/application/search_runner.py:73` defines a separate function with the same name, and `search_runner.py:115` calls that one. `cli.py` does not import it, and no test or script imports it from `cli`.
+
+I checked every other module-level function in the file by counting word-boundary references across the repo. Each has at least one use outside its definition. The lowest counts were `resolve_show_progress` (`cli.py:790`), `_args_want_ocr` (`cli.py:715`), `_args_want_semantic_text` (`cli.py:728`), `_args_want_semantic_image` (`cli.py:734`), `_configure_stdio_utf8` (`cli.py:885`) and `_validate_ignore_args` (`cli.py:897`). These are all called from inside `cli.py`, so they are used, though a caller being used is not proof the caller is needed.
+
+No files were changed, and no checks were run because this was a read-only task.

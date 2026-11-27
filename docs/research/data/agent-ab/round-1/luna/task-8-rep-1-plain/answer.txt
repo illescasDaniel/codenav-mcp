@@ -1,0 +1,5 @@
+Renamed `FileSearchResult.lines` to `line_matches` across the model, application code, adapters, and tests. Updated the generated public API reference in [api-reference.md](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-plain.2uwLMD/docs/api-reference.md:79).
+
+The CLI JSON and worker protocol still use the `"lines"` key; their serializers and parser retain that wire format ([cli.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-plain.2uwLMD/src/srxy/adapters/inbound/cli/cli.py:51), [search_worker.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-plain.2uwLMD/src/srxy/adapters/outbound/worker/search_worker.py:87)).
+
+Checks: `uv run --no-sync ty check` passed. `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed: 1170 passed, 7 skipped; pytest reported 5 configuration warnings about the unknown `qt_api` option.

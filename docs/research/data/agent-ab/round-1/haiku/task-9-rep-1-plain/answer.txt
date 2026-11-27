@@ -1,0 +1,18 @@
+I deleted the unused copy in `src/srxy/adapters/inbound/cli/cli.py`. The copy in `src/srxy/application/search_runner.py` is the one in use, so I kept it.
+
+**Which copy is used**
+- `src/srxy/application/search_runner.py:115` calls `normalize_max_file_size(args.max_file_size)` inside `execute_search`. That is the only call site in the repo.
+- The copy at `src/srxy/adapters/inbound/cli/cli.py:81` had no callers. Its body was identical to the other copy.
+
+**Nothing depended on the deleted copy**
+- `git grep normalize_max_file_size` finds only the `search_runner.py` definition and its call site after the change.
+- No test or module imports the name from `cli.py`. The `cli.py` imports in `tests/` and `src/srxy/__main__.py` pull in `main`, `build_parser`, `should_use_tui`, `should_use_gui`, and similar names, not this function.
+
+**Change**
+- `src/srxy/adapters/inbound/cli/cli.py`: removed the `normalize_max_file_size` function (previously lines 81–84) and its trailing blank line. The two blank lines before `_terminal_size` remain.
+
+**Checks**
+- `uv run --no-sync ty check`: "All checks passed!"
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped, 5 warnings. The skips are platform-specific (Windows-only and macOS-only tests).
+
+I did not commit, and I did not use git stash or `rm`.

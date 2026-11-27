@@ -1,0 +1,3 @@
+Renamed `_Segment.matches` to `matches_name` and updated its callers in [ignore_rules.py](~/.local/state/srxy-ab/checkouts/luna-task-12-rep-2-plain.LHGkfv/src/srxy/domain/ignore_rules.py:59) and [test_ignore_rules_fast_paths.py](~/.local/state/srxy-ab/checkouts/luna-task-12-rep-2-plain.LHGkfv/tests/unit/test_ignore_rules_fast_paths.py:40). Other `matches` methods were left unchanged.
+
+Checks passed: `ty check`; tests reported **1170 passed, 7 skipped**. Pytest emitted five `qt_api` config warnings and a shutdown `ResourceWarning`.

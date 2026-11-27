@@ -1,0 +1,13 @@
+The `FileSearchResult.lines` field is now `line_matches` across the source, tests, examples, scripts and docs. `ty check` passes and the unit and CLI suite passes (1170 passed, 7 skipped). Nothing was committed and no stash was used.
+
+- **Field and constructor:** `src/srxy/domain/models.py:71` now declares `line_matches`.
+- **Call sites:** the rename also updated the uses in `src/srxy/application/search_formatting.py`, `src/srxy/application/use_cases/search_files.py`, `src/srxy/adapters/inbound/cli/cli.py`, `src/srxy/adapters/inbound/gui/` and `src/srxy/adapters/inbound/tui/app.py`.
+- **Wire format kept:** `src/srxy/adapters/outbound/worker/search_worker.py:87` still writes `"lines"`, and `:105` still reads `data.get("lines", [])` while assigning to `line_matches=`. The CLI JSON key at `src/srxy/adapters/inbound/cli/cli.py:51` is still `"lines"`.
+- **Optional sites:** the tool left 12 sites unchanged by default, and I applied them too. They included keyword `lines=[...]` constructor calls in `tests/gui/test_gui_controller.py`, the `scripts/docs/export_*_screenshot.sh` heredocs, `examples/playground.py` (excluded from ty), and `docs/python-api.md`. Leaving them would have broken at runtime.
+- **Generated doc:** `docs/api-reference.md` is generated and a unit test compares it to the live API. I regenerated it with `scripts/docs/export_public_api.py` rather than editing it by hand. That changed 3 lines, which all show the field name.
+
+Checks run:
+- `uv run --no-sync ty check`: passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. The first run had one failure, the stale API reference, which the regeneration fixed.
+
+Uncertainty: I did not run `tests/gui` or `tests/tui`, which are outside the required commands. The GUI and TUI tests were renamed too, so they are the most likely place for a missed rename to surface.

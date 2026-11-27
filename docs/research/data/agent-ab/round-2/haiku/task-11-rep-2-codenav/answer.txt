@@ -1,0 +1,19 @@
+Four module-level functions in `src/srxy/adapters/inbound/cli/cli.py` have no callers anywhere in the repo. I changed nothing.
+
+**Unused (no callers in src, tests, scripts, or examples):**
+
+1. **`normalize_max_file_size`**, `cli.py:81`. The only matches are the same-named function in `src/srxy/application/search_runner.py:73` and its call at `search_runner.py:115`. This copy in `cli.py` is a duplicate, and `cli.py` never calls it or lists it in `__all__`.
+2. **`render_results`**, `cli.py:598`. Zero references anywhere in the repo, beyond its definition.
+3. **`sync_options_to_args`**, `cli.py:646`. The only other mention is `cli.py:663`, which is inside this function's own body. It imports `sync_options_to_args` from `application/search_options.py`, a different function that `search_options.py:150` calls.
+4. **`execute_search`**, `cli.py:749`. The only other mention is `cli.py:757`, inside this wrapper's body. Tests and `scripts/docs/export_tui_screenshot.sh:131` patch `srxy.application.search_runner.execute_search`, not the `cli.py` copy.
+
+**Flagged by the `unused` tool but excluded, because tests use them:**
+
+- **`render_progress`**, `cli.py:249`. Used at `tests/cli/test_cli.py:1299`.
+- **`resolve_search_modes`**, `cli.py:586`. Used at `tests/cli/test_cli.py:344` and `:357`, imported from `cli.py` on line 25.
+
+The other module-level functions are all used. Examples are `main` (via `src/srxy/__main__.py:9`) and `resolve_file_query` (called at `cli.py:783`).
+
+**Caveats:** The check is static. It would miss `getattr`-style lookups, and downstream users of the published package. The four unused functions are not in `__all__`, so they are not part of the module's exported API.
+
+I ran only read-only searches (outline, the `unused` tool, grep), so no `ty check` or pytest run applies here, and the working tree is unchanged.

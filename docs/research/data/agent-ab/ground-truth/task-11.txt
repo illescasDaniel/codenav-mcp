@@ -1,0 +1,9 @@
+# Task 11 expected answer: grep over src tests scripts examples packaging (py, sh, qml, toml), every hit checked by hand
+src/srxy/adapters/inbound/cli/cli.py:81 normalize_max_file_size (the live copy is application/search_runner.py:73, called at :115)
+src/srxy/adapters/inbound/cli/cli.py:598 render_results (0 references)
+src/srxy/adapters/inbound/cli/cli.py:646 sync_options_to_args (the live one is application/search_options.py; cli.py:663 imports that one as _sync)
+src/srxy/adapters/inbound/cli/cli.py:749 execute_search (a wrapper; every test and script patches or calls srxy.application.search_runner.execute_search, never the cli copy)
+# Correction 2026-11-27: execute_search was missing from the first version of this file (3 functions). Runs in round 2
+# named it. Checked independently with jedi (get_references, scope=project, on every top-level function of
+# cli.py): exactly these 4 have 0 references; every other function has at least 1.
+# Not dead: render_progress (tests/cli/test_cli.py, __all__), run_preflight and run_plain (patched by name in tests, __all__), resolve_show_progress and the _args_want_* helpers (called inside cli.py)

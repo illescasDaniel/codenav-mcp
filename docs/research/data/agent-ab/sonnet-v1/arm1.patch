@@ -1,0 +1,189 @@
+diff --git a/docs/api-reference.md b/docs/api-reference.md
+index 7bd8975..8069bff 100644
+--- a/docs/api-reference.md
++++ b/docs/api-reference.md
+@@ -162,16 +162,16 @@ Fields:
+ 
+ Dataclass (`srxy.domain.models.SkippedFile`)
+ 
+-SkippedFile(path: 'Path', size_bytes: 'int', reason: 'str' = 'oversized')
++SkippedFile(path: 'Path', size_bytes: 'int | None', reason: 'str' = 'oversized')
+ 
+ ```python
+-SkippedFile(path: Path, size_bytes: int, reason: str = 'oversized')
++SkippedFile(path: Path, size_bytes: int | None, reason: str = 'oversized')
+ ```
+ 
+ Fields:
+ 
+ - `path`: `Path`
+-- `size_bytes`: `int`
++- `size_bytes`: `int | None`
+ - `reason`: `str`
+ 
+ ## `magic_file_search`
+diff --git a/src/srxy/adapters/inbound/gui/controller.py b/src/srxy/adapters/inbound/gui/controller.py
+index 9ca8da4..4fb6f0f 100644
+--- a/src/srxy/adapters/inbound/gui/controller.py
++++ b/src/srxy/adapters/inbound/gui/controller.py
+@@ -2271,7 +2271,7 @@ class SearchController(QObject):
+ 		if self._preview_path is None:
+ 			return
+ 		try:
+-			self._desktop.reveal_path(self._preview_path)
++			self._desktop.reveal_in_file_manager(self._preview_path)
+ 		except OSError as error:
+ 			self.errorOccurred.emit(str(error))
+ 
+@@ -2291,7 +2291,7 @@ class SearchController(QObject):
+ 		if result is None:
+ 			return
+ 		try:
+-			self._desktop.reveal_path(result.path)
++			self._desktop.reveal_in_file_manager(result.path)
+ 		except OSError as error:
+ 			self.errorOccurred.emit(str(error))
+ 
+diff --git a/src/srxy/adapters/inbound/gui/desktop.py b/src/srxy/adapters/inbound/gui/desktop.py
+index 7586b64..032d42e 100644
+--- a/src/srxy/adapters/inbound/gui/desktop.py
++++ b/src/srxy/adapters/inbound/gui/desktop.py
+@@ -15,7 +15,7 @@ class QtDesktopAdapter:
+ 	def open_path(self, path: Path):
+ 		open_path(path)
+ 
+-	def reveal_path(self, path: Path):
++	def reveal_in_file_manager(self, path: Path):
+ 		reveal_path(path)
+ 
+ 	def copy_text(self, text: str):
+diff --git a/src/srxy/adapters/inbound/tui/desktop.py b/src/srxy/adapters/inbound/tui/desktop.py
+index d6023ed..9c5286b 100644
+--- a/src/srxy/adapters/inbound/tui/desktop.py
++++ b/src/srxy/adapters/inbound/tui/desktop.py
+@@ -20,7 +20,7 @@ class TextualDesktopAdapter:
+ 	def open_path(self, path: Path):
+ 		open_path(path)
+ 
+-	def reveal_path(self, path: Path):
++	def reveal_in_file_manager(self, path: Path):
+ 		reveal_path(path)
+ 
+ 	def copy_text(self, text: str):
+diff --git a/src/srxy/adapters/outbound/os/desktop.py b/src/srxy/adapters/outbound/os/desktop.py
+index 52bf658..c64ca32 100644
+--- a/src/srxy/adapters/outbound/os/desktop.py
++++ b/src/srxy/adapters/outbound/os/desktop.py
+@@ -96,7 +96,7 @@ class OsDesktopAdapter:
+ 	def open_path(self, path: Path):
+ 		open_path(path)
+ 
+-	def reveal_path(self, path: Path):
++	def reveal_in_file_manager(self, path: Path):
+ 		reveal_path(path)
+ 
+ 	def copy_text(self, text: str):
+diff --git a/src/srxy/application/skipped_file_warnings.py b/src/srxy/application/skipped_file_warnings.py
+index ef9c136..204ce7b 100644
+--- a/src/srxy/application/skipped_file_warnings.py
++++ b/src/srxy/application/skipped_file_warnings.py
+@@ -6,6 +6,10 @@ from srxy.application.search_defaults import suggest_max_file_size
+ from srxy.domain.models import SkippedFile
+ 
+ 
++def _size_label(size_bytes: int | None) -> str:
++	return f"{size_bytes:,} bytes" if size_bytes is not None else "unknown size"
++
++
+ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None) -> str:
+ 	if skipped.reason == "ocr_too_large":
+ 		from srxy.adapters.outbound.ocr.ocr_text import ocr_max_file_size
+@@ -14,7 +18,7 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 		limit_label = f"{limit:,}" if limit is not None else "limit"
+ 		return (
+ 			f"warning: skipped OCR in {skipped.path.as_posix()} "
+-			f"({skipped.size_bytes:,} bytes > --max-ocr-file-size {limit_label})\n"
++			f"({_size_label(skipped.size_bytes)} > --max-ocr-file-size {limit_label})\n"
+ 			f"  hint: increase --max-ocr-file-size or unset SRXY_OCR_MAX_FILE_SIZE"
+ 		)
+ 	if skipped.reason == "ocr_timeout":
+@@ -29,7 +33,7 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 		limit_label = f"{limit:,}" if limit is not None else "limit"
+ 		return (
+ 			f"warning: skipped transcription in {skipped.path.as_posix()} "
+-			f"({skipped.size_bytes:,} bytes > --max-transcribe-file-size {limit_label})\n"
++			f"({_size_label(skipped.size_bytes)} > --max-transcribe-file-size {limit_label})\n"
+ 			f"  hint: increase --max-transcribe-file-size or unset SRXY_TRANSCRIBE_MAX_FILE_SIZE"
+ 		)
+ 	if skipped.reason == "transcribe_no_speech":
+@@ -43,11 +47,17 @@ def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None)
+ 			kind = "path"
+ 		return f"warning: skipped {kind} {skipped.path.as_posix()} (access denied)"
+ 
+-	suggested = suggest_max_file_size(skipped.size_bytes)
+ 	limit_label = f"{max_file_size:,}" if max_file_size is not None else "limit"
++	if skipped.size_bytes is None:
++		return (
++			f"warning: skipped content search in {skipped.path.as_posix()} "
++			f"({_size_label(None)} > --max-file-size {limit_label})\n"
++			f"  hint: rerun with a larger --max-file-size"
++		)
++	suggested = suggest_max_file_size(skipped.size_bytes)
+ 	return (
+ 		f"warning: skipped content search in {skipped.path.as_posix()} "
+-		f"({skipped.size_bytes:,} bytes > --max-file-size {limit_label})\n"
++		f"({_size_label(skipped.size_bytes)} > --max-file-size {limit_label})\n"
+ 		f"  hint: rerun with --max-file-size {suggested}"
+ 	)
+ 
+diff --git a/src/srxy/domain/models.py b/src/srxy/domain/models.py
+index e487d9a..97391dd 100644
+--- a/src/srxy/domain/models.py
++++ b/src/srxy/domain/models.py
+@@ -59,7 +59,7 @@ class LineMatch:
+ @dataclass(frozen=True)
+ class SkippedFile:
+ 	path: Path
+-	size_bytes: int
++	size_bytes: int | None
+ 	reason: str = "oversized"
+ 
+ 
+diff --git a/src/srxy/ports/outbound/desktop.py b/src/srxy/ports/outbound/desktop.py
+index 0bc5d11..51efb89 100644
+--- a/src/srxy/ports/outbound/desktop.py
++++ b/src/srxy/ports/outbound/desktop.py
+@@ -9,6 +9,6 @@ from typing import Protocol
+ class DesktopPort(Protocol):
+ 	def open_path(self, path: Path) -> None: ...
+ 
+-	def reveal_path(self, path: Path) -> None: ...
++	def reveal_in_file_manager(self, path: Path) -> None: ...
+ 
+ 	def copy_text(self, text: str) -> None: ...
+diff --git a/tests/gui/test_gui_controller.py b/tests/gui/test_gui_controller.py
+index dc08911..44c015c 100644
+--- a/tests/gui/test_gui_controller.py
++++ b/tests/gui/test_gui_controller.py
+@@ -1784,7 +1784,7 @@ def test_given_selected_result_when_opening_folder_then_desktop_reveal_is_called
+ 	controller.openResultFolder(0)
+ 
+ 	# then
+-	desktop.reveal_path.assert_called_once_with(path)
++	desktop.reveal_in_file_manager.assert_called_once_with(path)
+ 
+ 
+ def test_given_settings_when_opening_then_snapshot_is_available(
+diff --git a/tests/unit/test_desktop_adapters.py b/tests/unit/test_desktop_adapters.py
+index 0698f78..43667a4 100644
+--- a/tests/unit/test_desktop_adapters.py
++++ b/tests/unit/test_desktop_adapters.py
+@@ -33,7 +33,7 @@ def test_given_os_adapter_when_revealing_path_then_delegates_to_reveal_path(tmp_
+ 	target.write_text("hi", encoding="utf-8")
+ 	adapter = OsDesktopAdapter()
+ 	with patch("srxy.adapters.outbound.os.desktop.reveal_path") as reveal_path:
+-		adapter.reveal_path(target)
++		adapter.reveal_in_file_manager(target)
+ 	reveal_path.assert_called_once_with(target)
+ 
+ 

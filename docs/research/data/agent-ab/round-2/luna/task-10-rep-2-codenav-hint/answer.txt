@@ -1,0 +1,7 @@
+Renamed `Matcher.score` to `Matcher.similarity` in the base class, all seven overrides, and its code and test call sites. Unrelated result scores, `score=` arguments, and the image similarity scorer remain unchanged.
+
+- Base method: [base.py](~/.local/state/srxy-ab/checkouts/luna-task-10-rep-2-codenav-hint.pHttA2/src/srxy/application/matching/base.py:8)
+- Overrides: `matching/{composite,contains,exact,fuzzy,partial,phonetic,semantic}.py`
+- Calls and tests: `search_files.py`, `search_objects.py`, `utils.py`, and matcher/search unit tests
+
+**Checks:** `ty check` passed; unit and CLI tests passed (1170 passed, 7 skipped). `git diff --check` passed. The test run reported five existing `qt_api` configuration warnings.

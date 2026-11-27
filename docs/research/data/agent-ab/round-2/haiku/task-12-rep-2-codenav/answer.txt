@@ -1,0 +1,15 @@
+I renamed `_Segment.matches` to `matches_name` and updated its four references. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped, all platform-specific).
+
+The changes:
+- `src/srxy/domain/ignore_rules.py:59`: the method definition.
+- `src/srxy/domain/ignore_rules.py:148`: call in the anchored/unanchored match path, now `self.segments[0].matches_name(parts[-1])`.
+- `src/srxy/domain/ignore_rules.py:173`: call inside `walk`, now `segment.matches_name(parts[part_index])`.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: call in the fast-path test.
+
+The other `matches` methods and calls in that file are unchanged, including `rule.matches(parts)` at lines 281, 286 and 289 and `pattern.matches((name,), False)` in the test at line 66.
+
+Things I left alone:
+- A docstring at `src/srxy/domain/ignore_rules.py:142` still says "Like `matches`…". It is prose, not a call, so I didn't change it. Say if you want it updated.
+- `docs/cli.md` and `specs/ignore-rules/PLAN.md` mention `matches` in text only. I didn't touch them.
+
+The change is uncommitted in the working tree.

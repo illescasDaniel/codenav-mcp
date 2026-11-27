@@ -1,0 +1,11 @@
+Three production call sites under `src/` invoke `FileSearchPort.execute`:
+
+1. **`src/srxy/application/search_session.py:117`**: `self._file_search.execute(args, ...)` inside `SearchSession`. The constructor at `search_session.py:70-71` takes `file_search: FileSearchPort` and stores it as `self._file_search`, so this is a direct port call.
+2. **`src/srxy/adapters/inbound/cli/cli.py:817`**: `services.file_search.execute(...)`. `services` comes from `build_app_services()` at `cli.py:788`. `AppServices.file_search` is annotated `FileSearchPort` at `src/srxy/bootstrap.py:28`, and `build_app_services` sets it to a `FileSearchService()` at `bootstrap.py:52`.
+3. **`src/srxy/adapters/outbound/worker/search_worker.py:223`**: `services.file_search.execute(...)`. `services` comes from `build_worker_services()` at `search_worker.py:183`. That function returns `build_app_services()` (`bootstrap.py:67-69`), so the field is the same `FileSearchPort`-typed value.
+
+**How I identified them:** I grepped `src/` for `FileSearchPort` and found its definition in `src/srxy/ports/inbound/file_search.py:13` and its uses in `search_session.py`, `bootstrap.py`, and the port module. Then I grepped for `.execute(` and matched the receivers to the port by tracing their types through the constructor and the `AppServices` dataclass. I read the surrounding code to confirm each receiver's type.
+
+**Excluded:** `FileSearchService.execute` in `application/search_runner.py` is the implementation, not a call. The `connection.execute(...)` calls in `cache.py` are SQLite. `magic_file_search(...)` at `search_runner.py:104` and `_execute_file_search` in `use_cases/search_files.py` are direct function calls that bypass the port.
+
+**Checks:** I made no edits and ran no tests, since this was a read-only question. Static typing (Protocol annotations) is the only basis for the port identification. I did not run `ty check`, so a runtime-only binding could differ from what the annotations show, though I saw none.

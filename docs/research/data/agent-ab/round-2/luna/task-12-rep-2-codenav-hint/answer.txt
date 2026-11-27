@@ -1,0 +1,3 @@
+Renamed `_Segment.matches` to `matches_name` and updated its production call sites and test in [ignore_rules.py](~/.local/state/srxy-ab/checkouts/luna-task-12-rep-2-codenav-hint.Tv2e4y/src/srxy/domain/ignore_rules.py:59) and [test_ignore_rules_fast_paths.py](~/.local/state/srxy-ab/checkouts/luna-task-12-rep-2-codenav-hint.Tv2e4y/tests/unit/test_ignore_rules_fast_paths.py:40). The other `matches` methods in `ignore_rules.py` are unchanged.
+
+Checks passed: `uv run --no-sync ty check`; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` (1170 passed, 7 skipped). Pytest reported 5 `qt_api` configuration warnings and a resource warning at shutdown.

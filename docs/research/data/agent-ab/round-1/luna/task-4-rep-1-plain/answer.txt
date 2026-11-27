@@ -1,0 +1,3 @@
+Added the required keyword-only `case_sensitive: bool` parameter to [file_search.py](~/.local/state/srxy-ab/checkouts/luna-task-4-rep-1-plain.SURrEe/src/srxy/ports/inbound/file_search.py:16) and its implementation in [search_runner.py](~/.local/state/srxy-ab/checkouts/luna-task-4-rep-1-plain.SURrEe/src/srxy/application/search_runner.py:143). Existing production callers pass `case_sensitive=False` to preserve current behavior. Updated the test doubles to match the new signature.
+
+Ran the API docs generator; it made no documentation changes because the port is not included in the generated public API. Both requested checks passed: `ty check`, and `pytest` with **1170 passed, 7 skipped**. Pytest reported five existing `qt_api` configuration warnings. No commit was made.

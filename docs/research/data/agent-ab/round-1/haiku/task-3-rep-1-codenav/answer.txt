@@ -1,0 +1,31 @@
+`FileSearchPort.execute` is now `FileSearchPort.run`, along with its implementation, callers, and test doubles. `ty check` passes and `tests/unit tests/cli` gives 1170 passed, 7 skipped. Nothing was committed.
+
+**Port and implementation**
+- `src/srxy/ports/inbound/file_search.py:16`: the protocol method is now `run`.
+- `src/srxy/application/search_runner.py:143`: `FileSearchService.run`. This is the port's only implementation.
+
+**Callers**
+- `src/srxy/adapters/inbound/cli/cli.py:817`
+- `src/srxy/adapters/outbound/worker/search_worker.py:223`
+- `src/srxy/application/search_session.py:117`
+
+**Tests**
+- `tests/unit/test_search_session.py:37` (`_FakeFileSearch.run`) and `:148`.
+- `tests/unit/test_search_worker.py`: four `monkeypatch` target strings.
+- `tests/unit/test_search_worker_progressive.py`: one `monkeypatch` target string and one mock `run` attribute.
+- `tests/unit/test_search_runner_adapter.py:33,40`: the fake's `run` attribute.
+- `tests/cli/test_cli_ignore.py:20,23` and `tests/cli/test_cli_interrupt.py:48,95`: mocked `file_search.run` attributes and `Mock(run=...)` keywords.
+
+I applied the optional mock sites as well. Leaving them would have made tests stub a method the code no longer calls.
+
+**Left alone on purpose**
+- Other `execute` methods and functions: `execute_search` in `cli.py` and `search_runner.py`, `_execute_file_search`, `cache.py` `connection.execute`, and a few unrelated helpers.
+- A local variable named `execute` in `test_search_worker.py:97` and `:111`. It is only a local name, so I didn't change it.
+
+**Generated docs**
+- `docs/api-reference.md` is generated from `srxy.__all__`, and the port is not exported there. It needed no regeneration.
+- `docs/architecture.md:40` names only the class `FileSearchPort`, not the method, so it is unchanged.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. The skips are platform-specific (Windows/macOS only).

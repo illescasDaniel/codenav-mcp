@@ -48,12 +48,30 @@ Python 3.11 or later is required. ty installs with codenav, and a workspace's
 own ty takes priority when present. Python navigation and writes cover
 `.py` and `.pyi` files. Positions use 1-based lines and UTF-16 columns.
 
+## How it is tested
+
+A refactoring tool must not break code quietly, so codenav is tested in several ways:
+
+- **About 1,300 tests:** unit tests, plus about 350 integration tests that run the tools against a real ty server.
+- **Property tests:** about 190, with Hypothesis and generated Python (hypothesmith), including a state machine for
+  preview, apply and undo, and CrossHair symbolic checks.
+- **A refactor fuzzer:** random renames, moves and signature changes on real projects (srxy, click, tomlkit), each
+  checked against the project's own tests and ty. 187 refactors so far, none silently broke code.
+- **Differential checks:** references compared with jedi and renames with rope.
+- **Mutation testing** (mutmut) of the modules where a wrong edit would go unnoticed, to find tests that don't check
+  enough.
+- **Agent pilots:** small models (Claude Haiku, GPT-6 Luna) doing real tasks with and without codenav, graded by hand.
+
+The results and their data are in [Research](docs/research/README.md); how to run each check is in
+[Hardening checks](docs/hardening.md).
+
 ## Documentation
 
 - [Tool reference](docs/tools.md)
 - [Migrating from 1.x](CHANGELOG.md#migrating-from-1x)
 - [Host setup, workspace selection and environment variables](docs/configuration.md)
 - [Local setup and tests](docs/development.md)
+- [Research: measured results and data](docs/research/README.md)
 - [Documentation index](docs/INDEX.md)
 
 ## License

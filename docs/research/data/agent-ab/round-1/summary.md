@@ -1,0 +1,26 @@
+| runner | run | codenav build | s | tokens in | out | calls | by kind | failed | codenav calls | ty | tests | diff |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| haiku | task-1-rep-1-codenav | dd9da03 dirty=0 | 9 | 42416 | 1521 | 5 | Grep 1, Read 3, codenav 1 | 0 | lookup | 0 | 1170 passed, 7 skipped, 5 warnings | no changes |
+| haiku | task-1-rep-1-plain | dd9da03 dirty=0 | 12 | 67395 | 2330 | 7 | Grep 4, Read 3 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | no changes |
+| haiku | task-3-rep-1-codenav | dd9da03 dirty=0 | 42 | 281915 | 4930 | 15 | Grep 5, Read 1, codenav 3, shell-search/edit 6 | 0 | lookup rename edits | 0 | 1170 passed, 7 skipped, 5 warnings | 11 files changed, 19 insertions(+), 19 deletions(-) |
+| haiku | task-3-rep-1-plain | dd9da03 dirty=0 | 47 | 270998 | 7561 | 15 | Grep 7, Read 3, shell-search/edit 5 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 11 files changed, 26 insertions(+), 26 deletions(-) |
+| haiku | task-4-rep-1-codenav | dd9da03 dirty=0 | 38 | 207498 | 4951 | 13 | Edit 2, Read 1, codenav 3, shell-other 1, shell-search/edit 6 | 0 | lookup change_signature edits | 0 | 1170 passed, 7 skipped, 5 warnings | 7 files changed, 10 insertions(+), 2 deletions(-) |
+| haiku | task-4-rep-1-plain | dd9da03 dirty=0 | 50 | 227097 | 8289 | 18 | Edit 9, Grep 1, shell-other 1, shell-search/edit 7 | 1 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 7 files changed, 12 insertions(+), 3 deletions(-) |
+| haiku | task-5-rep-1-codenav | dd9da03 dirty=0 | 75 | 541807 | 8864 | 25 | Edit 11, Grep 3, Read 5, shell-search/edit 6 | 2 | - | 0 | 1171 passed, 7 skipped, 5 warnings | 4 files changed, 34 insertions(+), 7 deletions(-) |
+| haiku | task-5-rep-1-plain | dd9da03 dirty=0 | 62 | 292455 | 7018 | 16 | Edit 5, Grep 1, Read 3, Write 1, shell-other 1, shell-search/edit 5 | 3 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 3 files changed, 17 insertions(+), 7 deletions(-) |
+| haiku | task-8-rep-1-codenav | dd9da03 dirty=0 | 88 | 216126 | 4182 | 11 | Grep 1, codenav 3, shell-search/edit 7 | 0 | lookup rename edits | 0 | 1170 passed, 7 skipped, 5 warnings | 35 files changed, 195 insertions(+), 195 deletions(-) |
+| haiku | task-8-rep-1-plain | dd9da03 dirty=0 | 87 | 452336 | 11281 | 21 | Grep 14, shell-search/edit 7 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 37 files changed, 203 insertions(+), 203 deletions(-) |
+| haiku | task-9-rep-1-codenav | dd9da03 dirty=0 | 22 | 116262 | 2160 | 6 | Edit 1, Grep 1, Read 2, codenav 1, shell-search/edit 1 | 0 | impact | 0 | 1170 passed, 7 skipped, 5 warnings | 1 file changed, 6 deletions(-) |
+| haiku | task-9-rep-1-plain | dd9da03 dirty=0 | 23 | 82853 | 2333 | 6 | Edit 1, Grep 1, Read 2, shell-search/edit 2 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 1 file changed, 6 deletions(-) |
+| luna | task-1-rep-1-codenav | dd9da03 dirty=0 | 11 | 40298 | 398 | 1 | shell-search/edit 1 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | no changes |
+| luna | task-1-rep-1-plain | dd9da03 dirty=0 | 18 | 61387 | 628 | 2 | shell-search/edit 2 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | no changes |
+| luna | task-3-rep-1-codenav | dd9da03 dirty=0 | 74 | 430027 | 2576 | 12 | shell-other 3, shell-search/edit 9 | 1 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 11 files changed, 19 insertions(+), 19 deletions(-) |
+| luna | task-3-rep-1-plain | dd9da03 dirty=0 | 85 | 449070 | 3298 | 12 | shell-other 3, shell-search/edit 9 | 2 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 11 files changed, 19 insertions(+), 19 deletions(-) |
+| luna | task-4-rep-1-codenav | dd9da03 dirty=0 | 71 | 305591 | 3059 | 9 | apply_patch 2, shell-other 1, shell-search/edit 6 | 2 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 7 files changed, 12 insertions(+), 3 deletions(-) |
+| luna | task-4-rep-1-plain | dd9da03 dirty=0 | 82 | 456522 | 3042 | 9 | apply_patch 2, shell-other 2, shell-search/edit 5 | 2 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 7 files changed, 11 insertions(+), 3 deletions(-) |
+| luna | task-5-rep-1-codenav | dd9da03 dirty=0 | 66 | 394577 | 2414 | 11 | apply_patch 2, shell-other 5, shell-search/edit 4 | 1 | - | 0 | 1173 passed, 7 skipped, 5 warnings | 4 files changed, 24 insertions(+), 7 deletions(-) |
+| luna | task-5-rep-1-plain | dd9da03 dirty=0 | 90 | 505510 | 3165 | 12 | apply_patch 2, shell-other 5, shell-search/edit 5 | 1 | - | 0 | 1173 passed, 7 skipped, 5 warnings | 4 files changed, 45 insertions(+), 7 deletions(-) |
+| luna | task-8-rep-1-codenav | dd9da03 dirty=0 | 122 | 908914 | 5486 | 20 | shell-other 7, shell-search/edit 13 | 4 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 33 files changed, 193 insertions(+), 193 deletions(-) |
+| luna | task-8-rep-1-plain | dd9da03 dirty=0 | 93 | 610461 | 3360 | 12 | shell-other 3, shell-search/edit 9 | 3 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 34 files changed, 194 insertions(+), 194 deletions(-) |
+| luna | task-9-rep-1-codenav | dd9da03 dirty=0 | 44 | 157997 | 1490 | 10 | apply_patch 1, shell-other 3, shell-search/edit 6 | 1 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 1 file changed, 6 deletions(-) |
+| luna | task-9-rep-1-plain | dd9da03 dirty=0 | 44 | 195855 | 1361 | 6 | apply_patch 1, shell-other 2, shell-search/edit 3 | 0 | - | 0 | 1170 passed, 7 skipped, 5 warnings | 1 file changed, 6 deletions(-) |

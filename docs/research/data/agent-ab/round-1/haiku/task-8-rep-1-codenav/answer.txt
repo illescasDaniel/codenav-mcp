@@ -1,0 +1,20 @@
+`FileSearchResult.lines` is now `line_matches` across the code and tests. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged. I did not commit.
+
+**What changed**
+- The field is renamed in `src/srxy/domain/models.py:70` and at every attribute and keyword use. That covers 32 files under `src/`, `tests/`, `examples/playground.py` and `docs/python-api.md`, applied with the codenav rename.
+- Two keyword constructor calls in `tests/gui/test_gui_controller.py` (`lines=` passed to `FileSearchResult`) were optional sites. I applied them, since they would have broken.
+- `docs/api-reference.md` was regenerated with `scripts/docs/export_public_api.py`, because a unit test compares it to the generator output. Its diff only renames the `lines` field to `line_matches`.
+
+**Wire format (unchanged)**
+- `src/srxy/adapters/outbound/worker/search_worker.py:103` still reads `data.get("lines", [])` and fills the new `line_matches=` field.
+- The serializer still writes `"lines"` as the JSON key. Only the `result.lines` attribute read on the right of that line changed.
+- `src/srxy/adapters/inbound/cli/cli.py` only changed its attribute read. Its JSON key is untouched.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped, 0 failed. The first run had one failure, the stale API-reference test. It passes after the regeneration.
+- A final grep found no remaining `.lines` attribute use on a `FileSearchResult` in `src/`, `tests/`, `scripts/` or `examples/`.
+
+**Uncertainty**
+- The unchanged strings, comments and non-Python files were not touched. They were mostly plain words or other symbols, such as `size.lines` in `cli.py:95`. The rename output lists 21 non-Python files and 24 strings that mention `lines`. I did not review all of them.
+- I did not run the tests in `tests/gui`, `tests/tui` or `tests/integration`, since they are outside the requested suite. The rename touched several files there.

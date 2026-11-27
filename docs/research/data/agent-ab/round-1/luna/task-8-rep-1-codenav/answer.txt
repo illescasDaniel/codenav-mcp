@@ -1,0 +1,8 @@
+Renamed `FileSearchResult.lines` to `line_matches` throughout the implementation and tests, and updated the generated API reference. The worker protocol and CLI JSON still use the `"lines"` key.
+
+Checks:
+
+- `uv run --no-sync ty check` — passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` — 1170 passed, 7 skipped. Five pytest configuration warnings reported an unknown `qt_api` option.
+
+Key references: [models.py:67](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav.0szsbU/src/srxy/domain/models.py:67), [cli.py:51](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav.0szsbU/src/srxy/adapters/inbound/cli/cli.py:51), [search_worker.py:87](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav.0szsbU/src/srxy/adapters/outbound/worker/search_worker.py:87).

@@ -1,0 +1,51 @@
+diff --git a/src/srxy/domain/ignore_rules.py b/src/srxy/domain/ignore_rules.py
+index a5fd635..37cbff5 100644
+--- a/src/srxy/domain/ignore_rules.py
++++ b/src/srxy/domain/ignore_rules.py
+@@ -56,7 +56,7 @@ class _Segment:
+ 	min_len: int = 0  # fewest characters any match has
+ 	star_only: bool = False  # only literals and `*`: prefix / runs / tail decide the match fully
+ 
+-	def matches(self, name: str) -> bool:
++	def matches_name(self, name: str) -> bool:
+ 		if self.literal is not None:
+ 			return name == self.literal
+ 		if self.suffix is not None:
+@@ -139,13 +139,13 @@ class IgnorePattern:
+ 		return self.matches_normalized(tuple(normalize_part(part) for part in rel_parts), is_dir)
+ 
+ 	def matches_normalized(self, parts: tuple[str, ...], is_dir: bool) -> bool:
+-		"""Like `matches` for parts already passed through `normalize_part`."""
++		"""Like `matches_name` for parts already passed through `normalize_part`."""
+ 		if self.dir_only and not is_dir:
+ 			return False
+ 		if not parts:
+ 			return False
+ 		if not self.anchored:
+-			return self.segments[0].matches(parts[-1])
++			return self.segments[0].matches_name(parts[-1])
+ 		return _match_anchored(self.segments, parts)
+ 
+ 
+@@ -170,7 +170,7 @@ def _match_anchored(segments: tuple[_Segment, ...], parts: tuple[str, ...]) -> b
+ 				result = any(walk(seg_index + 1, start) for start in range(part_index, part_count + 1))
+ 		else:
+ 			result = (
+-				part_index < part_count and segment.matches(parts[part_index]) and walk(seg_index + 1, part_index + 1)
++				part_index < part_count and segment.matches_name(parts[part_index]) and walk(seg_index + 1, part_index + 1)
+ 			)
+ 		memo[key] = result
+ 		return result
+diff --git a/tests/unit/test_ignore_rules_fast_paths.py b/tests/unit/test_ignore_rules_fast_paths.py
+index 9b1e6e7..9590dec 100644
+--- a/tests/unit/test_ignore_rules_fast_paths.py
++++ b/tests/unit/test_ignore_rules_fast_paths.py
+@@ -37,7 +37,7 @@ def test_given_random_generic_segments_when_matching_then_prefilter_agrees_with_
+ 		for _ in range(40):
+ 			name = _random_name(rng)
+ 			# when
+-			fast = segment.matches(name)
++			fast = segment.matches_name(name)
+ 			# then
+ 			assert fast == _wildcard_match(segment.tokens, name), (text, name)
+ 			checked += 1

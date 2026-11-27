@@ -1,0 +1,5 @@
+Renamed `FileSearchPort.execute` to `run` in the protocol, `FileSearchService`, its callers, and related test doubles and mocks. Unrelated `execute` methods remain unchanged. No generated docs exposed this internal port, so none needed updating.
+
+Key references: [file_search.py](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-codenav.JX9cWb/src/srxy/ports/inbound/file_search.py:16), [search_runner.py](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-codenav.JX9cWb/src/srxy/application/search_runner.py:143), [search_session.py](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-codenav.JX9cWb/src/srxy/application/search_session.py:117).
+
+Checks passed: `uv run --no-sync ty check`; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` (1170 passed, 7 skipped). Pytest reported five `qt_api` config warnings and a shutdown `ResourceWarning`; `git diff --check` passed.

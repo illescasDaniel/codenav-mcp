@@ -1,0 +1,5 @@
+Renamed `FileSearchResult.lines` to `line_matches` across the implementation and tests, and updated the Python API docs. The worker protocol and CLI JSON output still use the `"lines"` key.
+
+Checks: `uv run --no-sync ty check` passed. `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed: 1,170 passed, 7 skipped. Pytest reported 5 configuration warnings and a shutdown `ResourceWarning`.
+
+The field is defined in [models.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-2-plain.hsUJtm/src/srxy/domain/models.py:71); wire keys remain in [search_worker.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-2-plain.hsUJtm/src/srxy/adapters/outbound/worker/search_worker.py:87) and [cli.py](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-2-plain.hsUJtm/src/srxy/adapters/inbound/cli/cli.py:51).

@@ -1,0 +1,22 @@
+The `FileSearchResult.lines` field is now `line_matches` across the code, tests, scripts, examples and docs. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged. `ty check` passes and `tests/unit tests/cli` gives 1170 passed, 7 skipped.
+
+**What changed**
+- **Field:** `src/srxy/domain/models.py:71` is now `line_matches: list[LineMatch]`.
+- **Call sites:** the rename touched 36 files, mainly `src/srxy/application/search_formatting.py`, `src/srxy/adapters/inbound/gui/controller.py`, `src/srxy/application/use_cases/search_files.py` and `src/srxy/adapters/outbound/worker/search_worker.py`, plus the matching tests.
+- **Wire format:** the `"lines"` keys are untouched at `src/srxy/adapters/inbound/cli/cli.py:51`, `src/srxy/adapters/outbound/worker/search_worker.py:87` and `:105`. Only the attribute reads and the `FileSearchResult(...)` keyword arguments changed.
+- **Non-code references:** `examples/playground.py`, `scripts/docs/export_gui_screenshot.sh`, `scripts/docs/export_tui_screenshot.sh` and `docs/python-api.md` were updated too, since they would otherwise break against the new field name.
+- **Generated docs:** `docs/api-reference.md` was regenerated with `scripts/docs/export_public_api.py`. The first test run failed on this file until I did that.
+
+**Process note:** my first preview targeted line 70, which is `breakdown`, not `lines`. It was preview-only and nothing was written. I reran it on line 71 before applying.
+
+**Left alone on purpose**
+- `src/srxy/adapters/inbound/cli/cli.py:95` uses `size.lines`, which belongs to the terminal size object, not `FileSearchResult`.
+- The `.agents/` and `.cursor/` `spec_check.py` files have their own `lines` lists.
+- `tests/cli/test_cli.py` and `tests/unit/test_search_session.py` read the JSON `"lines"` keys and were left as they were.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped, 0 failed.
+- A repo-wide grep found no remaining `.lines` attribute access on results in `.py`, `.qml`, `.md` or `.sh` files.
+
+**Uncertainty:** the scripts and the example were not run, because they sit outside the ty config and the test suites. Their edits are straight renames. Nothing is committed.

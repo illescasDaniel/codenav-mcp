@@ -1,0 +1,3 @@
+Renamed `Matcher.score` to `similarity` in the base class, all seven matcher overrides, and its production and test callers. The image-similarity `.score()` call remains unchanged.
+
+Checks passed: `ty check`; pytest reported **1170 passed, 7 skipped**. Pytest also emitted five configuration warnings and a shutdown `ResourceWarning`. `git diff --check` passed.

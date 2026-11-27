@@ -1,0 +1,8 @@
+Renamed `FileSearchResult.lines` to `line_matches` across the code, tests, examples, and docs. The field is declared at [models.py:71](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav-hint.trEUeC/src/srxy/domain/models.py:71).
+
+The worker protocol and CLI JSON output still use the `"lines"` key ([search_worker.py:87](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav-hint.trEUeC/src/srxy/adapters/outbound/worker/search_worker.py:87), [cli.py:51](~/.local/state/srxy-ab/checkouts/luna-task-8-rep-1-codenav-hint.trEUeC/src/srxy/adapters/inbound/cli/cli.py:51)). The search for remaining old field references found none.
+
+Checks passed:
+
+- `uv run --no-sync ty check`
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` — 1170 passed, 7 skipped. Pytest reported 5 warnings about the unknown `qt_api` config option.

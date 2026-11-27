@@ -1,0 +1,119 @@
+diff --git a/src/srxy/adapters/inbound/cli/cli.py b/src/srxy/adapters/inbound/cli/cli.py
+index 40fcad0..32b2cb3 100644
+--- a/src/srxy/adapters/inbound/cli/cli.py
++++ b/src/srxy/adapters/inbound/cli/cli.py
+@@ -816,6 +816,7 @@ def run_plain(args: argparse.Namespace) -> int:
+ 				try:
+ 					results, skipped_files = services.file_search.execute(
+ 						args,
++						case_sensitive=False,
+ 						skipped_files=skipped_files,
+ 						on_progress=on_progress,
+ 						on_activity=on_activity,
+diff --git a/src/srxy/adapters/outbound/worker/search_worker.py b/src/srxy/adapters/outbound/worker/search_worker.py
+index 3bac58b..fb289f3 100644
+--- a/src/srxy/adapters/outbound/worker/search_worker.py
++++ b/src/srxy/adapters/outbound/worker/search_worker.py
+@@ -222,6 +222,7 @@ def run_worker_main():
+ 			# tree cannot fork cpu_count interpreters and thrash the machine.
+ 			results, skipped_files = services.file_search.execute(
+ 				args,
++				case_sensitive=False,
+ 				skipped_files=skipped_files,
+ 				on_progress=on_progress,
+ 				on_activity=on_activity,
+diff --git a/src/srxy/application/search_runner.py b/src/srxy/application/search_runner.py
+index f375661..143f4d6 100644
+--- a/src/srxy/application/search_runner.py
++++ b/src/srxy/application/search_runner.py
+@@ -144,6 +144,7 @@ class FileSearchService:
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
++		case_sensitive: bool,
+ 		skipped_files: list[SkippedFile] | None = None,
+ 		on_progress: Callable[[int, int], None] | None = None,
+ 		on_activity: ActivityCallback | None = None,
+diff --git a/src/srxy/application/search_session.py b/src/srxy/application/search_session.py
+index 0ade856..b8673a8 100644
+--- a/src/srxy/application/search_session.py
++++ b/src/srxy/application/search_session.py
+@@ -116,6 +116,7 @@ class SearchSession:
+ 		try:
+ 			results, skipped_files = self._file_search.execute(
+ 				args,
++				case_sensitive=False,
+ 				skipped_files=skipped_files,
+ 				on_progress=on_progress,
+ 				on_activity=on_activity,
+diff --git a/src/srxy/ports/inbound/file_search.py b/src/srxy/ports/inbound/file_search.py
+index 45557a9..0bc6dd1 100644
+--- a/src/srxy/ports/inbound/file_search.py
++++ b/src/srxy/ports/inbound/file_search.py
+@@ -17,6 +17,7 @@ class FileSearchPort(Protocol):
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
++		case_sensitive: bool,
+ 		skipped_files: list[SkippedFile] | None = None,
+ 		on_progress: Callable[[int, int], None] | None = None,
+ 		on_activity: ActivityCallback | None = None,
+diff --git a/tests/unit/test_search_session.py b/tests/unit/test_search_session.py
+index f436439..8bd2672 100644
+--- a/tests/unit/test_search_session.py
++++ b/tests/unit/test_search_session.py
+@@ -38,6 +38,7 @@ class _FakeFileSearch:
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
++		case_sensitive: bool,
+ 		skipped_files: list[SkippedFile] | None = None,
+ 		on_progress: Callable[[int, int], None] | None = None,
+ 		on_activity: ActivityCallback | None = None,
+@@ -46,7 +47,7 @@ class _FakeFileSearch:
+ 		allow_process_pool: bool = False,
+ 	) -> tuple[list[FileSearchResult], list[SkippedFile]]:
+ 		self.calls += 1
+-		_ = (args, cancel_check, allow_process_pool)
++		_ = (args, case_sensitive, cancel_check, allow_process_pool)
+ 		if self.error is not None:
+ 			raise self.error
+ 		if on_progress is not None:
+@@ -149,6 +150,7 @@ def test_given_cancel_during_progress_when_session_runs_then_returns_partial_fin
+ 			self,
+ 			args: argparse.Namespace,
+ 			*,
++			case_sensitive: bool,
+ 			skipped_files: list[SkippedFile] | None = None,
+ 			on_progress: Callable[[int, int], None] | None = None,
+ 			on_activity: ActivityCallback | None = None,
+@@ -156,7 +158,7 @@ def test_given_cancel_during_progress_when_session_runs_then_returns_partial_fin
+ 			cancel_check: Callable[[], bool] | None = None,
+ 			allow_process_pool: bool = False,
+ 		) -> tuple[list[FileSearchResult], list[SkippedFile]]:
+-			_ = (args, on_activity, cancel_check, allow_process_pool)
++			_ = (args, case_sensitive, on_activity, cancel_check, allow_process_pool)
+ 			effective = skipped_files if skipped_files is not None else []
+ 			if on_progress is not None:
+ 				on_progress(1, 10)
+diff --git a/tests/unit/test_search_worker_progressive.py b/tests/unit/test_search_worker_progressive.py
+index 8c53c7a..560a7a3 100644
+--- a/tests/unit/test_search_worker_progressive.py
++++ b/tests/unit/test_search_worker_progressive.py
+@@ -43,6 +43,7 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ 	def _execute(
+ 		_args: argparse.Namespace,
+ 		*,
++		case_sensitive: bool,
+ 		skipped_files: list[Any] | None = None,
+ 		on_progress: Any = None,
+ 		on_activity: Any = None,
+@@ -50,7 +51,7 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ 		cancel_check: Any = None,
+ 		allow_process_pool: bool = False,
+ 	):
+-		_ = (on_progress, on_activity, cancel_check, allow_process_pool)
++		_ = (case_sensitive, on_progress, on_activity, cancel_check, allow_process_pool)
+ 		if on_result is not None:
+ 			for item in results:
+ 				on_result(item)

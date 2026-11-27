@@ -1,0 +1,3 @@
+The only unused module-level function is **`render_results`**, defined at [cli.py:598](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-2-codenav.rWRIPV/src/srxy/adapters/inbound/cli/cli.py:598).
+
+A repository-wide search of `src`, `tests`, `scripts`, and `examples` found no reference beyond its definition. It is also absent from the module’s `__all__` list at line 938. No files were changed.

@@ -1,0 +1,8 @@
+ src/srxy/adapters/inbound/cli/cli.py               | 1 +
+ src/srxy/adapters/outbound/worker/search_worker.py | 1 +
+ src/srxy/application/search_runner.py              | 2 ++
+ src/srxy/application/search_session.py             | 1 +
+ src/srxy/ports/inbound/file_search.py              | 1 +
+ tests/unit/test_search_session.py                  | 6 ++++--
+ tests/unit/test_search_worker_progressive.py       | 3 ++-
+ 7 files changed, 12 insertions(+), 3 deletions(-)

@@ -1,0 +1,26 @@
+`FileSearchPort.execute` now takes a required keyword-only `case_sensitive: bool`. Every caller passes `case_sensitive=False`, and the type check and the unit and CLI tests all pass.
+
+**Signature and implementation**
+- `src/srxy/ports/inbound/file_search.py:17`: added `case_sensitive: bool` as the first keyword-only parameter, so it is required.
+- `src/srxy/application/search_runner.py:143`: `FileSearchService.execute` accepts the parameter. It is not forwarded to `execute_search`, because the request limited the change to the signature and its consumers. The line `_ = case_sensitive` at `:153` marks it as intentionally unused. Search behaviour is unchanged, but the flag currently does nothing. Wiring it into `execute_search` is the next step if you want real case-sensitive matching.
+
+**Production callers (now pass `case_sensitive=False`)**
+- `src/srxy/adapters/inbound/cli/cli.py:817`
+- `src/srxy/adapters/outbound/worker/search_worker.py:223`
+- `src/srxy/application/search_session.py:117`
+
+**Test fakes (accept the new keyword)**
+- `tests/unit/test_search_session.py:37` (`_FakeFileSearch.execute`)
+- `tests/unit/test_search_session.py:148` (`_CancellingSearch.execute`)
+- `tests/unit/test_search_worker_progressive.py:43` (`_execute` side effect)
+
+Tests that use `MagicMock` for `execute` accept any keyword, so I left them unchanged.
+
+**API docs**
+- I ran `uv run --no-sync python scripts/docs/export_public_api.py`. It exited 0 and wrote `docs/api-reference.md` with no diff. `FileSearchPort` is not in `srxy.__all__`, so no regeneration was needed.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific), 0 failed.
+
+Nothing is committed, and I did not use git stash.

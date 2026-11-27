@@ -1,0 +1,64 @@
+CODENAV CALLS
+OUTCOMES
+  ok                       0
+  error                    0
+  preview                  0
+  applied                  0
+  no_change                0
+OTHER CALLS
+  builtin-read             0
+  builtin-write            0
+  bash                     12
+  other-mcp                0
+  other                    2
+POSSIBLE SHELL FALLBACKS
+  cd ~/Projects/Code/Python/srxy-ab; grep -rn "get_file_content_hash" src | head -50; echo ---; grep -rn "reveal_path" src tests | head -60; echo ---; grep -rn "size_bytes" src | head -60
+  cd ~/Projects/Code/Python/srxy-ab; sed -n 590,600p src/srxy/application/use_cases/search_files.py; grep -n "cache\b.*:" src/srxy/application/use_cases/search_files.py | head -5
+sed -i '18s/reveal_path/reveal_in_file_manager/' src/srxy/adapters/inbound/gui/desktop.py
+sed -i '23s/reveal_path/reveal_in_file_manager/' src/srxy/adapters/inbound/tui/desktop.py
+sed -i '2274s/reveal_path/reveal_in_file_manager/;2294s/reveal_path/reveal_in_file_manager/' src/srxy/adapters/inbound/gui/controller.py
+sed -i '99s/reveal_path/reveal_in_file_manager/' src/srxy/adapters/outbound/os/desktop.py
+sed -i '12s/reveal_path/reveal_in_file_manager/' src/srxy/ports/outbound/desktop.py
+sed -i '1787s/reveal_path/reveal_in_file_manager/' tests/gui/test_gui_controller.py
+sed -i '36s/adapter.reveal_path/adapter.reveal_in_file_manager/' tests/unit/test_desktop_adapters.py
+git diff --stat; cat src/srxy/application/skipped_file_warnings.py; sed -n 10,22p src/srxy/application/search_defaults.py
+  cd ~/Projects/Code/Python/srxy-ab; python3 - <<'E'
+p='src/srxy/application/skipped_file_warnings.py'
+s=open(p).read()
+s=s.replace("{skipped.size_bytes:,} bytes >","{size_label} bytes >".replace(" bytes >"," >") if False else "{size_label} >")
+s=s.replace("def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None) -> str:\n","def format_skipped_file_warning(skipped: SkippedFile, max_file_size: int | None) -> str:\n\tsize_label = f\"{skipped.size_bytes:,} bytes\" if skipped.size_bytes is not None else \"unknown size\"\n",1)
+s=s.replace("\tsuggested = suggest_max_file_size(skipped.size_bytes)\n","\tsuggested = suggest_max_file_size(skipped.size_bytes) if skipped.size_bytes is not None else None\n")
+s=s.replace('f"  hint: rerun with --max-file-size {suggested}"','f"  hint: rerun with --max-file-size {suggested}"\n\t\tif suggested is not None\n\t\telse f"  hint: increase --max-file-size"',1) if False else s
+open(p,'w').write(s)
+E
+sed -i '62s/size_bytes: int/size_bytes: int | None/' src/srxy/domain/models.py
+sed -n 44,56p src/srxy/application/skipped_file_warnings.py
+  cd ~/Projects/Code/Python/srxy-ab; python3 - <<'E'
+p='src/srxy/application/skipped_file_warnings.py'
+s=open(p).read()
+s=s.replace('''		f"  hint: rerun with --max-file-size {suggested}"
+''','''		f"  hint: rerun with --max-file-size {suggested if suggested is not None else 'a larger value'}"
+''')
+open(p,'w').write(s)
+E
+git diff src/srxy/domain src/srxy/application | grep '^[+-]' ; uv run ty check 2>&1 | tail -15
+uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -5
+QT_QPA_PLATFORM=offscreen uv run pytest tests/gui/test_gui_controller.py tests/unit/test_desktop_adapters.py -k 'reveal or desktop' -q -n 0 2>&1 | tail -5
+  cd ~/Projects/Code/Python/srxy-ab; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | grep -E "^(FAILED|E )" | head; git stash -q; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -1; git stash pop -q
+  cd ~/Projects/Code/Python/srxy-ab; grep -rln "reason: 'str' = 'oversized'" --exclude-dir=.git --exclude-dir=.venv . | head; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | grep FAILED
+  cd ~/Projects/Code/Python/srxy-ab; grep -n "oversized" docs/api-reference.md; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | grep -iE "failed|test_" | head -5
+  cd ~/Projects/Code/Python/srxy-ab; sed -i "165s/'int'/'int | None'/;168s/size_bytes: int,/size_bytes: int | None,/" docs/api-reference.md; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -1; uv run ty check | tail -1
+  cd ~/Projects/Code/Python/srxy-ab; uv run pytest tests/unit/test_public_api.py -q -n 0 -p no:pytest-qt 2>&1 | grep -E "^E" | head -12; sed -n 160,170p docs/api-reference.md
+  cd ~/Projects/Code/Python/srxy-ab; grep -n '`size_bytes`: `int`' docs/api-reference.md
+  cd ~/Projects/Code/Python/srxy-ab; sed -i '174s/`int`/`int | None`/' docs/api-reference.md; uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt 2>&1 | tail -1; uv run ty check | tail -1; QT_QPA_PLATFORM=offscreen uv run pytest tests/gui/test_gui_controller.py tests/unit/test_desktop_adapters.py -k 'reveal or desktop' -q -n 0 2>&1 | tail -1
+  cd ~/Projects/Code/Python/srxy-ab
+R=<video-folder>/results/run-20261126-1330
+python3 -I .claude/demo-hooks/scoreboard.py | tee $R/arm2-scoreboard.txt
+mv /tmp/codenav-demo/events.jsonl $R/arm2-plain.jsonl; mv /tmp/codenav-demo/events.jsonl.raw $R/arm2-plain.jsonl.raw; : > /tmp/codenav-demo/events.jsonl; : > /tmp/codenav-demo/events.jsonl.raw
+TP=$(head -1 $R/arm2-plain.jsonl.raw | python3 -c "import sys,json;print(json.loads(sys.stdin.readline())['transcript_path'])")
+python3 -I <video-folder>/scripts/collect_metrics.py $TP plain-agent | tee $R/arm2-metrics.json
+git stash list; git diff --stat | tee $R/arm2-diffstat.txt; git diff > $R/arm2.patch
+git diff -- src/srxy/application src/srxy/domain docs; git diff | grep -E '^[+-].*reveal' 
+(uv run ty check > $R/arm2-ty.txt 2>&1; echo "exit $?" >> $R/arm2-ty.txt; tail -2 $R/arm2-ty.txt)
+(uv run pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt > $R/arm2-pytest.txt 2>&1; echo "exit $?" >> $R/arm2-pytest.txt; tail -2 $R/arm2-pytest.txt)
+(QT_QPA_PLATFORM=offscreen uv run pytest tests/gui/test_gui_controller.py tests/unit/test_desktop_adapters.py -k 'reveal or desktop' -q -n 0 > $R/arm2-gui.txt 2>&1; echo "exit $?" >> $R/arm2-gui.txt; tail -2 $R/arm2-gui.txt)

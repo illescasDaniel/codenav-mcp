@@ -1,0 +1,5 @@
+Renamed `FileSearchPort.execute` to `run` in the protocol, `FileSearchService`, the search session, CLI, and worker. Updated the related test fakes, mocks, and assertions. No generated docs needed updating.
+
+**Checks:** `uv run --no-sync ty check` passed. `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed: 1,170 passed, 7 skipped. Pytest reported 5 `qt_api` configuration warnings and a resource warning at shutdown.
+
+Key references: [file_search.py:16](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-plain.LWPXkt/src/srxy/ports/inbound/file_search.py:16), [search_runner.py:143](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-plain.LWPXkt/src/srxy/application/search_runner.py:143), [search_session.py:117](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-plain.LWPXkt/src/srxy/application/search_session.py:117), [cli.py:817](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-plain.LWPXkt/src/srxy/adapters/inbound/cli/cli.py:817), [search_worker.py:223](~/.local/state/srxy-ab/checkouts/luna-task-3-rep-1-plain.LWPXkt/src/srxy/adapters/outbound/worker/search_worker.py:223).

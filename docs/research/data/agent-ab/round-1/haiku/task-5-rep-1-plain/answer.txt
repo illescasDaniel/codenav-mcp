@@ -1,0 +1,17 @@
+`SkippedFile.size_bytes` is now `int | None`, and the warnings handle an unknown size. Type check passes and the unit and CLI tests pass: 1170 passed, 7 skipped.
+
+**Changes**
+- `src/srxy/domain/models.py:62`: `size_bytes` is now `int | None`.
+- `src/srxy/application/skipped_file_warnings.py`:
+  - New helper `_size_phrase` (line 9) renders `"N bytes"` for known sizes and `"size unknown"` for `None`. The OCR and transcription warnings use it, so their output is unchanged for known sizes.
+  - The default oversized-file warning (around line 50) has a `None` branch. It reads `(size unknown > --max-file-size <limit>)` with the hint `rerun with a larger --max-file-size`, because no suggested size can be computed without a byte count.
+  - Known sizes still go through `suggest_max_file_size` and produce the same text as before.
+- `docs/api-reference.md:165-177`: regenerated with `scripts/docs/export_public_api.py` rather than edited by hand. The file header says it is generated, and `tests/unit/test_public_api.py` compares it against the generator output. My first hand edit made that test fail.
+
+**Checks**
+- `uv run --no-sync ty check`: passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. One earlier run failed only because of the hand-edited doc; it passes after regeneration.
+
+**Not done**
+- I did not add a test for the `None` warning path, so that branch is verified by reading only. I can add one if you want it.
+- Nothing in the codebase constructs `SkippedFile` with `None` yet. The type change is only the contract for callers that have an unknown size.

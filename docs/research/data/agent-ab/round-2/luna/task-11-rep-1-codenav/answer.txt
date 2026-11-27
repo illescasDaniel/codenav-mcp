@@ -1,0 +1,5 @@
+Only **`render_results`** appears unused:
+
+- [`src/srxy/adapters/inbound/cli/cli.py:598`](~/.local/state/srxy-ab/checkouts/luna-task-11-rep-1-codenav.W0F0XY/src/srxy/adapters/inbound/cli/cli.py:598) — it has no references elsewhere in `src`, `tests`, `scripts`, or `examples`, and no call sites within `cli.py`.
+
+I made no changes. This was a read-only inspection; no checks were run.

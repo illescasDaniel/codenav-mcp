@@ -1,0 +1,5 @@
+Added the required keyword-only `case_sensitive: bool` parameter to [`FileSearchPort.execute`](~/.local/state/srxy-ab/checkouts/luna-task-4-rep-1-codenav.GDEHBn/src/srxy/ports/inbound/file_search.py:16) and `FileSearchService.execute` in [`search_runner.py`](~/.local/state/srxy-ab/checkouts/luna-task-4-rep-1-codenav.GDEHBn/src/srxy/application/search_runner.py:143). Existing callers and typed test doubles now pass or accept `case_sensitive=False`; the service keeps existing matching behavior.
+
+Regenerated the API reference. The generator reported no change to `docs/api-reference.md`.
+
+Checks: `uv run --no-sync ty check` passed; `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` passed (1170 passed, 7 skipped). Pytest reported five `qt_api` config warnings and a `ResourceWarning` at shutdown.

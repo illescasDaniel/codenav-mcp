@@ -1,0 +1,24 @@
+I renamed `FileSearchResult.lines` to `line_matches` across the code, tests, and docs. The JSON `"lines"` keys are unchanged.
+
+**Rename (src/srxy/domain/models.py:71)**
+- The field is now `line_matches`. The rename covered 34 files in `src/`, `tests/`, `examples/playground.py`, and `docs/python-api.md`.
+- I applied the rename with the type-aware tool and included four optional sites it couldn't verify on its own: `examples/playground.py`, two keyword arguments in `tests/gui/test_gui_controller.py`, and `docs/python-api.md`.
+- The wire format is untouched:
+  - `src/srxy/adapters/outbound/worker/search_worker.py:87` still emits `"lines"`.
+  - `src/srxy/adapters/outbound/worker/search_worker.py:105` still reads `data.get("lines", …)`.
+  - `src/srxy/adapters/inbound/cli/cli.py:51` still emits `"lines"` in the CLI JSON.
+- `search_worker.py` now maps the `"lines"` wire key into `line_matches=`, so the protocol keeps its existing key.
+- I left unrelated `lines` uses alone: `size.lines` in `cli.py:95` and the `lines=[` keyword arguments in `scripts/docs/export_*_screenshot.sh`.
+
+**Generated doc**
+- `docs/api-reference.md` lists the dataclass fields, so it changed. The first test run failed on it.
+- I regenerated it with `scripts/docs/export_public_api.py` (3 lines changed), not by hand.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. The skips are platform-specific (Windows/macOS only).
+- After the regeneration, the pytest and ty runs above were both clean.
+
+**Uncertainty**
+- `ty` excludes `scripts/` and `examples/`. I grepped `scripts/` by hand and found no remaining `.lines` or `lines=` uses on this class. I did not run the example itself.
+- I did not commit, and I did not run the project's full quality gate.

@@ -1,0 +1,15 @@
+`_Segment.matches` is now `matches_name`, with all three of its call sites updated. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped, all platform-specific skips).
+
+Changes:
+- `src/srxy/domain/ignore_rules.py:59`: the `_Segment` method is renamed to `matches_name`.
+- `src/srxy/domain/ignore_rules.py:148`: the call in the rule's `matches_normalized` now uses `matches_name`.
+- `src/srxy/domain/ignore_rules.py:173`: the call in `_match_anchored` now uses `matches_name`.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: the test call now uses `matches_name`.
+
+Left alone:
+- The other `matches` methods in the file, at lines 138, 307 (rule classes), and the `rule.matches(parts)` calls at 281, 286 and 289.
+- `matches_generic` at line 66, which is a different method.
+- The test's `pattern.matches((name,), False)` at line 66, which is a rule call.
+- `specs/ignore-rules/PLAN.md:59`, a design doc that still shows the old signature for the rule's `matches`. I did not touch it.
+
+My first two `Edit` attempts on line 59 failed to match, so I used `sed` for that one line. The result was confirmed by grep. Nothing was committed and no stash was used.

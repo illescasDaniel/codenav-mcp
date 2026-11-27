@@ -1,0 +1,6 @@
+runner=luna arm=codenav task=1 rep=1
+fixture=953d27c8fbef9136944398f234997abf72ddee93
+codenav=dd9da03 Keep a snippet's indentation when its blocks are not whole units dirty=0
+model=gpt-6-luna effort=medium codex-cli 0.171.0
+started=2026-11-27T10:49:22+01:00
+agent_exit=0 finished=2026-11-27T10:49:33+01:00

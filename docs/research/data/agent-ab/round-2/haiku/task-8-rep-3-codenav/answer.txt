@@ -1,0 +1,20 @@
+The `FileSearchResult.lines` field is now `line_matches` across the source, tests, examples, docs and scripts. The wire-format `"lines"` keys are unchanged. `ty check` passes and the unit and CLI tests pass (1170 passed, 7 skipped).
+
+**What changed**
+- **Field definition:** `src/srxy/domain/models.py:71` now declares `line_matches: list[LineMatch]`.
+- **Source:** the attribute reads and `FileSearchResult(...)` keyword arguments were renamed in the CLI, GUI, TUI, search use case, and formatting modules. One example is `src/srxy/application/use_cases/search_files.py:666`.
+- **Worker protocol:** `src/srxy/adapters/outbound/worker/search_worker.py:87` still serializes the key as `"lines"`. Line 105 deserializes `data.get("lines", [])` into the renamed `line_matches=` keyword. The key is unchanged.
+- **CLI JSON output:** `src/srxy/adapters/inbound/cli/cli.py:51` still emits `"lines"`. I left `tests/cli/test_cli.py:286-289` and `:964` on the `"lines"` key because they assert that wire format.
+- **Tests:** keyword arguments and attribute reads were renamed across `tests/`, including `tests/unit/test_file_search.py`, `tests/gui/test_gui_controller.py` and `tests/cli/test_cli.py`.
+- **Examples, docs and scripts:** `examples/playground.py`, `docs/python-api.md`, and the embedded Python in `scripts/docs/export_gui_screenshot.sh` and `scripts/docs/export_tui_screenshot.sh` were updated. These would otherwise break at runtime.
+- **Generated docs:** I regenerated `docs/api-reference.md` with `scripts/docs/export_public_api.py`. It changed only the `FileSearchResult` signature lines.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. The skips are platform-specific (Windows and macOS only).
+
+**Not checked or uncertain**
+- `examples/playground.py` is excluded from the ty config, so the type check did not cover it. I did not run it.
+- The rename tool could not type-verify the two keyword arguments in `tests/gui/test_gui_controller.py` (lines 1177 and 1394), and the shell-script sites are plain text. I applied those edits by name. They should be confirmed by running the GUI tests, which the required command does not include.
+- The rename tool reported one attribute access it resolved to a different symbol and left unchanged. I did not inspect it. It is most likely `size.lines` in `cli.py:95`, which is a terminal size object, not the field.
+- I did not commit, and I did not use git stash.

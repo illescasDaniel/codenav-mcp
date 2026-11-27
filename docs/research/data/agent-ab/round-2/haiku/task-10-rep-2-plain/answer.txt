@@ -1,0 +1,19 @@
+The `score` method on the `Matcher` base class is now `similarity`, in the base class, all six matchers that override it, and every call of it in `src/` and `tests/`. `uv run --no-sync ty check` passes, and `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt` gives 1170 passed, 7 skipped (platform-specific), 0 failed.
+
+**Renamed definitions**
+- `src/srxy/application/matching/base.py:8` is the abstract method. Line 12 in `score_with_breakdown` now calls `self.similarity`. Its local variable `score` is unchanged.
+- Overrides: `composite.py:23`, `contains.py:7`, `exact.py:7`, `fuzzy.py:7`, `partial.py:7`, `phonetic.py:65`, `semantic.py:141`.
+
+**Renamed call sites**
+- `composite.py:34` calls each sub-matcher's `similarity`.
+- `search_files.py:382-383` (`_score_name_term`) and `search_objects.py:27` (fallback branch) call `matcher.similarity`.
+- `utils.py:226` calls `semantic.similarity`.
+- Tests: `test_matchers.py`, `test_search.py`, `test_semantic.py`, `test_semantic_cache.py`, and `test_file_search.py:314` (`CompositeMatcher().similarity(...)`).
+
+**Left unchanged on purpose**
+- `score_with_breakdown` and its calls, since it is a different method name.
+- Result and line `.score` attributes, `score=` keyword arguments, and `"score"` dict keys.
+- Local variables named `score` and `*_score`.
+- The image-similarity method `score`: its definition at `src/srxy/adapters/outbound/content/image_similarity.py:52`, its port at `src/srxy/ports/outbound/content.py:96`, and its caller at `src/srxy/application/use_cases/search_files.py:197`.
+
+**Not checked:** I did not search Markdown docs for references to `Matcher.score`. The request covered code and tests only, so I left docs alone. I also did not commit.

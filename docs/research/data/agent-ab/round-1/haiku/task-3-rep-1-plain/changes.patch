@@ -1,0 +1,236 @@
+diff --git a/src/srxy/adapters/inbound/cli/cli.py b/src/srxy/adapters/inbound/cli/cli.py
+index 40fcad0..48cc520 100644
+--- a/src/srxy/adapters/inbound/cli/cli.py
++++ b/src/srxy/adapters/inbound/cli/cli.py
+@@ -814,7 +814,7 @@ def run_plain(args: argparse.Namespace) -> int:
+ 		try:
+ 			try:
+ 				try:
+-					results, skipped_files = services.file_search.execute(
++					results, skipped_files = services.file_search.run(
+ 						args,
+ 						skipped_files=skipped_files,
+ 						on_progress=on_progress,
+diff --git a/src/srxy/adapters/outbound/worker/search_worker.py b/src/srxy/adapters/outbound/worker/search_worker.py
+index 3bac58b..6a54dcb 100644
+--- a/src/srxy/adapters/outbound/worker/search_worker.py
++++ b/src/srxy/adapters/outbound/worker/search_worker.py
+@@ -220,7 +220,7 @@ def run_worker_main():
+ 			# Process pools are only for heavy modes that already required this
+ 			# worker. Light (name/content) searches stay single-process so a large
+ 			# tree cannot fork cpu_count interpreters and thrash the machine.
+-			results, skipped_files = services.file_search.execute(
++			results, skipped_files = services.file_search.run(
+ 				args,
+ 				skipped_files=skipped_files,
+ 				on_progress=on_progress,
+diff --git a/src/srxy/application/search_runner.py b/src/srxy/application/search_runner.py
+index f375661..58349ae 100644
+--- a/src/srxy/application/search_runner.py
++++ b/src/srxy/application/search_runner.py
+@@ -140,7 +140,7 @@ def execute_search(
+ class FileSearchService:
+ 	"""Inbound-port implementation wrapping ``execute_search``."""
+ 
+-	def execute(
++	def run(
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
+diff --git a/src/srxy/application/search_session.py b/src/srxy/application/search_session.py
+index 0ade856..3b899e9 100644
+--- a/src/srxy/application/search_session.py
++++ b/src/srxy/application/search_session.py
+@@ -114,7 +114,7 @@ class SearchSession:
+ 			)
+ 
+ 		try:
+-			results, skipped_files = self._file_search.execute(
++			results, skipped_files = self._file_search.run(
+ 				args,
+ 				skipped_files=skipped_files,
+ 				on_progress=on_progress,
+diff --git a/src/srxy/ports/inbound/file_search.py b/src/srxy/ports/inbound/file_search.py
+index 45557a9..7edbb9e 100644
+--- a/src/srxy/ports/inbound/file_search.py
++++ b/src/srxy/ports/inbound/file_search.py
+@@ -13,7 +13,7 @@ from srxy.domain.progress import ActivityCallback
+ class FileSearchPort(Protocol):
+ 	"""Run a file search with optional progressive callbacks."""
+ 
+-	def execute(
++	def run(
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
+diff --git a/tests/cli/test_cli_ignore.py b/tests/cli/test_cli_ignore.py
+index 1307abe..c8ae03e 100644
+--- a/tests/cli/test_cli_ignore.py
++++ b/tests/cli/test_cli_ignore.py
+@@ -17,10 +17,10 @@ pytestmark = pytest.mark.unit
+ def search_spy(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+ 	"""Replace the app services so any attempt to search is recorded."""
+ 	services = MagicMock()
+-	services.file_search.execute.return_value = ([], [])
++	services.file_search.run.return_value = ([], [])
+ 	factory = MagicMock(return_value=services)
+ 	monkeypatch.setattr("srxy.bootstrap.build_app_services", factory)
+-	return services.file_search.execute
++	return services.file_search.run
+ 
+ 
+ def _stderr_last_line(captured_err: str) -> str:
+diff --git a/tests/cli/test_cli_interrupt.py b/tests/cli/test_cli_interrupt.py
+index d5926b8..13e3d4b 100644
+--- a/tests/cli/test_cli_interrupt.py
++++ b/tests/cli/test_cli_interrupt.py
+@@ -45,7 +45,7 @@ def test_given_running_search_when_interrupted_then_cleans_up_and_exits_130(
+ 	monkeypatch.setattr(cli.sys, "stderr", stderr)
+ 	monkeypatch.setattr(cli, "ProgressBar", lambda: progress)
+ 	monkeypatch.setattr(
+-		"srxy.bootstrap.build_app_services", lambda: SimpleNamespace(file_search=Mock(execute=interrupt))
++		"srxy.bootstrap.build_app_services", lambda: SimpleNamespace(file_search=Mock(run=interrupt))
+ 	)
+ 	monkeypatch.setattr(cli.StreamingResultWriter, "close", close)
+ 	output_path = tmp_path / "results.txt"
+@@ -92,7 +92,7 @@ def test_given_result_output_when_interrupted_then_closes_file_and_exits_130(
+ ):
+ 	# given
+ 	result = FileSearchResult(path=tmp_path / "README", score=1.0, breakdown={"name": 1.0})
+-	services = SimpleNamespace(file_search=Mock(execute=Mock(return_value=([result], []))))
++	services = SimpleNamespace(file_search=Mock(run=Mock(return_value=([result], []))))
+ 	closed_writers: list[cli.StreamingResultWriter] = []
+ 	original_close = cli.StreamingResultWriter.close
+ 
+diff --git a/tests/unit/test_search_runner_adapter.py b/tests/unit/test_search_runner_adapter.py
+index e79443d..30471e3 100644
+--- a/tests/unit/test_search_runner_adapter.py
++++ b/tests/unit/test_search_runner_adapter.py
+@@ -30,12 +30,12 @@ def test_given_worker_services_when_built_then_exposes_file_search_port():
+ def test_given_adaptive_runner_when_run_blocking_then_delegates_to_session(tmp_path: Path):
+ 	result = FileSearchResult(path=tmp_path / "a.txt", score=0.5, breakdown={}, lines=[])
+ 	fake = MagicMock()
+-	fake.execute.return_value = ([result], [])
++	fake.run.return_value = ([result], [])
+ 	runner = AdaptiveSearchRunner(SearchSession(fake))
+ 	events: list[object] = []
+ 	args = argparse.Namespace(query="a", path=str(tmp_path))
+ 
+ 	runner.run_blocking(args, on_event=events.append)
+ 
+-	fake.execute.assert_called_once()
++	fake.run.assert_called_once()
+ 	assert any(isinstance(event, SearchFinishedEvent) for event in events)
+diff --git a/tests/unit/test_search_session.py b/tests/unit/test_search_session.py
+index f436439..59a429a 100644
+--- a/tests/unit/test_search_session.py
++++ b/tests/unit/test_search_session.py
+@@ -34,7 +34,7 @@ class _FakeFileSearch:
+ 		self.error = error
+ 		self.calls = 0
+ 
+-	def execute(
++	def run(
+ 		self,
+ 		args: argparse.Namespace,
+ 		*,
+@@ -145,7 +145,7 @@ def test_given_subprocess_result_payload_when_decoding_then_labels_round_trip(tm
+ 
+ def test_given_cancel_during_progress_when_session_runs_then_returns_partial_finished(tmp_path: Path):
+ 	class _CancellingSearch:
+-		def execute(
++		def run(
+ 			self,
+ 			args: argparse.Namespace,
+ 			*,
+diff --git a/tests/unit/test_search_worker.py b/tests/unit/test_search_worker.py
+index 5aef9b5..083b94f 100644
+--- a/tests/unit/test_search_worker.py
++++ b/tests/unit/test_search_worker.py
+@@ -94,29 +94,29 @@ def test_given_light_search_when_run_worker_main_then_disables_process_pool(monk
+ 	"""Light searches must not fork a ProcessPool (whole-machine freeze risk)."""
+ 	args = _build_args(["transform", ".", "--cli"])
+ 	stdout = StringIO()
+-	execute = MagicMock(return_value=([], []))
++	run = MagicMock(return_value=([], []))
+ 	monkeypatch.setattr("sys.stdin", StringIO(json.dumps(args_to_payload(args)) + "\n"))
+ 	monkeypatch.setattr("sys.stdout", stdout)
+-	monkeypatch.setattr("srxy.application.search_runner.FileSearchService.execute", execute)
++	monkeypatch.setattr("srxy.application.search_runner.FileSearchService.run", run)
+ 
+ 	run_worker_main()
+ 
+-	assert execute.call_count == 1
+-	assert execute.call_args.kwargs.get("allow_process_pool") is False
++	assert run.call_count == 1
++	assert run.call_args.kwargs.get("allow_process_pool") is False
+ 
+ 
+ def test_given_ocr_search_when_run_worker_main_then_allows_process_pool(monkeypatch: pytest.MonkeyPatch):
+ 	args = _build_args(["transform", ".", "--ocr", "--cli"])
+ 	stdout = StringIO()
+-	execute = MagicMock(return_value=([], []))
++	run = MagicMock(return_value=([], []))
+ 	monkeypatch.setattr("sys.stdin", StringIO(json.dumps(args_to_payload(args)) + "\n"))
+ 	monkeypatch.setattr("sys.stdout", stdout)
+-	monkeypatch.setattr("srxy.application.search_runner.FileSearchService.execute", execute)
++	monkeypatch.setattr("srxy.application.search_runner.FileSearchService.run", run)
+ 
+ 	run_worker_main()
+ 
+-	assert execute.call_count == 1
+-	assert execute.call_args.kwargs.get("allow_process_pool") is True
++	assert run.call_count == 1
++	assert run.call_args.kwargs.get("allow_process_pool") is True
+ 
+ 
+ def test_given_worker_args_when_run_worker_main_then_emits_json_events(monkeypatch: pytest.MonkeyPatch):
+@@ -128,7 +128,7 @@ def test_given_worker_args_when_run_worker_main_then_emits_json_events(monkeypat
+ 	monkeypatch.setattr("sys.stdin", StringIO(json.dumps(args_to_payload(args)) + "\n"))
+ 	monkeypatch.setattr("sys.stdout", stdout)
+ 	monkeypatch.setattr(
+-		"srxy.application.search_runner.FileSearchService.execute",
++		"srxy.application.search_runner.FileSearchService.run",
+ 		MagicMock(return_value=([result], skipped)),
+ 	)
+ 
+@@ -172,7 +172,7 @@ def test_given_worker_args_when_run_worker_main_then_sets_worker_env(
+ 	monkeypatch.setattr("sys.stdin", StringIO(json.dumps(args_to_payload(args)) + "\n"))
+ 	monkeypatch.setattr("sys.stdout", stdout)
+ 	monkeypatch.setattr(
+-		"srxy.application.search_runner.FileSearchService.execute",
++		"srxy.application.search_runner.FileSearchService.run",
+ 		MagicMock(return_value=([], [])),
+ 	)
+ 
+diff --git a/tests/unit/test_search_worker_progressive.py b/tests/unit/test_search_worker_progressive.py
+index 8c53c7a..030a569 100644
+--- a/tests/unit/test_search_worker_progressive.py
++++ b/tests/unit/test_search_worker_progressive.py
+@@ -40,7 +40,7 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ 
+ 	mock_file_search = MagicMock()
+ 
+-	def _execute(
++	def _run(
+ 		_args: argparse.Namespace,
+ 		*,
+ 		skipped_files: list[Any] | None = None,
+@@ -56,7 +56,7 @@ def test_given_many_worker_results_when_run_worker_main_then_caps_progressive_ev
+ 				on_result(item)
+ 		return results, skipped_files or []
+ 
+-	mock_file_search.execute.side_effect = _execute
++	mock_file_search.run.side_effect = _run
+ 	mock_services = MagicMock(file_search=mock_file_search)
+ 	monkeypatch.setattr(
+ 		"srxy.bootstrap.build_worker_services",
+@@ -87,7 +87,7 @@ def test_given_cancelled_worker_search_when_run_worker_main_then_marks_finished_
+ 		raise SearchCancelled()
+ 
+ 	monkeypatch.setattr(
+-		"srxy.application.search_runner.FileSearchService.execute",
++		"srxy.application.search_runner.FileSearchService.run",
+ 		MagicMock(side_effect=_raise_cancel),
+ 	)
+ 

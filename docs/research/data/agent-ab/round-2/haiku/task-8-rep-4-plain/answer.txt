@@ -1,0 +1,27 @@
+I renamed `FileSearchResult.lines` to `line_matches` across the source, tests, and the docs and scripts that use it. The JSON `"lines"` keys in the worker protocol and the CLI output are unchanged. Type check passes and the unit and CLI tests pass (1170 passed, 7 skipped).
+
+**Changes**
+- **Field definition:** `src/srxy/domain/models.py:71` now declares `line_matches`.
+- **Wire format (keys unchanged):**
+  - `src/srxy/adapters/outbound/worker/search_worker.py:87` still writes `"lines"`.
+  - `search_worker.py:105` still reads `data.get("lines", [])` and maps it into `line_matches=`.
+  - `src/srxy/adapters/inbound/cli/cli.py:51` still emits `"lines"` in the JSON output.
+- **Attribute and kwarg uses:** updated in `src/` (`controller.py`, `gui/models.py`, `tui/app.py`, `search_formatting.py`, `use_cases/search_files.py:666`) and in about 30 test files under `tests/`.
+- **Left alone:** `size.lines` in `cli.py:95` (terminal size, not the result field) and local variables named `lines`.
+
+**Beyond the literal request**
+These files would have broken at runtime or in docs, so I renamed them too. Tell me if you'd rather keep them out of this change.
+- `examples/playground.py:123`
+- `scripts/docs/export_tui_screenshot.sh` and `scripts/docs/export_gui_screenshot.sh`: `FileSearchResult(lines=...)` kwargs.
+- `docs/python-api.md:32`
+- `docs/api-reference.md`: regenerated with `scripts/docs/export_public_api.py`, since the doc is generated and `tests/unit/test_public_api.py` compares against it. My first hand edit failed that test, so I reverted it and used the generator.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific). One earlier run failed on the stale API doc; that was fixed by regenerating it, and the rerun is clean.
+
+**Not checked**
+- I did not run the GUI or TUI test suites beyond what `tests/unit` covers.
+- I did not run the screenshot scripts or the example, so those edits are checked by reading only.
+
+Nothing was committed, no stash was used, and no files were deleted.

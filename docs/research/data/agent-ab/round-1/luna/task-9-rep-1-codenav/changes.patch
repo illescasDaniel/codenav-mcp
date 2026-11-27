@@ -1,0 +1,17 @@
+diff --git a/src/srxy/adapters/inbound/cli/cli.py b/src/srxy/adapters/inbound/cli/cli.py
+index 40fcad0..08de34c 100644
+--- a/src/srxy/adapters/inbound/cli/cli.py
++++ b/src/srxy/adapters/inbound/cli/cli.py
+@@ -78,12 +78,6 @@ def package_version() -> str:
+ 		return "unknown"
+ 
+ 
+-def normalize_max_file_size(value: int | None) -> int | None:
+-	if value is not None and value <= 0:
+-		return None
+-	return value
+-
+-
+ def _terminal_size(stream: TextIO) -> tuple[int, int]:
+ 	try:
+ 		size = os.get_terminal_size(stream.fileno())

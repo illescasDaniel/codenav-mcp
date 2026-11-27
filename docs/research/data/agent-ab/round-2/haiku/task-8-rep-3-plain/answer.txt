@@ -1,0 +1,18 @@
+The `FileSearchResult.lines` field is now `line_matches` across `src/`, `tests/`, and `examples/playground.py`. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged. `ty check` passes, and `tests/unit` plus `tests/cli` give 1170 passed, 7 skipped.
+
+**What changed**
+- The field declaration is at `src/srxy/domain/models.py:71`.
+- Attribute reads (`result.lines` → `result.line_matches`) are in the CLI, GUI controller and model, TUI app, search formatting, search worker, and `search_files.py`. Examples are in `src/srxy/adapters/inbound/cli/cli.py:64` and `src/srxy/adapters/outbound/worker/search_worker.py:95`.
+- The `lines=` constructor keyword is renamed at `search_worker.py:105` and `search_files.py:666`. The test call sites were renamed too.
+- Wire format kept as-is:
+  - `"lines"` dict keys in `cli.py:51` and `search_worker.py:87`.
+  - The `data.get("lines", [])` read in `search_worker.py:105`.
+  - Test assertions on `payload["lines"]`.
+- I excluded `size.lines` (terminal size, `cli.py:95`) from the rename.
+- `docs/api-reference.md` is generated from the dataclass. The unit test `tests/unit/test_public_api.py` compares it against the render, so it failed after the rename. I regenerated it with `scripts/docs/export_public_api.py`. The diff is only the field name.
+- I also renamed the `lines=` kwargs in `scripts/docs/export_gui_screenshot.sh`, which builds `FileSearchResult` objects.
+
+**Not covered**
+- `docs/python-api.md:32` still shows `result.lines` in a hand-written example. I left it alone because you scoped the change to code and tests. It should be updated to `result.line_matches`.
+- I did not run `tests/gui`, `tests/tui`, or `tests/integration`. Those directories were edited by the same rename, and the required command does not include them.
+- I did not commit or use git stash.

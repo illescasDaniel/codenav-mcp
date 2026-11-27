@@ -1,0 +1,9 @@
+Work only in this repository. Use whichever available tools fit the task. For a read-only task, leave the working tree
+unchanged. For a coding task, make the smallest complete change, preserve unrelated behavior, and run:
+  uv run --no-sync ty check
+  uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt
+Do not commit and do not use git stash. Use trash rather than rm if you need to delete files. Summarize your answer or
+changes with file:line references and report any checks run, failures, and uncertainty.
+
+normalize_max_file_size is defined twice (in adapters/inbound/cli/cli.py and in application/search_runner.py). Find
+out which copy is actually used, delete the unused one, and show that nothing depended on it.

@@ -1,0 +1,6 @@
+runner=luna arm=plain task=8 rep=3
+fixture=953d27c8fbef9136944398f234997abf72ddee93 diffbase=953d27c8fbef9136944398f234997abf72ddee93
+codenav=f25bc84 Rename: no optional sites in CLI flags or in another class's prose dirty=2
+model=gpt-6-luna effort=medium codex-cli 0.171.0
+started=2026-11-27T11:54:26+01:00
+agent_exit=0 finished=2026-11-27T11:56:38+01:00

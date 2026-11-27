@@ -1,0 +1,6 @@
+runner=haiku arm=plain task=4 rep=1
+fixture=953d27c8fbef9136944398f234997abf72ddee93
+codenav=dd9da03 Keep a snippet's indentation when its blocks are not whole units dirty=0
+model=claude-haiku-5-5 2.1.332 (Claude Code)
+started=2026-11-27T10:52:01+01:00
+agent_exit=0 finished=2026-11-27T10:52:52+01:00
