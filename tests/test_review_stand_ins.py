@@ -103,3 +103,21 @@ def test_given_a_change_callers_do_not_see_then_no_fakes_note(tmp_path, monkeypa
 		)
 	)
 	assert "possible fakes" not in text, text
+
+
+@pytest.mark.integration
+@needs_ty
+def test_given_overrides_left_out_then_they_are_not_called_unlinked_fakes(tmp_path, monkeypatch, loop):
+	make_workspace(tmp_path, monkeypatch, _files(tmp_path))
+	text = loop.run_until_complete(
+		refactor_tools.change_signature(
+			name="SearchPort.execute",
+			add=[{"name": "case_sensitive", "annotation": "bool", "keyword_only": True, "value": "False"}],
+			include_overrides=False,
+			apply=False,
+			max_new_errors=None,
+		)
+	)
+	assert "overrides left unchanged" in text and "Search.execute" in text, text
+	fakes = text.split("possible fakes", 1)[1].split("\n\n", 1)[0]
+	assert "src/pkg/port.py" not in fakes and "_Fake.execute" in fakes

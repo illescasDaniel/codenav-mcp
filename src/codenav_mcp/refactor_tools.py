@@ -456,7 +456,8 @@ async def _plan_signature(
 			session.workspace,
 			name=target_def.name,
 			target_params=target_params,
-			changed={(d.ctx.path.resolve(), d.definition.node.lineno) for d in declarations},
+			changed={(d.ctx.path.resolve(), d.definition.node.lineno) for d in declarations}
+			| {(site.cls.path.resolve(), site.line) for site in (related.sites if related is not None else [])},
 		)
 		note = stand_ins_note(
 			stand_ins,

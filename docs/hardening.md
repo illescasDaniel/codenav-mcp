@@ -131,7 +131,7 @@ codenav MCP server (a fresh stdio server per case), and judges the result with t
 |---|---|
 | I1 | every new test failure or ty error after a default refactor traces to a site the reply listed as optional (u-ids), a held plan, "needs manual attention", or a "Regenerate <file> with its generator" note for a file the failing test reads; a count such as "N attribute accesses could not be checked and are not listed" is not "listed". With `sites=["all"]`, failures in files the opted-in sites rewrote are reported separately as over-rename damage, not as I1 |
 | I2 | rename X -> Y then Y -> X leaves `git status --porcelain` empty (default sites and `sites=["all"]`) |
-| I3 | edits only touch the project's `.py` files (`examples/` and `scripts/` count, since ty resolves references there; never dot-directories, `venv`, `build`, `dist`, `site-packages`; other files only when `sites=["all"]` listed them); a held or refused call writes nothing |
+| I3 | edits only touch the project's `.py` files (`examples/` and `scripts/` count: ty resolves references there in click, and where the ty config excludes them, as in srxy, only I1 guards those edits; never dot-directories, `venv`, `build`, `dist`, `site-packages`; other files only when `sites=["all"]` listed them); a held or refused call writes nothing |
 | I4 | deleting an `unused`-labelled symbol never adds a ty error or a test failure |
 | I5 | replies obey the v2 format: answer line first, `next:`/retry lines parse as calls of existing tools with known keywords and literal values, error replies carry a corrected call or `Example:` |
 
