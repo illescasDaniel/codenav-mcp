@@ -14,7 +14,7 @@ from mcp_nav_shared.errors import ToolInputError
 
 from codenav_mcp import args, read_tools, server, write_tools
 
-from .live_support import make_loop_fixture, make_workspace, needs_ty
+from .live_support import TY, make_loop_fixture, make_workspace, needs_ty
 
 
 _base_loop = make_loop_fixture()
@@ -71,7 +71,7 @@ def _git_init(root: Path, *, commit: bool) -> None:
 
 def test_rc_b21_workspace_reply_hides_ty_home_path(tmp_path, monkeypatch, loop):
 	project = make_workspace(tmp_path, monkeypatch, {"src/a.py": "x = 1\n"})
-	home_ty = REPO_ROOT / ".venv" / "bin" / "ty"  # lives under the home folder in this checkout
+	home_ty = TY  # the repo .venv ty, under the home folder in this checkout
 	monkeypatch.setattr(server, "resolve_ty_command", lambda _root: [str(home_ty), "server"])
 
 	text = _text(asyncio.run(read_tools.check()))
@@ -89,7 +89,7 @@ def test_rc_b21_workspace_reply_uses_workspace_relative_venv_path(tmp_path, monk
 	venv_ty.parent.mkdir(parents=True)
 	venv_ty.write_text("#!/bin/sh\n", encoding="utf-8")
 	monkeypatch.setattr(server, "resolve_ty_command", lambda _root: [str(venv_ty), "server"])
-	monkeypatch.setattr(read_tools, "resolve_ty_command", lambda _root: [str(REPO_ROOT / ".venv/bin/ty"), "server"])
+	monkeypatch.setattr(read_tools, "resolve_ty_command", lambda _root: [str(TY), "server"])
 
 	text = _text(asyncio.run(read_tools.check()))
 

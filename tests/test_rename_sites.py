@@ -164,8 +164,8 @@ def test_given_class_with_its_own_member_when_scanned_then_its_prose_is_not_a_si
 		"\t\t# see .matches() above\n"
 		"\t\treturn parts\n\n\n"
 		"class Fields:\n"
-		"\tmatches: int = 0\n"
 		'\t"""`matches` counts."""\n'
+		"\tmatches: int = 0\n"
 	)
 	path = _write(tmp_path, "src/rules.py", text)
 	# The rename edits `_Segment.matches` at line 2 (0-based 1), column 5.
@@ -177,6 +177,24 @@ def test_given_class_with_its_own_member_when_scanned_then_its_prose_is_not_a_si
 	scan = _scan_python(path, "src/rules.py", "matches", "matches_name", set(), {(7, 5)}, test_file=False)
 
 	assert [(site.kind, site.line) for site in scan.optional] == [("comment", 13), ("docstring", 12)]
+
+
+def test_given_class_assigning_the_name_when_scanned_then_only_that_class_prose_is_skipped(tmp_path):
+	# `matches = ...` in a class body is that class's own member; `other = ...` is not.
+	text = (
+		"class Alias:\n"
+		'\t"""`matches` is len."""\n'
+		"\tmatches = staticmethod(len)\n"
+		"# `matches` above is Alias's; this comment is outside the class\n\n\n"
+		"class Other:\n"
+		'\t"""`matches` one name."""\n'
+		"\tother = 1\n"
+	)
+	path = _write(tmp_path, "src/alias.py", text)
+
+	scan = _scan_python(path, "src/alias.py", "matches", "matches_name", set(), set(), test_file=False)
+
+	assert sorted((site.kind, site.line) for site in scan.optional) == [("comment", 4), ("docstring", 8)]
 
 
 def _sites(*ids: str) -> list[OptionalSite]:

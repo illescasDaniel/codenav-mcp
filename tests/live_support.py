@@ -47,6 +47,9 @@ def make_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, files: dict[
 	monkeypatch.setattr(codenav_server, "SOURCE_ROOT", tmp_path / "src")
 	monkeypatch.setattr(codenav_server, "EXTRA_SOURCE_ROOTS", [])
 	monkeypatch.setattr(codenav_server, "_client", None)
+	# Module-level locks bind to the first event loop that waits on them; each test gets its own loop.
+	for lock in ("_client_lock", "_workspace_lock", "_probe_lock"):
+		monkeypatch.setattr(codenav_server, lock, asyncio.Lock())
 	monkeypatch.setattr(codenav_server, "resolve_ty_command", lambda _root: [str(TY), "server"])
 	monkeypatch.delenv(writes.READ_ONLY_ENV, raising=False)
 	writes.reset_state()

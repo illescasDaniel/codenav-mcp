@@ -80,3 +80,44 @@ def test_given_more_attributes_than_cap_when_formatting_then_excess_is_counted()
 	note = format_mentions(mentions, "f", member=True)[0]
 
 	assert note.endswith("... 5 more") and note.count("a.py:") == 50
+
+
+def test_given_skipped_files_first_when_finding_mentions_then_later_files_are_still_scanned(tmp_path: Path) -> None:
+	# Each skip (symlink, oversized, unreadable, path filter, shell script) moves on to the next file; none ends the scan.
+	outside = tmp_path / "outside"
+	outside.mkdir()
+	(outside / "real.py").write_text("x.greet()\n", encoding="utf-8")
+	(outside / "real.md").write_text("call greet\n", encoding="utf-8")
+	ws = tmp_path / "ws"
+	ws.mkdir()
+	(ws / "a_link.py").symlink_to(outside / "real.py")
+	(ws / "z.py").write_text("y.greet()\n", encoding="utf-8")
+	(ws / "a_link.md").symlink_to(outside / "real.md")
+	(ws / "b_big.md").write_text("greet\n" + "x" * 600_000, encoding="utf-8")
+	(ws / "c_skip.md").write_text("greet\n", encoding="utf-8")
+	(ws / "c_unreadable.md").write_text("greet\n", encoding="utf-8")
+	(ws / "c_unreadable.md").chmod(0)
+	(ws / "d.sh").write_text("python3 <<'PY'\nz.greet()\nPY\n", encoding="utf-8")
+	(ws / "e.md").write_text("then greet\n", encoding="utf-8")
+
+	mentions = find_mentions(ws, "greet", {}, path_matches=lambda rel: rel != "c_skip.md")
+
+	assert sorted((m.path, m.line) for m in mentions) == [("d.sh", 2), ("e.md", 1), ("z.py", 1)]
+
+
+def test_given_nested_checkout_in_a_plain_folder_when_finding_mentions_then_it_is_skipped(tmp_path: Path) -> None:
+	(tmp_path / "guide.md").write_text("call greet\n", encoding="utf-8")
+	nested = tmp_path / "third_party" / "lib"
+	nested.mkdir(parents=True)
+	(nested / ".git").mkdir()
+	(nested / "README.md").write_text("call greet\n", encoding="utf-8")
+
+	assert [m.path for m in find_mentions(tmp_path, "greet", {})] == ["guide.md"]
+
+
+def test_given_strings_of_three_and_four_words_when_finding_mentions_then_four_words_is_prose(tmp_path: Path) -> None:
+	(tmp_path / "app.py").write_text('a = "greet them now"\nb = "then greet them now"\n', encoding="utf-8")
+
+	mentions = find_mentions(tmp_path, "greet", {})
+
+	assert [(m.line, m.kind, m.prose) for m in mentions] == [(1, "string", False), (2, "string", True)]

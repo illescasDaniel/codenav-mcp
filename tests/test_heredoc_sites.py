@@ -203,6 +203,39 @@ def test_given_name_not_in_text_when_scanned_then_nothing_is_parsed():
 	assert embedded_python_sites("python3 <<'PY'\nx.rows = 1\nPY\n", "lines") == []
 
 
+def test_given_dashed_heredoc_when_a_string_line_is_the_delimiter_indented_with_spaces_then_the_body_goes_on():
+	# Only tabs are stripped before the delimiter comparison: "  PY" inside the string does not end the heredoc.
+	script = "python3 <<-'PY'\n\tx.lines = '''\n  PY\n'''\n\tPY\n"
+
+	assert [start for start, _ in python_heredocs(script)] == [1]
+	assert python_heredocs(script)[0][1] == ["\tx.lines = '''", "  PY", "'''"]
+	assert _roles(script) == [(2, "attr")]
+
+
+def test_given_plain_heredoc_with_nested_tab_indent_when_scanned_then_tabs_are_kept_as_python_indentation():
+	# Without `<<-` the shell keeps every tab, so "\ty.lines" is the body of the `if`, not a top-level line.
+	script = "python3 <<'PY'\nif x:\n\ty.lines = 1\nPY\n"
+
+	assert _roles(script) == [(3, "attr")]
+
+
+def test_given_empty_heredoc_when_the_name_is_elsewhere_in_the_script_then_nothing_is_found():
+	assert embedded_python_sites("echo lines\npython3 <<'PY'\n\nPY\n", "lines") == []
+
+
+def test_given_callee_of_exactly_the_width_when_scanned_then_it_is_kept_whole():
+	callee = "pkg." + "m" * 33 + ".mk"
+	assert len(callee) == 40
+	sites = embedded_python_sites(f"python3 <<'PY'\n{callee}(lines=1)\nPY\n", "lines")
+
+	assert sites[0].callee == callee
+
+
+def test_given_bare_names_when_scanned_then_their_columns_point_at_the_name():
+	# `lines = 3` and `build(lines=lines)`: the name role, checked at its column like the others.
+	assert _roles(_SCRIPT) == [(8, "keyword"), (9, "attr"), (10, "name"), (11, "keyword"), (11, "name")]
+
+
 _FILES = {
 	"src/pkg/__init__.py": "",
 	"src/pkg/models.py": (

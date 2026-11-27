@@ -91,19 +91,19 @@ upload = { cmd = "bash scripts/publish.sh", help = "build + upload to PyPI (--te
 test-package = { cmd = "bash scripts/test_package.sh", help = "install the published package in a fresh venv and smoke-test it (--testpypi after --)" }
 
 [tool.mutmut]
-paths_to_mutate = [
+# The modules where a wrong edit or a wrong optional site is silent; run against the full suite (docs/hardening.md).
+source_paths = [
 	"src/codenav_mcp/signature.py",
 	"src/codenav_mcp/plan_merge.py",
 	"src/codenav_mcp/args.py",
 	"src/codenav_mcp/reply.py",
+	"src/codenav_mcp/heredocs.py",
+	"src/codenav_mcp/mentions.py",
+	"src/codenav_mcp/rename_sites.py",
+	"src/codenav_mcp/edit_state.py",
 ]
-tests_dir = [
-	"tests/property/",
-	"tests/test_signature.py",
-	"tests/test_plan_merge.py",
-	"tests/test_args.py",
-]
-also_copy = ["tests/", "src/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+also_copy = ["tests/", "src/", "hardening/", "docs/", "server.json", "README.md"]
 do_not_mutate = []
 
 [tool.pytest.ini_options]
