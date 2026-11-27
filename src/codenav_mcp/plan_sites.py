@@ -17,7 +17,7 @@ class OptionalSite:
 	id: str  # "u1", "u2", ... stable within one plan
 	path: str  # workspace-relative
 	line: int  # 1-based
-	kind: str  # "attr" | "keyword" | "def" | "string" | "comment" | "docstring" | "text"
+	kind: str  # "attr" | "keyword" | "def" | "string" | "comment" | "docstring" | "text" | "Python heredoc: <role>"
 	text: str  # the source line, stripped, for display
 	# The edit to add if the agent opts in. Positions refer to the file as it was when the plan was made (its
 	# on-disk text, i.e. the plan's old text); `plan_merge.add_sites` carries them across the plan's own edits and

@@ -175,7 +175,8 @@ names with `CODENAV_MCP_EXCLUDE_DIRS` and `CODENAV_MCP_INCLUDE_DIRS`.
 `change_signature` has no optional site IDs. Rename can offer code-like text
 mentions as optional sites. In shell scripts (`.sh`, `.bash`) it reads the Python inside quoted heredocs
 (`python - <<'PY'`) and offers the exact names there: `obj.name` and `name=` for a method or field, the bare,
-imported or `module.name` form for a function or class. Shell variables, strings and unquoted heredocs are
+imported or `module.name` form for a function or class. Each such site is labelled with what it is, for example
+`Python heredoc: keyword of FileSearchResult()`. Shell variables, strings and unquoted heredocs are
 never offered. When a generated document identifies its generator,
 rename names that generator so you can rebuild the document. Static analysis
 cannot resolve every dynamic reference, mock, framework registration or library extension. Check runtime behavior and

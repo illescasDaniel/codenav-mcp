@@ -42,6 +42,7 @@ class Mention:
 	value: str | None = None  # a dotted string literal, when present
 	prose: bool = False  # a string mention inside a docstring or a sentence, not a name used as data
 	role: str | None = None  # Python in a shell heredoc: "attr" | "keyword" | "name" | "def" | "import" (see heredocs)
+	callee: str = ""  # Python in a shell heredoc, for a keyword: the called expression
 
 
 async def types_as_never(client: LspClient, path: Path, line: int, column: int) -> bool:
@@ -179,7 +180,15 @@ def find_mentions(
 		if path.suffix.lower() in SHELL_SUFFIXES:
 			# Only the Python in heredocs, name by name: a shell `name=` or a word in an echo is not this symbol.
 			found += [
-				Mention(rel, site.line, "text", lines[site.line - 1].strip()[:140], column=site.column, role=site.role)
+				Mention(
+					rel,
+					site.line,
+					"text",
+					lines[site.line - 1].strip()[:140],
+					column=site.column,
+					role=site.role,
+					callee=site.callee,
+				)
 				for site in embedded_python_sites(text, name)
 			]
 			continue

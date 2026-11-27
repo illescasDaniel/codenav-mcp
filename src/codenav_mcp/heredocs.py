@@ -22,6 +22,7 @@ SHELL_SUFFIXES = frozenset({".sh", ".bash"})
 _HEREDOC = re.compile(r"""<<(-?)[ \t]*(['"])([A-Za-z_][A-Za-z0-9_]*)\2""")
 _PYTHON_COMMAND = re.compile(r"(?<![\w.-])python(?:3(?:\.\d+)?)?(?![\w.-])")
 _PYTHON_DELIMITERS = frozenset({"PY", "PYTHON", "PYEOF", "EOPY", "END_PYTHON"})
+_CALLEE_WIDTH = 40
 
 # What a name is at a site, for choosing which sites fit a rename.
 Role = str  # "attr" (obj.name) | "keyword" (f(name=...)) | "name" (bare name) | "def" | "import"
@@ -32,6 +33,7 @@ class EmbeddedSite:
 	line: int  # 1-based line in the shell script
 	column: int  # 0-based UTF-16 column of the name
 	role: Role
+	callee: str = ""  # for a keyword: the called expression (`FileSearchResult`, `obj.build`), shortened
 
 
 def python_heredocs(text: str) -> list[tuple[int, list[str]]]:
@@ -72,9 +74,21 @@ def _strip(body: list[str], strip_tabs: bool) -> tuple[list[str], list[int]]:
 	return lines, removed
 
 
-def _name_spans(tree: ast.Module, lines: list[str], name: str) -> list[tuple[int, int, Role]]:
-	"""(0-based line, 0-based character, role) of each place in a parsed body that names `name`."""
-	spans: list[tuple[int, int, Role]] = []
+def _callee(node: ast.expr) -> str:
+	text = ast.unparse(node)
+	return text if len(text) <= _CALLEE_WIDTH else "..." + text[-(_CALLEE_WIDTH - 3) :]
+
+
+def _name_spans(tree: ast.Module, lines: list[str], name: str) -> list[tuple[int, int, Role, str]]:
+	"""(0-based line, 0-based character, role, callee of a keyword) of each place in a parsed body that names `name`."""
+	spans: list[tuple[int, int, Role, str]] = []
+	callees = {
+		id(keyword): _callee(node.func)
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Call)
+		for keyword in node.keywords
+		if keyword.arg == name
+	}
 
 	def at(lineno: int, byte_offset: int) -> int:
 		return len(lines[lineno - 1].encode("utf-8")[:byte_offset].decode("utf-8", errors="ignore"))
@@ -83,20 +97,20 @@ def _name_spans(tree: ast.Module, lines: list[str], name: str) -> list[tuple[int
 		if isinstance(node, ast.Attribute) and node.attr == name and node.end_lineno is not None:
 			end = at(node.end_lineno, node.end_col_offset or 0)
 			if lines[node.end_lineno - 1][end - len(name) : end] == name:
-				spans.append((node.end_lineno - 1, end - len(name), "attr"))
+				spans.append((node.end_lineno - 1, end - len(name), "attr", ""))
 		elif isinstance(node, ast.keyword) and node.arg == name:
-			spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "keyword"))
+			spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "keyword", callees.get(id(node), "")))
 		elif isinstance(node, ast.Name) and node.id == name:
-			spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "name"))
+			spans.append((node.lineno - 1, at(node.lineno, node.col_offset), "name", ""))
 		elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == name:
 			row = lines[node.lineno - 1]
 			match = re.search(rf"\b(?:def|class)\s+({re.escape(name)})\b", row)
 			if match:
-				spans.append((node.lineno - 1, match.start(1), "def"))
+				spans.append((node.lineno - 1, match.start(1), "def", ""))
 		elif isinstance(node, ast.alias) and node.name.rsplit(".", 1)[-1] == name and hasattr(node, "lineno"):
 			start = at(node.lineno, node.col_offset)
 			offset = node.name.rfind(name)
-			spans.append((node.lineno - 1, start + offset, "import"))
+			spans.append((node.lineno - 1, start + offset, "import", ""))
 	return spans
 
 
@@ -113,7 +127,14 @@ def embedded_python_sites(text: str, name: str) -> list[EmbeddedSite]:
 			tree = ast.parse("\n".join(lines))
 		except (SyntaxError, ValueError):
 			continue
-		for line, char, role in _name_spans(tree, lines, name):
+		for line, char, role, callee in _name_spans(tree, lines, name):
 			row = rows[start + line]
-			sites.append(EmbeddedSite(start + line + 1, utf16_column(row, char + removed[line]), role))
+			sites.append(EmbeddedSite(start + line + 1, utf16_column(row, char + removed[line]), role, callee))
 	return sorted(set(sites), key=lambda s: (s.line, s.column))
+
+
+def site_label(role: Role, callee: str = "") -> str:
+	"""How an optional site in a shell heredoc is shown: what the name is, so it is not mistaken for shell text."""
+	if role == "keyword" and callee:
+		return f"Python heredoc: keyword of {callee}()"
+	return f"Python heredoc: {role}"

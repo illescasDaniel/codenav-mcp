@@ -29,6 +29,7 @@ from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp.attr_strings import AttrString, Owner, classify, find_attr_strings, literal_span
 from codenav_mcp.deps import iter_python_files, module_names_for
+from codenav_mcp.heredocs import site_label
 from codenav_mcp.mentions import Mention, covered_positions, find_mentions, types_as_never
 from codenav_mcp.plan_sites import OptionalSite
 from codenav_mcp.pysource import (
@@ -499,7 +500,8 @@ async def plan_v2_sites(
 				continue
 			text_sites += 1
 			edit = TextEdit(mention.line - 1, mention.column, mention.line - 1, mention.column + width, new_name)
-			raws.append(_Raw(path, mention.line, mention.column, "text", mention.snippet, edit))
+			kind = site_label(mention.role, mention.callee)
+			raws.append(_Raw(path, mention.line, mention.column, kind, mention.snippet, edit))
 			continue
 		for start, end in _code_like_spans(row, old_name):
 			if text_sites >= _MAX_TEXT_SITES:
