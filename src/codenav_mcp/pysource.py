@@ -8,6 +8,7 @@ deterministic and cheap. Line numbers are 1-based like the tool inputs.
 from __future__ import annotations
 
 import ast
+import io
 import re
 import sys
 import textwrap
@@ -333,10 +334,31 @@ def _string_continuation_lines(source: str) -> set[int]:
 	return protected
 
 
+def _blocks_use_unit(source: str, own: str) -> bool:
+	"""Every block's indentation is a whole number of `own` units.
+
+	A snippet that nests a 2-space block inside a 1-space one cannot be re-counted in units without changing its
+	structure; it is then kept as written (valid Python, just not in the file's unit). An untokenizable snippet keeps
+	the width-based conversion."""
+	try:
+		tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+	except (tokenize.TokenError, IndentationError, SyntaxError):
+		return True
+	for token in tokens:
+		if token.type != tokenize.INDENT:
+			continue
+		lead = token.string.rsplit("\x0c", 1)[-1]
+		if own == "\t" and lead.strip("\t"):
+			return False
+		if own != "\t" and ("\t" in lead or len(lead) % len(own)):
+			return False
+	return True
+
+
 def convert_indent_unit(source: str, unit: str) -> str:
 	"""Rewrite the leading whitespace of code lines from the snippet's own indent unit to `unit`."""
 	own = detect_indent_unit(source)
-	if own == unit:
+	if own == unit or not _blocks_use_unit(source, own):
 		return source
 	protected = _string_continuation_lines(source)
 	out = []

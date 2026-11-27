@@ -51,3 +51,14 @@ def test_given_a_docstring_and_a_key_then_only_the_key_is_data(tmp_path):
 	path.write_text('def f(d):\n\t"""Return the lines of d."""\n\treturn d["lines"]\n')
 	found = {(m.line, m.prose) for m in _python_mentions(path, "m.py", "lines", set()) if m.kind == "string"}
 	assert found == {(2, True), (3, False)}
+
+
+def test_given_blocks_of_mixed_widths_then_the_indent_conversion_keeps_the_tree():
+	import ast
+
+	from codenav_mcp.pysource import convert_indent_unit
+
+	source = "class A:\n  pass\nclass A:\n class A:\n  pass\n"
+	converted = convert_indent_unit(source, "\t")
+	assert ast.dump(ast.parse(converted)) == ast.dump(ast.parse(source))
+	assert convert_indent_unit("def f():\n    if x:\n        return 1\n", "\t") == "def f():\n\tif x:\n\t\treturn 1\n"
