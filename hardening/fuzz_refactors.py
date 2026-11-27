@@ -246,15 +246,25 @@ class CaseResult:
 			self.notes.insert(0, f"{inv}: {why}")
 
 
+_NOT_PROJECT = {"venv", "node_modules", "build", "dist", "site-packages", "__pycache__"}
+
+
 def allowed_path(project: Project, path: str, reply_text: str, allow_listed: bool) -> bool:
 	parts = path.split("/")
 	if any(p.startswith(".") for p in parts):
 		return False
-	roots = project.src_roots + project.test_roots
-	in_root = any(path.startswith(r.rstrip("/") + "/") for r in roots)
-	if path.endswith(".py") and in_root:
+	if path.endswith(".py") and not any(p in _NOT_PROJECT for p in parts[:-1]):
+		# any project Python file (examples/, scripts/ too): ty resolves references there, and a wrong edit shows
+		# up as I1 breakage; containment is about non-project and non-Python files
 		return True
 	return allow_listed and path in reply_text
+
+
+def _read_text(path: Path) -> str | None:
+	try:
+		return path.read_text(encoding="utf-8")
+	except (OSError, UnicodeError):
+		return None
 
 
 async def run_oracle(
@@ -340,7 +350,7 @@ async def run_case(
 				res.mark("I4", not failures, f"deleting unused-labelled {sym.name} broke: {list(failures)[:5]}")
 				res.mark("I1", None)
 			else:
-				attr = attribute_failures(failures, reply, frames)
+				attr = attribute_failures(failures, reply, frames, read=lambda rel: _read_text(project.path / rel))
 				if is_all and reply.optional_applied:
 					# sites=["all"] opted in unchecked sites (e.g. `args.name` on an argparse namespace): a failure
 					# there is over-rename damage the agent asked for, reported but not an I1 violation

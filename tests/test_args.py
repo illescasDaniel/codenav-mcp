@@ -153,6 +153,8 @@ def test_given_a_missing_required_argument_then_the_hint_shows_the_signature_and
 		("rename", "symbol", "name", {"new_name": "y"}),
 		("change_signature", "symbol", "name", {}),
 		("move", "file", "file_path", {"to_file": "b.py"}),
+		("move", "to", "to_file", {"name": "f"}),
+		("move", "destination", "to_file", {"name": "f"}),
 		("edit_symbol", "symbol", "name", {}),
 		("edit_symbol", "path", "file_path", {}),
 		("edits", "edit_id", "id", {}),

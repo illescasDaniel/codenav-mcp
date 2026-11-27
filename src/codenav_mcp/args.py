@@ -40,6 +40,9 @@ _ARGUMENT_ALIASES: dict[str, tuple[str, ...]] = {
 	"old_name": ("name",),
 	"old": ("old_string",),
 	"new": ("new_string",),
+	"to": ("to_file",),
+	"destination": ("to_file",),
+	"target_file": ("to_file",),
 }
 _ITEM = "edit item"  # the name `multi_edit` resolves the items of `edit_symbol(edits=[...])` under
 _ITEM_EXAMPLE = '{"file_path": "a.py", "old_string": "x = 1", "new_string": "x = 2"}'

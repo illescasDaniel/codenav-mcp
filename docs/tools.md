@@ -4,7 +4,7 @@ title: Tool reference
 summary: The 12 tools, edits and previews, aliases and refusals, output limits and known limits
 type: reference
 status: current
-updated: 2026-11-26
+updated: 2026-11-27
 verified:
 covers: [src/codenav_mcp/**]
 related: []
@@ -25,11 +25,11 @@ absolute path inside it is needed.
 | Tool | Parameters and result |
 |---|---|
 | `lookup` | `name` and optional `file_path`, or `file_path` with `line` and `column`. The default shows the signature, location, brief documentation and usage counts. Use `show` for specific sections. `limit=20`, `offset=0` apply to each section. |
-| `search` | `query`, optional `kind` and `path`, `scope="symbols"`, `limit=30`, `offset=0`. Dotted queries narrow symbols by owner. A path can be a directory prefix, a file or a glob. `scope="mentions"` searches for names in strings, comments and other text. |
+| `search` | `query`, optional `kind` and `path`, `scope="symbols"`, `limit=30`, `offset=0`. Dotted queries narrow symbols by owner. A path can be a directory prefix, a file or a glob. `scope="mentions"` searches for names in strings, comments and other text, one line per match. A CLI-style query such as `--max-file-size` is searched as the Python name `max_file_size`, and the reply names the mentions call for the text itself. |
 | `outline` | `file_path`, optional `depth`. Shows definitions and their line numbers. `depth=1` shows the top level. |
 | `check` | `file_path` for one file, `since` for a git baseline, or neither for workspace settings and current ty diagnostics. `limit=30`, `offset=0`. For git comparisons, `include_dependents=false` limits the check to changed files. |
 | `unused` | Optional `path` and `kind`, `include_private=true`, `limit=30`, `offset=0`. Finds definitions without linked uses and distinguishes symbols used only by tests, mentioned in strings or exported from the project. |
-| `impact` | `name`, optional `file_path`, `change="any"`, `depth=1`, `limit=30`. Change kinds include `signature`, `rename`, `delete` and `type`. Groups callers, argument styles, value uses, related definitions, importers, tests and text mentions. A depth above one follows callers transitively. |
+| `impact` | `name`, optional `file_path`, `change="any"`, `depth=1`, `limit=30`. Change kinds include `signature`, `rename`, `delete` and `type`. Groups callers, argument styles, value uses, related definitions, importers, tests and text mentions. Strings used as data (dict keys, getattr, registries) are listed apart from docstrings and prose, which are grouped with comments. A depth above one follows callers transitively. |
 
 `lookup` accepts `signature`, `doc`, `source`, `references`, `callers`,
 `implementations`, `subclasses`, `overrides` and `mentions` in `show`. The
@@ -77,7 +77,12 @@ arguments. `reorder` takes the complete new parameter order.
 
 The planner holds a preview when it cannot rewrite a call or value use. Review
 the listed sites before applying the preview. Optional site IDs are currently
-available for `rename`.
+available for `rename`. When callers will pass something new, the reply also
+names same-named stand-ins the type checker does not link to the target and
+leaves unchanged: a local fake class's method in a test, or a function wired
+in with `mock.<name>.side_effect = f` or `obj.<name> = f`, whose parameters
+match the target's. They fail with a TypeError once callers pass the new
+argument, so add it to them by hand.
 
 ### Moves
 
@@ -141,7 +146,7 @@ checked, on every tool: `symbol`, `symbol_name` and `qualified_name` for
 `name` for search's `query`; `file`, `filepath` and `path` for `file_path` (`unused`
 and `search` keep their own `path`); `col` for `column`; `line_number` and
 `lineno` for `line`; `in_` for `scope`; `edit_id` for `id`; `old_name` for
-rename’s `name`. Inside `edits` items, `old` and `old_str` mean `old_string`,
+rename’s `name`; `to`, `destination` and `target_file` for move's `to_file`. Inside `edits` items, `old` and `old_str` mean `old_string`,
 and `new` and `new_str` mean `new_string`. A tool's
 actual parameter takes precedence over an alias; an alias is used only when
 the tool has no parameter of that name. An alias and its target with

@@ -11,6 +11,7 @@ import re
 import tomllib
 import xml.etree.ElementTree as ET
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -234,6 +235,11 @@ class Reply:
 	optional_applied: int = 0  # "(+N optional sites)": sites=["all"] opted these in
 
 	@property
+	def regenerated(self) -> list[str]:
+		"""Generated files the reply says to regenerate (`Regenerate docs/api.md with its generator (...)`)."""
+		return re.findall(r"Regenerate (\S+) with its generator", self.text)
+
+	@property
 	def listed_files(self) -> set[str]:
 		files = {path for path, _line, _kind in self.optional_sites}
 		files |= set(re.findall(r"[\w./-]+\.(?:py|md|toml|txt|json|rst|cfg|ini|ya?ml)", self.text))
@@ -454,15 +460,25 @@ class Attribution:
 
 
 def attribute_failures(
-	failures: dict[str, str], reply: Reply, frames: dict[str, list[tuple[str, int]]] | None = None
+	failures: dict[str, str],
+	reply: Reply,
+	frames: dict[str, list[tuple[str, int]]] | None = None,
+	read: Callable[[str], str | None] | None = None,
 ) -> Attribution:
 	"""`failures` maps a description to the workspace file where the failure shows (test file or ty diag file).
 
 	A failure is traced when its file holds a listed optional site, one of its traceback frames lies within 3 lines of one, is named in the reply (held plans, manual
 	attention) or the plan was held. A failure the reply only covers with a count ("N could not be checked and are
-	not listed") is `unlisted`; anything else is `silent`."""
+	not listed") is `unlisted`; anything else is `silent`. A test that reads a generated file the reply says to
+	regenerate (`read` gives a workspace file's text) is traced too: the reply named the fix."""
 	result = Attribution()
-	listed = reply.listed_files
+	listed = set(reply.listed_files)
+	generated = reply.regenerated
+	if generated and read is not None:
+		for file in set(failures.values()):
+			text = read(file) or ""
+			if any(path in text or Path(path).name in text for path in generated):
+				listed.add(file)
 	for desc, file in failures.items():
 		near_listed = any(
 			(path, line)

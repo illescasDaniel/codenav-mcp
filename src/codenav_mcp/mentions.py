@@ -39,6 +39,7 @@ class Mention:
 	snippet: str
 	column: int | None = None  # 0-based UTF-16 column of an "attr" / "code" name; None for the other kinds
 	value: str | None = None  # a dotted string literal, when present
+	prose: bool = False  # a string mention inside a docstring or a sentence, not a name used as data
 
 
 async def types_as_never(client: LspClient, path: Path, line: int, column: int) -> bool:
@@ -74,9 +75,9 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 	word = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
 	found: list[Mention] = []
 
-	def add(row: int, kind: str, column: int | None = None, value: str | None = None) -> None:
+	def add(row: int, kind: str, column: int | None = None, value: str | None = None, *, prose: bool = False) -> None:
 		snippet = lines[row - 1].strip() if 0 < row <= len(lines) else ""
-		found.append(Mention(rel, row, kind, snippet[:140], column, value))
+		found.append(Mention(rel, row, kind, snippet[:140], column, value, prose))
 
 	try:
 		previous: tokenize.TokenInfo | None = None
@@ -93,13 +94,20 @@ def _python_mentions(path: Path, rel: str, name: str, covered: set[tuple[int, in
 				rows = {row + token.string.count("\n", 0, match.start()) for match in word.finditer(token.string)}
 				if rows:
 					value = _dotted_literal(token)
+					prose = _is_prose(token)
 					for match_row in sorted(rows):
-						add(match_row, "string", value=value)
+						add(match_row, "string", value=value, prose=prose)
 			if token.type not in (tokenize.NL, tokenize.COMMENT):
 				previous = token
 	except (tokenize.TokenError, IndentationError, SyntaxError):
 		pass
 	return found
+
+
+def _is_prose(token: tokenize.TokenInfo) -> bool:
+	"""A triple-quoted string (docstrings) or one of several words: text about the name, not the name as data."""
+	body = token.string.lstrip("rRbBuUfFtT")
+	return body.startswith(('"""', "'''")) or len(token.string.split()) >= 4
 
 
 def _dotted_literal(token: tokenize.TokenInfo) -> str | None:

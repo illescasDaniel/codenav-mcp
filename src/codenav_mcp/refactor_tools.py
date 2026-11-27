@@ -17,6 +17,7 @@ from mcp_nav_shared.format import uri_to_path
 from codenav_mcp import tool_base
 from codenav_mcp.ambiguity import write_refusal
 from codenav_mcp.deps import import_from_targets, iter_python_files, module_names_for
+from codenav_mcp.fakes import find_stand_ins, stand_ins_note
 from codenav_mcp.linked import find_linked
 from codenav_mcp.moves import plan_move_module, plan_move_symbol
 from codenav_mcp.pysource import (
@@ -308,6 +309,7 @@ async def _plan_signature(
 	fixable_by_keyword = 0  # held call sites that `keyword_only=true` on the added parameters would let us rewrite
 	commented: list[str] = []
 	summary_bits: list[str] = []
+	target_params: list[str] = []
 	for declaration in declarations:
 		ctx = declaration.ctx
 		signature = read_signature(ctx.smap, ctx.tokens, declaration.definition)
@@ -328,6 +330,7 @@ async def _plan_signature(
 		if rendered != ctx.text[signature.span[0] : signature.span[1]]:
 			ctx.edits.append((signature.span[0], signature.span[1], rendered))
 		if declaration is declarations[0]:
+			target_params = [param.name for param in signature.callable_params]
 			summary_bits = [
 				*(f"+{spec['name']}" for spec in change.add),
 				*(f"-{n}" for n in change.remove),
@@ -445,6 +448,24 @@ async def _plan_signature(
 			+ (f" (and {len(commented) - 10} more)" if len(commented) > 10 else "")
 			+ ". Move those comments out of the calls (or edit the calls by hand), then rerun change_signature."
 		)
+	if not callers_unaffected and not is_constructor:
+		# Test fakes ty does not link (a local class, a mock's side_effect function) keep the old parameters and
+		# fail once callers pass the new ones: name them rather than let the tests find out.
+		stand_ins = find_stand_ins(
+			iter_python_files(session.workspace),
+			session.workspace,
+			name=target_def.name,
+			target_params=target_params,
+			changed={(d.ctx.path.resolve(), d.definition.node.lineno) for d in declarations},
+		)
+		note = stand_ins_note(
+			stand_ins,
+			session.workspace,
+			qualname=declarations[0].definition.qualname,
+			added=[spec["name"] for spec in change.add if spec.get("value") is not None],
+		)
+		if note:
+			notes.append(note)
 	changes = []
 	for ctx in files.values():
 		if not ctx.edits:

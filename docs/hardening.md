@@ -4,7 +4,7 @@ title: Hardening checks
 summary: Automated checks that look for codenav bugs (properties, state machine, refactor fuzzer, differential, CrossHair, mutation): invariants, commands, runtimes
 type: how-to
 status: current
-updated: 2026-11-26
+updated: 2026-11-27
 verified:
 covers: [hardening/**, tests/property/**, tests/test_fuzz_refactors.py, tests/test_fuzz_support.py, pyproject.toml]
 related: [DOC-003]
@@ -129,9 +129,9 @@ codenav MCP server (a fresh stdio server per case), and judges the result with t
 
 | invariant | statement |
 |---|---|
-| I1 | every new test failure or ty error after a default refactor traces to a site the reply listed as optional (u-ids), a held plan, or "needs manual attention"; a count such as "N attribute accesses could not be checked and are not listed" is not "listed". With `sites=["all"]`, failures in files the opted-in sites rewrote are reported separately as over-rename damage, not as I1 |
+| I1 | every new test failure or ty error after a default refactor traces to a site the reply listed as optional (u-ids), a held plan, "needs manual attention", or a "Regenerate <file> with its generator" note for a file the failing test reads; a count such as "N attribute accesses could not be checked and are not listed" is not "listed". With `sites=["all"]`, failures in files the opted-in sites rewrote are reported separately as over-rename damage, not as I1 |
 | I2 | rename X -> Y then Y -> X leaves `git status --porcelain` empty (default sites and `sites=["all"]`) |
-| I3 | edits only touch `.py` files under the source/test roots (no dot-directories; other files only when `sites=["all"]` listed them); a held or refused call writes nothing |
+| I3 | edits only touch the project's `.py` files (`examples/` and `scripts/` count, since ty resolves references there; never dot-directories, `venv`, `build`, `dist`, `site-packages`; other files only when `sites=["all"]` listed them); a held or refused call writes nothing |
 | I4 | deleting an `unused`-labelled symbol never adds a ty error or a test failure |
 | I5 | replies obey the v2 format: answer line first, `next:`/retry lines parse as calls of existing tools with known keywords and literal values, error replies carry a corrected call or `Example:` |
 

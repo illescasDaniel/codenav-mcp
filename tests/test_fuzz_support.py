@@ -162,3 +162,15 @@ def test_parse_reply_detects_held_plans_and_opted_in_sites() -> None:
 		).optional_applied
 		== 316
 	)
+
+
+def test_attribute_failures_traces_a_test_that_reads_a_file_the_reply_says_to_regenerate() -> None:
+	reply = parse_reply(
+		'Rename a -> b: 3 edit(s). Applied as edit abcd1234 (undo: edits(action="undo", id="abcd1234")).\n'
+		"Notes:\n  - Regenerate docs/api-reference.md with its generator (scripts/docs/export.py).",
+		False,
+	)
+	texts = {"tests/test_public_api.py": 'EXPECTED = Path("docs/api-reference.md")'}
+	failures = {"t": "tests/test_public_api.py", "u": "tests/test_other.py"}
+	result = attribute_failures(failures, reply, read=texts.get)
+	assert result.traced == ["t"] and result.silent == ["u"]

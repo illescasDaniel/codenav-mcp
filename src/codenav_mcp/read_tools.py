@@ -454,6 +454,9 @@ def _mention_row(mention: Mention, exact_strings: set[str] | None = None) -> _Ro
 	elif mention.value:
 		label = "exact dotted string" if exact_strings and mention.value in exact_strings else kind
 		context = f"{label}  {mention.value}"
+	elif mention.snippet.strip():
+		snippet = mention.snippet.strip()
+		context = f"{kind}  {snippet if len(snippet) <= 100 else snippet[:99] + '…'}"
 	else:
 		context = kind
 	return _Row(f"{mention.path}:{mention.line}", context)
@@ -752,12 +755,19 @@ async def search(
 			reply.add_page(paginate(found, limit, offset), render_mention, "search", **args)
 		elif scope == "symbols":
 			kinds = parse_kind_filter(kind)
-			qualifier, leaf = srv._split_dotted(srv._nfkc(query))
+			py_name = _python_name_for(query)
+			qualifier, leaf = srv._split_dotted(srv._nfkc(py_name or query))
 			symbols, outside, skipped = await srv._search_symbols(session.client, qualifier, leaf)
 			symbols = filter_symbols_by_kind_and_path(symbols, session.workspace, kinds=kinds, path=path)
 			matching = [sym for sym in symbols if leaf.casefold() in str(sym.get("name") or "").casefold()]
 			matching = filter_workspace_symbols(rank_workspace_symbols(matching, leaf))
 			reply = Reply(f"{len(matching)} symbols match {query!r}.", notes=srv._search_notes(outside, skipped))
+			if py_name:
+				reply.notes.insert(
+					0,
+					f"{query!r} is not a Python name; searched for {py_name!r}. "
+					f"For the text itself: {call('search', query=query, scope='mentions')}",
+				)
 			if not matching and symbols:
 				reply.notes.append("No exact match among ty's results. Try a shorter query or broaden the filters.")
 
@@ -772,6 +782,16 @@ async def search(
 		return reply.render()
 	except TOOL_ERRORS as exc:
 		return _refusal(exc, search)
+
+
+def _python_name_for(query: str) -> str | None:
+	"""The Python name a CLI-style query stands for (`--max-file-size` -> `max_file_size`); None if it already is
+	one or has no such reading."""
+	text = query.strip()
+	if all(part.isidentifier() for part in text.split(".")):
+		return None
+	name = text.lstrip("-").replace("-", "_")
+	return name if name and all(part.isidentifier() for part in name.split(".")) else None
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

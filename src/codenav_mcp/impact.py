@@ -267,7 +267,9 @@ def group_mentions(
 				grouped.all_exports.append(mention)
 				continue
 			target = dotted.search(mention.snippet)
-			if target:
+			if mention.prose and not target:
+				grouped.comments.append(mention)  # a docstring or sentence: read like a comment, not a lookup key
+			elif target:
 				grouped.patch_targets.append((mention, target.group(1) in qualified))
 			else:
 				grouped.strings.append(mention)
@@ -497,9 +499,12 @@ def render_report(data: Data, change: str, depth: int, limit: int) -> Reply:
 			for m, exact in mention.patch_targets
 		]
 		add("Patch targets / dotted strings", targets)
-		add("Other strings (getattr, registries)", [f"{m.path}:{m.line}  {m.snippet}" for m in mention.strings])
+		add(
+			"Other strings (dict keys, getattr, registries)",
+			[f"{m.path}:{m.line}  {m.snippet}" for m in mention.strings],
+		)
 		add("Docs and other text files (file:lines)", _by_file(mention.text))
-		add("Comments (file:lines)", _by_file(mention.comments))
+		add("Comments and docstrings (file:lines)", _by_file(mention.comments))
 	if mention.unlinked and change in ("any", "rename", "delete", "signature"):
 		add(
 			"Same name, not resolved by the type checker (files it does not check, mocks, untyped objects, or "
