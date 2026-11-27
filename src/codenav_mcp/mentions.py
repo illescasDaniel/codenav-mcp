@@ -22,6 +22,7 @@ from mcp_nav_shared.exclude import excluded_names
 from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp.deps import ENV_PREFIX, iter_python_files
+from codenav_mcp.heredocs import SHELL_SUFFIXES, embedded_python_sites
 from codenav_mcp.pysource import reject_nul, utf16_column
 
 
@@ -40,6 +41,7 @@ class Mention:
 	column: int | None = None  # 0-based UTF-16 column of an "attr" / "code" name; None for the other kinds
 	value: str | None = None  # a dotted string literal, when present
 	prose: bool = False  # a string mention inside a docstring or a sentence, not a name used as data
+	role: str | None = None  # Python in a shell heredoc: "attr" | "keyword" | "name" | "def" | "import" (see heredocs)
 
 
 async def types_as_never(client: LspClient, path: Path, line: int, column: int) -> bool:
@@ -130,7 +132,7 @@ def _text_files(workspace: Path, limit: int | None) -> list[Path]:
 			continue
 		dirs[:] = sorted(d for d in dirs if d not in skip)
 		for filename in sorted(names):
-			if Path(filename).suffix.lower() in TEXT_SUFFIXES:
+			if Path(filename).suffix.lower() in TEXT_SUFFIXES | SHELL_SUFFIXES:
 				files.append(Path(directory) / filename)
 				if limit is not None and len(files) >= limit:
 					return files
@@ -170,8 +172,16 @@ def find_mentions(
 		try:
 			if path.stat().st_size > _MAX_TEXT_BYTES:
 				continue
-			lines = _lines(decode_source(path.read_bytes())[0])
+			text = decode_source(path.read_bytes())[0]
 		except (OSError, UnicodeDecodeError):
+			continue
+		lines = _lines(text)
+		if path.suffix.lower() in SHELL_SUFFIXES:
+			# Only the Python in heredocs, name by name: a shell `name=` or a word in an echo is not this symbol.
+			found += [
+				Mention(rel, site.line, "text", lines[site.line - 1].strip()[:140], column=site.column, role=site.role)
+				for site in embedded_python_sites(text, name)
+			]
 			continue
 		found += [
 			Mention(rel, number, "text", line.strip()[:140])

@@ -149,6 +149,15 @@ def _callee_name(call: ast.Call) -> str:
 	return ""
 
 
+# Which names in a shell heredoc's Python fit a rename: a member is reached as `obj.name` or passed as `name=`; a
+# module-level symbol is named bare, imported, or reached as `module.name`; a parameter only as a keyword.
+_HEREDOC_ROLES = {
+	"member": frozenset({"attr", "keyword", "def"}),
+	"top": frozenset({"name", "def", "import", "attr"}),
+	"parameter": frozenset({"keyword"}),
+}
+
+
 def _code_like_spans(row: str, old: str, start: int = 0, end: int | None = None) -> list[tuple[int, int]]:
 	"""Spans of `old` in `row` that read like code: after a dot, in backticks, or called (`old(`)."""
 	spans = []
@@ -480,6 +489,18 @@ async def plan_v2_sites(
 		if mention.line > len(lines):
 			continue
 		row = lines[mention.line - 1].removesuffix("\r")
+		if mention.role is not None:
+			# Python in a shell heredoc, parsed: the exact name, if its role fits what is renamed.
+			if (
+				mention.column is None
+				or text_sites >= _MAX_TEXT_SITES
+				or mention.role not in _HEREDOC_ROLES["parameter" if parameter else "member" if is_member else "top"]
+			):
+				continue
+			text_sites += 1
+			edit = TextEdit(mention.line - 1, mention.column, mention.line - 1, mention.column + width, new_name)
+			raws.append(_Raw(path, mention.line, mention.column, "text", mention.snippet, edit))
+			continue
 		for start, end in _code_like_spans(row, old_name):
 			if text_sites >= _MAX_TEXT_SITES:
 				break

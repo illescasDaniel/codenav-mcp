@@ -22,6 +22,7 @@ from mcp_nav_shared.transaction import WriteGuard, read_only_from_env, refuse_ho
 
 from codenav_mcp.deps import ENV_PREFIX
 from codenav_mcp.edit_state import PersistentJournal, PersistentPlanStore, workspace_state_dir
+from codenav_mcp.heredocs import SHELL_SUFFIXES
 from codenav_mcp.mentions import TEXT_SUFFIXES
 from codenav_mcp.plan_diff import plan_diff
 from codenav_mcp.plan_merge import site_followup
@@ -59,7 +60,7 @@ def write_state(root: Path) -> WriteState:
 	if _state is None or _state.root != root:
 		guard = WriteGuard(
 			root=root,
-			allowed_suffixes=PYTHON_SUFFIXES | TEXT_SUFFIXES,
+			allowed_suffixes=PYTHON_SUFFIXES | TEXT_SUFFIXES | SHELL_SUFFIXES,
 			read_only=read_only,
 			allow_readonly=allow_readonly,
 			exclude_prefix=ENV_PREFIX,
