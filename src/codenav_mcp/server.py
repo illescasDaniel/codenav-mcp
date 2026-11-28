@@ -77,6 +77,17 @@ from codenav_mcp.writes import READ_ONLY_ENV
 
 logger = logging.getLogger(__name__)
 
+_EXTRA_SOURCE_ROOTS_ENV = "CODENAV_MCP_EXTRA_SOURCE_ROOTS"
+
+
+def _extra_roots_disabled() -> bool:
+	return os.environ.get(_EXTRA_SOURCE_ROOTS_ENV, "").strip() == "none"
+
+
+def _configured_extra_roots(workspace: Path) -> list[Path]:
+	return [] if _extra_roots_disabled() else resolve_extra_source_roots(_EXTRA_SOURCE_ROOTS_ENV, workspace)
+
+
 # Which checkout/worktree to navigate is decided per request (see
 # `WorkspaceSelector`): the host starts this process once, usually from the
 # main checkout, even when the session works in a linked worktree.
@@ -93,8 +104,8 @@ try:
 	# whole workspace; set CODENAV_MCP_SOURCE_ROOT (e.g. to "src") in a project's
 	# MCP config to pick another scope.
 	SOURCE_ROOT = resolve_source_root("CODENAV_MCP_SOURCE_ROOT", WORKSPACE_ROOT, autodetect_src=True)
-	# Extra directories to scan for implementations, such as tests/ for Protocol doubles.
-	EXTRA_SOURCE_ROOTS = resolve_extra_source_roots("CODENAV_MCP_EXTRA_SOURCE_ROOTS", WORKSPACE_ROOT)
+	# Explicit roots also participate in import-path derivation.
+	EXTRA_SOURCE_ROOTS = _configured_extra_roots(WORKSPACE_ROOT)
 except WorkspaceConfigError as exc:
 	# The console script imports this module before `main` runs, so the check has to happen here. The
 	# refusal is one line for the user: no traceback, non-zero exit.
@@ -181,7 +192,9 @@ _notices = _CodenavNoticeBoard("codenav", package_source_dirs(mcp_nav_shared, co
 
 def _post_ignored_extra_roots(root: Path) -> None:
 	"""Extra source roots that are not folders inside `root` are skipped; say so once."""
-	for entry in ignored_extra_source_roots("CODENAV_MCP_EXTRA_SOURCE_ROOTS", root):
+	if _extra_roots_disabled():
+		return
+	for entry in ignored_extra_source_roots(_EXTRA_SOURCE_ROOTS_ENV, root):
 		_notices.post(f"Ignored extra source root: {entry} (not an existing folder inside the workspace)")
 
 
@@ -200,7 +213,7 @@ async def _configure_workspace(root: Path, source: str) -> None:
 	global WORKSPACE_ROOT, SOURCE_ROOT, EXTRA_SOURCE_ROOTS, _client, _workspace_source, _probe_cache_signature
 	# Resolve the new paths first: a config error must not leave a half-switched server.
 	source_root = resolve_source_root("CODENAV_MCP_SOURCE_ROOT", root, autodetect_src=True)
-	extra_roots = resolve_extra_source_roots("CODENAV_MCP_EXTRA_SOURCE_ROOTS", root)
+	extra_roots = _configured_extra_roots(root)
 	if (too_large := await asyncio.to_thread(workspace_too_large, root)) is not None:
 		raise ToolInputError(too_large)  # refused before the old server is stopped or a new one started
 	if _client is not None:
@@ -1100,6 +1113,27 @@ def _candidate_files(root: Path) -> list[Path]:
 	return sorted(files)
 
 
+def _automatic_implementation_roots() -> list[Path]:
+	if _EXTRA_SOURCE_ROOTS_ENV in os.environ or EXTRA_SOURCE_ROOTS:
+		return []
+	workspace = WORKSPACE_ROOT.resolve()
+	roots: list[Path] = []
+	for name in ("test", "tests"):
+		path = workspace / name
+		if not path.is_dir() or is_excluded(path, workspace, prefix=ENV_PREFIX):
+			continue
+		root = path.resolve()
+		if (
+			root != workspace
+			and root.is_relative_to(workspace)
+			and not _is_under(root, SOURCE_ROOT)
+			and not is_excluded(root, workspace, prefix=ENV_PREFIX)
+			and root not in roots
+		):
+			roots.append(root)
+	return roots
+
+
 @dataclass(frozen=True)
 class ProtocolImplementation:
 	path: Path
@@ -1119,10 +1153,11 @@ class _ProtocolMatches:
 	rejected: list[tuple[ProtocolImplementation, str]]
 	not_probed: int
 	unreadable: int
+	automatic_roots: list[Path]
 	no_match_members: set[str] | None = None
 
 
-async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _ProtocolMatches:
+async def _protocol_matches(client: LspClient, port: ResolvedSymbol, *, include_automatic: bool) -> _ProtocolMatches:
 	port_rel_path = uri_to_relative(port.uri, WORKSPACE_ROOT)
 	port_symbols = await client.document_symbol(port_rel_path)
 	port_source = (WORKSPACE_ROOT / port_rel_path).read_text(encoding="utf-8")
@@ -1144,9 +1179,11 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 	if not port_own:
 		raise ToolInputError(f"{port.name} has no members to match candidates against.")
 
+	automatic_roots = _automatic_implementation_roots() if include_automatic else []
+	extra_roots = [*EXTRA_SOURCE_ROOTS, *automatic_roots]
 	port_abs = WORKSPACE_ROOT / port_rel_path
 	# A port in an extra root (e.g. tests/) is imported relative to the workspace, as its candidates are.
-	port_in_extra = not _is_under(port_abs, SOURCE_ROOT) and any(_is_under(port_abs, r) for r in EXTRA_SOURCE_ROOTS)
+	port_in_extra = not _is_under(port_abs, SOURCE_ROOT) and any(_is_under(port_abs, r) for r in extra_roots)
 	port_module = _module_path(port_abs, WORKSPACE_ROOT if port_in_extra else None)
 
 	# Vendored/generated/virtualenv trees are never this project's own source
@@ -1156,7 +1193,7 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 	primary_files = _candidate_files(SOURCE_ROOT)
 	primary_set = set(primary_files)
 	# Extra roots (tests, ...): scanned too, reported separately, imported relative to the workspace.
-	extra_files = sorted({p for root in EXTRA_SOURCE_ROOTS for p in _candidate_files(root) if p not in primary_set})
+	extra_files = sorted({p for root in extra_roots for p in _candidate_files(root) if p not in primary_set})
 	extra_set = set(extra_files)
 	all_candidate_files = [*primary_files, *extra_files]
 	port_abs_path = (WORKSPACE_ROOT / port_rel_path).resolve()
@@ -1218,7 +1255,7 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 				)
 				name_matches.append((candidate, candidate_module))
 
-	matches = _ProtocolMatches([], [], not_probed, len(unreadable))
+	matches = _ProtocolMatches([], [], not_probed, len(unreadable), automatic_roots)
 	if not name_matches:
 		matches.no_match_members = port_required
 		return matches
@@ -1277,26 +1314,6 @@ async def _protocol_matches(client: LspClient, port: ResolvedSymbol) -> _Protoco
 			_probe_lock.release()
 
 	return matches
-
-
-def _unscanned_note() -> str:
-	"""One line saying which root `implementations` scanned and how to include tests/, when a tests directory was left out."""
-	if EXTRA_SOURCE_ROOTS:
-		return ""
-	left_out = [
-		d.name
-		for d in sorted(WORKSPACE_ROOT.iterdir() if WORKSPACE_ROOT.is_dir() else [])
-		if d.is_dir()
-		and d.name in ("tests", "test")
-		and not _is_under(d, SOURCE_ROOT)
-		and not is_excluded(d, WORKSPACE_ROOT, prefix=ENV_PREFIX)
-	]
-	if not left_out:
-		return ""
-	return (
-		f"\nScanned only {_shown(SOURCE_ROOT)}; {', '.join(left_out)}/ not scanned (test doubles live there): "
-		f"set CODENAV_MCP_EXTRA_SOURCE_ROOTS={','.join(left_out)} to include {'them' if len(left_out) > 1 else 'it'}."
-	)
 
 
 def _register_tools() -> None:

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Protocol implementation lookup also scans top-level `test/` and `tests/` outside the source root by default. Set `CODENAV_MCP_EXTRA_SOURCE_ROOTS=none` to scan only the source root.
+
 ## [2.0.0]
 
 - Twelve name-first tools cover navigation, type checks and refactors. Discovery fits within 9,000 characters.

@@ -44,12 +44,11 @@ opencode mcp add codenav -- uvx codenav-mcp
 
 </details>
 
-Some models don't pick up new tools on their own (see [What has been measured](#what-has-been-measured)). One line in
-the project's `AGENTS.md` or `CLAUDE.md` is enough:
+Some models need a prompt to pick up new tools (see [What has been measured](#what-has-been-measured)). Add this to
+the project's `AGENTS.md` or `CLAUDE.md`.
 
 ```text
-For Python code navigation and refactors (finding callers or references, renaming, changing signatures, moving code),
-prefer the codenav MCP tools over grep, sed and hand edits: they follow the types.
+For Python code navigation and refactors, prefer the codenav MCP tools over grep, sed, and hand edits. If codenav is listed as a deferred tool, load or invoke it before falling back to other methods. If it still can’t be made available, explain that before proceeding.
 ```
 
 ## Requirements and limits

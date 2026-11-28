@@ -484,18 +484,28 @@ def test_given_flag_when_rename_is_a_bare_name_then_no_attr_edits_are_added(proj
 # --- callers on a Protocol member --------------------------------------------------------------------------------
 
 
-def test_given_tests_dir_outside_the_source_root_when_implementations_then_says_it_was_not_scanned(project, loop):
+def test_given_tests_dir_outside_source_root_when_implementations_then_reports_test_scan(project, loop, monkeypatch):
+	monkeypatch.delenv("CODENAV_MCP_EXTRA_SOURCE_ROOTS", raising=False)
 	text = _run(loop, read_tools.lookup(name="DesktopPort", show=["implementations"]))
-	assert "Scanned only src; tests/ not scanned" in text
-	assert "CODENAV_MCP_EXTRA_SOURCE_ROOTS=tests" in text
+	assert "Also scanned tests/" in text
+	assert "CODENAV_MCP_EXTRA_SOURCE_ROOTS=none" in text
 	empty = _run(loop, read_tools.lookup(name="StoragePort", show=["implementations"]))
-	assert "CODENAV_MCP_EXTRA_SOURCE_ROOTS=tests" in empty
+	assert "Also scanned tests/" in empty
 
 
-def test_given_extra_root_set_when_implementations_then_no_unscanned_note(project, loop, monkeypatch):
-	monkeypatch.setattr(server, "EXTRA_SOURCE_ROOTS", [project / "tests"])
+def test_given_configured_extra_root_when_implementations_then_replaces_automatic_roots(project, loop, monkeypatch):
+	(project / "fixtures").mkdir()
+	(project / "fixtures" / "desktop.py").write_text(
+		"class FixtureDesktop:\n\tdef reveal_path(self, path: str) -> None: pass\n", encoding="utf-8"
+	)
+	(project / "tests" / "desktop.py").write_text(
+		"class TestDesktop:\n\tdef reveal_path(self, path: str) -> None: pass\n", encoding="utf-8"
+	)
+	monkeypatch.setenv("CODENAV_MCP_EXTRA_SOURCE_ROOTS", "fixtures")
+	monkeypatch.setattr(server, "EXTRA_SOURCE_ROOTS", server._configured_extra_roots(project))
 	text = _run(loop, read_tools.lookup(name="DesktopPort", show=["implementations"]))
-	assert "not scanned" not in text
+	assert "fixtures/desktop.py:1  FixtureDesktop" in text
+	assert "TestDesktop" not in text and "Also scanned tests/" not in text
 
 
 def test_given_protocol_member_when_callers_then_the_note_points_to_implementations(project, loop):

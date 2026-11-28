@@ -65,10 +65,11 @@ server restarts.
 `implementations`, `subclasses`, `overrides` and `mentions` in `show`. The
 signature and location are always included. `source` requests the full
 definition. Protocol callers through the Protocol and through concrete
-implementations appear in separate groups. The source root and configured extra
-roots determine which structural implementations can be found. To scan test
-doubles outside the source root, add their directories to
-`CODENAV_MCP_EXTRA_SOURCE_ROOTS`.
+implementations appear in separate groups. Structural implementation lookup
+scans the source root plus any top-level `test/` and `tests/` directories outside
+it. Matches from those additional directories appear under **Extra source
+roots**. Set `CODENAV_MCP_EXTRA_SOURCE_ROOTS` to supply a different list of
+additional directories, or to `none` to scan only the source root.
 
 ```text
 lookup(name="StorePort.save", show=["callers", "implementations"], limit=5)

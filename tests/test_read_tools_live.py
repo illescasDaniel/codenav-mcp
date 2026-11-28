@@ -137,14 +137,18 @@ def test_protocol_callers_group_sites_and_paginate_across_groups(project, loop):
 
 
 def test_protocol_implementations_follow_source_roots(project, loop, monkeypatch):
-	primary = loop.run_until_complete(read_tools.lookup(name="Port", show=["implementations"]))
-	assert "Implementations (1)" in primary and "src/pkg/app.py:5  Service" in primary
-	assert "Fake" not in primary and "tests/ not scanned" in primary
-	monkeypatch.setattr(server, "EXTRA_SOURCE_ROOTS", [project / "tests"])
-	all_roots = loop.run_until_complete(read_tools.lookup(name="Port.execute", show=["implementations"]))
-	assert "Implementations (2)" in all_roots and "src/pkg/app.py:6  Service.execute" in all_roots
-	assert "tests/fakes.py:3  Fake.execute" in all_roots
-	assert "Other.execute" not in all_roots
+	monkeypatch.delenv("CODENAV_MCP_EXTRA_SOURCE_ROOTS", raising=False)
+	first = loop.run_until_complete(read_tools.lookup(name="Port.execute", show=["implementations"], limit=1))
+	assert "Implementations (2)" in first and "src/pkg/app.py:6  Service.execute" in first
+	assert "Fake.execute" not in first
+	assert 'next: lookup(name="Port.execute", show=["implementations"], limit=1, offset=1)' in first
+	second = loop.run_until_complete(
+		read_tools.lookup(name="Port.execute", show=["implementations"], limit=1, offset=1)
+	)
+	assert "Extra source roots (1)\ntests/fakes.py:3  Fake.execute" in second
+	assert "Other.execute" not in second and "next:" not in second
+	combined = loop.run_until_complete(read_tools.lookup(name="Port.execute", show=["callers", "implementations"]))
+	assert "tests/fakes.py:3  Fake.execute" in combined and "To Fake.execute" not in combined
 
 
 def test_nominal_hierarchy_has_transitive_subclasses_and_overrides(project, loop):

@@ -94,6 +94,13 @@ class _Row:
 		return f"{self.location}  {self.context}"
 
 
+@dataclass(frozen=True)
+class _ImplementationRows:
+	primary: list[tuple[_Position, str]]
+	extra: list[tuple[_Position, str]]
+	automatic_extra: bool = False
+
+
 def _refusal(exc: Exception, tool: Callable[..., Any]) -> str:
 	message = format_tool_error(exc)
 	return FailedText(Reply(f"{message}\nExample: {example_call(tool)}").render())
@@ -416,11 +423,13 @@ async def _related_rows(
 	return found
 
 
-async def _protocol_implementations(session: Session, target: _Target, reply: Reply) -> list[tuple[_Position, str]]:
+async def _protocol_implementations(
+	session: Session, target: _Target, reply: Reply, *, include_automatic: bool
+) -> _ImplementationRows:
 	srv = tool_base.server()
 	owner = target.owner or target.definition
 	if owner is None:
-		return []
+		return _ImplementationRows([], [])
 	port = ResolvedSymbol(
 		owner.name,
 		5,
@@ -430,21 +439,54 @@ async def _protocol_implementations(session: Session, target: _Target, reply: Re
 		owner.first_line - 1,
 		owner.last_line - 1,
 	)
-	matches = await srv._protocol_matches(session.client, port)
-	if note := srv._unscanned_note():
-		reply.notes.append(note.strip())
+	matches = await srv._protocol_matches(session.client, port, include_automatic=include_automatic)
+	if matches.automatic_roots:
+		roots = ", ".join(f"{root.relative_to(session.workspace).as_posix()}/" for root in matches.automatic_roots)
+		reply.notes.append(f"Also scanned {roots} (set CODENAV_MCP_EXTRA_SOURCE_ROOTS=none to opt out).")
 	if matches.unreadable:
 		reply.notes.append(f"{matches.unreadable} source files could not be checked for implementations.")
 	if matches.not_probed:
-		reply.notes.append(f"{matches.not_probed} implementation candidates exceeded the probe limit.")
+		reply.notes.append(f"{matches.not_probed} implementation candidates had no usable module path.")
 	if matches.rejected:
 		reply.notes.append(f"{len(matches.rejected)} candidates did not pass the type check.")
-	classes = [
-		(_Position(uri_to_relative(candidate.path.as_uri(), session.workspace), candidate.line, 1), candidate.name)
-		for candidate in matches.verified
-	]
-	rows = await _related_rows(session, classes, target, inherited=True)
-	return [(position, label + (" [stub]" if position.file_path.endswith(".pyi") else "")) for position, label in rows]
+
+	async def rows(extra: bool) -> list[tuple[_Position, str]]:
+		classes = [
+			(_Position(uri_to_relative(candidate.path.as_uri(), session.workspace), candidate.line, 1), candidate.name)
+			for candidate in matches.verified
+			if candidate.extra == extra
+		]
+		return [
+			(position, label + (" [stub]" if position.file_path.endswith(".pyi") else ""))
+			for position, label in await _related_rows(session, classes, target, inherited=True)
+		]
+
+	return _ImplementationRows(await rows(extra=False), await rows(extra=True), bool(matches.automatic_roots))
+
+
+def _add_implementations(
+	reply: Reply,
+	primary: list[tuple[_Position, str]],
+	extra: list[tuple[_Position, str]],
+	args: dict[str, Any],
+	limit: int,
+	offset: int,
+) -> None:
+	rows = [_Row(f"{p.file_path}:{p.line}", label) for p, label in [*primary, *extra]]
+	if not extra:
+		_add_section(reply, "Implementations", rows, "implementations", args, limit, offset)
+		return
+
+	def render(item: tuple[int, _Row]) -> str:
+		index, row = item
+		if index == max(offset, len(primary)):
+			return f"Extra source roots ({len(extra)})\n{row.render()}"
+		return row.render()
+
+	reply.items.append(f"Implementations ({len(rows)})")
+	reply.add_page(
+		paginate(list(enumerate(rows)), limit, offset), render, "lookup", **args, show=["implementations"], limit=limit
+	)
 
 
 def _mention_row(mention: Mention, exact_strings: set[str] | None = None) -> _Row:
@@ -651,9 +693,16 @@ async def _lookup(
 		)
 	structural = None
 	if protocol and ("implementations" in sections or ("callers" in sections and target.owner)):
-		structural = await _protocol_implementations(session, target, reply)
+		structural = await _protocol_implementations(
+			session, target, reply, include_automatic="implementations" in sections
+		)
 	if "callers" in sections:
-		await _expand_callers(session, target, direct, reply, args, limit, offset, structural)
+		caller_implementations = None
+		if structural is not None:
+			caller_implementations = (
+				structural.primary if structural.automatic_extra else [*structural.primary, *structural.extra]
+			)
+		await _expand_callers(session, target, direct, reply, args, limit, offset, caller_implementations)
 		if not direct and structural is None and target.resolved and target.resolved.kind in {6, 12}:
 			uses = await session.client.references(**position, include_declaration=False)
 			if split_inside_workspace(uses, session.workspace, srv._location_uri)[0]:
@@ -666,8 +715,8 @@ async def _lookup(
 		rows = [_Row(f"{p.file_path}:{p.line}", label) for p, label in related] if target.owner else []
 		_add_section(reply, "Overrides", rows, "overrides", args, limit, offset)
 	if "implementations" in sections:
-		rows = [_Row(f"{p.file_path}:{p.line}", label) for p, label in (related if structural is None else structural)]
-		_add_section(reply, "Implementations", rows, "implementations", args, limit, offset)
+		implementation_rows = structural if structural is not None else _ImplementationRows(related, [])
+		_add_implementations(reply, implementation_rows.primary, implementation_rows.extra, args, limit, offset)
 	if "mentions" in sections:
 		rows = await _symbol_mentions(session, target, locations, reply)
 		_add_section(reply, "Mentions", rows, "mentions", args, limit, offset)

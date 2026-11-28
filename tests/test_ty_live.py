@@ -57,6 +57,7 @@ def project(tmp_path, monkeypatch, loop):
 	monkeypatch.setattr(codenav_server, "WORKSPACE_ROOT", tmp_path)
 	monkeypatch.setattr(codenav_server, "SOURCE_ROOT", tmp_path / "src")
 	monkeypatch.setattr(codenav_server, "EXTRA_SOURCE_ROOTS", [])
+	monkeypatch.delenv("CODENAV_MCP_EXTRA_SOURCE_ROOTS", raising=False)
 	monkeypatch.setattr(codenav_server, "_client", None)
 	monkeypatch.setattr(codenav_server, "resolve_ty_command", lambda _root: [str(_TY), "server"])
 	return tmp_path
@@ -84,23 +85,33 @@ def test_given_files_changed_on_disk_when_callers_then_answers_track_the_disk(pr
 	assert "uses" not in deleted
 
 
-def test_given_extra_root_when_implementations_then_test_double_listed_separately(project, loop, monkeypatch):
+@pytest.mark.parametrize("root", ["test", "tests"])
+def test_given_default_test_root_when_implementations_then_test_double_listed_separately(project, loop, root):
 	# given
-	monkeypatch.setattr(codenav_server, "EXTRA_SOURCE_ROOTS", [project / "tests"])
+	if root == "test":
+		(project / "tests").rename(project / root)
+	(project / root / "__init__.py").unlink()
 	# when
 	text = loop.run_until_complete(read_tools.lookup(name="StorePort", show=["implementations"]))
 	# then
-	head, _, extra = text.partition("tests/fakes.py:1")
+	head, heading, extra = text.partition("Extra source roots (1)")
+	assert heading and f"{root}/fakes.py:1" in extra
 	assert "DiskStore" in head and "FakeStore" not in head
 	assert "FakeStore" in extra and "DiskStore" not in extra
+	assert not codenav_server.EXTRA_SOURCE_ROOTS
 
 
-def test_given_no_extra_root_when_implementations_then_test_double_not_scanned(project, loop):
+@pytest.mark.parametrize("setting", ["none", ""])
+def test_given_extra_roots_disabled_when_implementations_then_test_double_not_scanned(
+	project, loop, monkeypatch, setting
+):
+	monkeypatch.setenv("CODENAV_MCP_EXTRA_SOURCE_ROOTS", setting)
 	# when
 	text = loop.run_until_complete(read_tools.lookup(name="StorePort", show=["implementations"]))
 	# then
 	assert "DiskStore" in text
 	assert "FakeStore" not in text
+	assert "Also scanned" not in text
 
 
 def test_given_config_edited_when_next_call_then_ty_restarted_and_result_says_so(project, loop):
