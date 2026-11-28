@@ -41,6 +41,32 @@ Or add it to a project `.mcp.json` (Claude Code) or `.cursor/mcp.json` (Cursor):
 In Cursor, also set `"CODENAV_MCP_WORKSPACE": "${workspaceFolder}"`, because
 Cursor may start MCP servers with your home directory as the working directory.
 
+## OpenCode
+
+Set `"codemode": false` on the Codenav entry in `opencode.json` or `opencode.jsonc`.
+This exposes Codenav's tools directly to the agent. CodeNav's manifest requests
+this setting when `mcps` registers it. If your installer version leaves the field
+out, add it to the entry it created and keep the existing command and environment
+settings. Reload the OpenCode session after saving.
+
+For a direct install, merge this into your project configuration.
+
+```json
+{
+	"mcp": {
+		"servers": {
+			"codenav": {
+				"type": "local",
+				"command": ["uvx", "codenav-mcp"],
+				"codemode": false
+			}
+		}
+	}
+}
+```
+
+See [OpenCode's MCP configuration](https://opencode.ai/docs/mcp-servers/#permissions).
+
 ## Which `ty` runs
 
 1. The project's own `.venv/bin/ty` (`.venv\Scripts\ty.exe` on Windows), so

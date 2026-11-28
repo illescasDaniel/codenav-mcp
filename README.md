@@ -33,14 +33,18 @@ Install [uv](https://docs.astral.sh/uv/) and [Node.js 22+](https://nodejs.org/),
 npx @danielxir96/mcps add illescasDaniel/codenav-mcp
 ```
 
+When installing for OpenCode, CodeNav requests `codemode: false` so its tools appear directly to the agent.
+See the [OpenCode setup](docs/configuration.md#opencode) for older installers and manual registration.
+
 <details>
 <summary>Register directly with an individual MCP host</summary>
 
 ```bash
 claude mcp add codenav -- uvx codenav-mcp
 codex mcp add codenav -- uvx codenav-mcp
-opencode mcp add codenav -- uvx codenav-mcp
 ```
+
+For OpenCode, use the [configuration entry with `codemode: false`](docs/configuration.md#opencode).
 
 </details>
 
@@ -48,7 +52,9 @@ Some models need a prompt to pick up new tools (see [What has been measured](#wh
 the project's `AGENTS.md` or `CLAUDE.md`.
 
 ```text
-For Python code navigation and refactors, prefer the codenav MCP tools over grep, sed, and hand edits. If codenav is listed as a deferred tool, load or invoke it before falling back to other methods. If it still can’t be made available, explain that before proceeding.
+For Python symbol navigation and refactors, start with Codenav’s `lookup` or `search`.
+If those tools aren’t visible, use your harness’s MCP tool catalog or discovery mechanism to find and invoke them before falling back to grep, sed, or hand edits.
+If Codenav is unavailable, briefly explain why and proceed.
 ```
 
 ## Requirements and limits

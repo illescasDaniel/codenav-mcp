@@ -4,6 +4,13 @@
   "title": "CodeNav",
   "description": "Python code navigation and type-checked refactoring through MCP, powered by ty.",
   "version": "2.0.0",
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "io.github.illescasDaniel/mcps": {
+        "opencode": { "codemode": false }
+      }
+    }
+  },
   "websiteUrl": "https://pypi.org/project/codenav-mcp/",
   "repository": {
     "url": "https://github.com/illescasDaniel/codenav-mcp",

@@ -154,7 +154,8 @@ class _CodenavMCPServer(MCPServer):
 mcp = _CodenavMCPServer(
 	name="codenav",
 	instructions=(
-		'Python code navigation and refactors, type-resolved by ty. Name-first: lookup(name="Class.method") gives '
+		"Python code navigation and refactors, type-resolved by ty. If codenav tools are deferred, use your host's "
+		'tool discovery to load or invoke them. Name-first: lookup(name="Class.method") gives '
 		"signature, location, typed references, callers and Protocol implementations; add file_path to narrow a "
 		"name (or give file_path+line+column, 1-based UTF-16). Use grep for exact-name text and Read for known "
 		"source. search finds symbols or text mentions, outline maps a file, check reports ty diagnostics (a "

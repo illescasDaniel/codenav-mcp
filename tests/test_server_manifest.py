@@ -34,6 +34,11 @@ def test_given_manifest_then_package_entry_matches_the_published_package():
 	assert package["transport"]["type"] == "stdio"
 
 
+def test_given_manifest_then_mcps_installs_direct_opencode_tools():
+	publisher = _server_json()["_meta"]["io.modelcontextprotocol.registry/publisher-provided"]
+	assert publisher["io.github.illescasDaniel/mcps"]["opencode"]["codemode"] is False
+
+
 def test_given_documented_settings_then_each_is_declared_in_the_manifest():
 	manifest = _server_json()
 	declared = {env["name"] for env in manifest["packages"][0]["environmentVariables"]}
