@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from codenav_mcp.mentions import Mention, find_mentions, format_mentions
 
 
@@ -97,6 +99,12 @@ def test_given_skipped_files_first_when_finding_mentions_then_later_files_are_st
 	(ws / "c_skip.md").write_text("greet\n", encoding="utf-8")
 	(ws / "c_unreadable.md").write_text("greet\n", encoding="utf-8")
 	(ws / "c_unreadable.md").chmod(0)
+	try:
+		(ws / "c_unreadable.md").read_text()
+	except OSError:
+		pass
+	else:
+		pytest.skip("chmod(0) does not make files unreadable on this platform")
 	(ws / "d.sh").write_text("python3 <<'PY'\nz.greet()\nPY\n", encoding="utf-8")
 	(ws / "e.md").write_text("then greet\n", encoding="utf-8")
 

@@ -873,6 +873,12 @@ def _run_ty(workspace: Path, command: list[str], *args: str) -> subprocess.Compl
 		raise ToolInputError(f"ty could not run: {exc}") from exc
 
 
+def _posix_line(line: str) -> str:
+	"""ty prints paths with the OS separators; the tools' replies always use forward slashes."""
+	match = re.match(r"^(.+?):(\d+:\d+:)", line)
+	return line if match is None else line.replace(match.group(1), match.group(1).replace("\\", "/"), 1)
+
+
 async def _check_workspace(limit: int, offset: int) -> str:
 	srv = tool_base.server()
 	workspace = srv.WORKSPACE_ROOT
@@ -892,7 +898,9 @@ async def _check_workspace(limit: int, offset: int) -> str:
 	if version.returncode == 0:
 		metadata.append(f"ty version: {version.stdout.strip().removeprefix('ty ')}")
 	lines = srv._scrub_text(result.stdout).splitlines()
-	diagnostics = [line for line in lines if re.match(r"^(?:.+?: )?(?:error|fatal|warning|info)(?:\[|:)", line)]
+	diagnostics = [
+		_posix_line(line) for line in lines if re.match(r"^(?:.+?: )?(?:error|fatal|warning|info)(?:\[|:)", line)
+	]
 	error_count = sum(bool(re.match(r"^(?:.+?: )?(?:error|fatal)(?:\[|:)", line)) for line in diagnostics)
 	reply = Reply(
 		f"Workspace type check: {error_count} error(s), {len(diagnostics)} diagnostic(s) - {NOT_CHECKED}",

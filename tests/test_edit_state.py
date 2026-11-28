@@ -240,6 +240,7 @@ def test_given_two_workspaces_then_their_state_is_separate(tmp_path):
 	assert [s.id for s in _stores(root)[0].pending()] == [plan_id]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not support POSIX permission bits")
 def test_given_state_files_then_they_are_private_to_the_user(tmp_path):
 	root, path = _project(tmp_path)
 	plans, _ = _stores(root)

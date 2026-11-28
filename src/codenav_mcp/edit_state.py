@@ -138,22 +138,33 @@ def _site_in(raw: dict[str, Any]) -> OptionalSite:
 
 @contextlib.contextmanager
 def _locked(directory: Path) -> Iterator[None]:
-	"""An exclusive lock on the workspace's state directory (best effort: without `fcntl` or a writable directory
-	the caller simply goes ahead)."""
+	"""An exclusive lock on the workspace's state directory (best effort: without `fcntl`/`msvcrt` or a writable
+	directory the caller simply goes ahead)."""
 	try:
-		import fcntl
-
 		directory.mkdir(parents=True, exist_ok=True, mode=0o700)
 		handle = (directory / "lock").open("a")
+		if os.name == "nt":  # msvcrt locks a byte range; flock locks the whole file
+			import msvcrt
+
+			def lock(unlock: bool = False) -> None:
+				handle.seek(0)
+				msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK if unlock else msvcrt.LK_LOCK, 1)
+		else:
+			import fcntl
+
+			def lock(unlock: bool = False) -> None:
+				fcntl.flock(handle, fcntl.LOCK_UN if unlock else fcntl.LOCK_EX)
 	except (ImportError, OSError):
 		yield
 		return
 	with handle:
-		fcntl.flock(handle, fcntl.LOCK_EX)
+		with contextlib.suppress(OSError):
+			lock()
 		try:
 			yield
 		finally:
-			fcntl.flock(handle, fcntl.LOCK_UN)
+			with contextlib.suppress(OSError):
+				lock(unlock=True)
 
 
 def _read_json(path: Path) -> dict[str, Any]:

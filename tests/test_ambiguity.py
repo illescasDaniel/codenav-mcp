@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +13,10 @@ from mcp_nav_shared.lsp_client import LspClient
 
 from codenav_mcp import read_tools
 from codenav_mcp.ambiguity import ambiguity_listing, parse_candidates
+
+
+# An absolute workspace root on every platform: `/ws` alone is relative on Windows, so `as_uri()` refuses it.
+_WS = Path(tempfile.gettempdir()).resolve() / "ws"
 
 
 class _NoSymbols:
@@ -24,12 +29,12 @@ def _symbol(name: str, rel: str, line: int, kind: int = 12) -> dict[str, Any]:
 	return {
 		"name": name,
 		"kind": kind,
-		"location": {"uri": Path("/ws", rel).as_uri(), "range": {"start": start, "end": start}},
+		"location": {"uri": (_WS / rel).as_uri(), "range": {"start": start, "end": start}},
 	}
 
 
 def _shared_refusal(query: str, candidates: list[dict[str, Any]]) -> Exception:
-	return asyncio.run(resolve._ambiguous(cast(LspClient, _NoSymbols()), query, candidates, Path("/ws")))  # type: ignore[arg-type]
+	return asyncio.run(resolve._ambiguous(cast(LspClient, _NoSymbols()), query, candidates, _WS))  # type: ignore[arg-type]
 
 
 def test_given_the_shared_ambiguity_refusal_then_its_candidates_parse():
