@@ -51,6 +51,27 @@ repository. Read the numbers as evidence of direction, not as effect sizes.
 Every run folder has the prompt, the agent's answer (`answer.txt`), `changes.patch`, `diffstat.txt`, `ty.txt`, the
 test summary and `metadata.txt` with the codenav build used.
 
+## Frozen-build Haiku confirmation (27 November 2026)
+
+A separate 12-run campaign held CodeNav at `f8b6c8936b05b11d1736cdae184e1a4970677506`, with a clean source tree,
+Haiku 5.5, no tool hint, two repeats per arm, and the same fixture and task texts. Tasks were selected from the
+pilots before this confirmation. This is a small, targeted replication, not a general benchmark or a held-out test.
+
+| task | codenav | plain |
+|---|---|---|
+| 8, field rename including four ancillary files | complete 2/2 | complete 1/2; one run missed all four files |
+| 11, four unused functions | 4/4 both runs, no false positives | 2/4 then 1/4, no false positives |
+| 12, narrow rename control | exact 2/2 | exact 2/2 |
+
+Haiku called CodeNav in all six enabled runs. All 12 runs passed ty and pytest (1170 passed, 7 skipped), including
+the incomplete rename. There was one recovered CodeNav argument error (`lookup` section `definition`) and two
+plain-arm Edit errors. CodeNav used fewer input tokens on tasks 8 and 12, more on task 11. Counts include cached
+input and do not establish billing savings or speed. Do not pool this campaign with historical builds below.
+
+[Full grading, exact token counts and limitations](data/agent-ab/confirmation-haiku/results.md),
+[saved metrics](data/agent-ab/confirmation-haiku/summary.md). The exported per-run answers, patches and check
+outputs are beside those tables. Private raw streams are preserved outside the repository in the papers folder.
+
 ## Finding A1: whether an agent uses codenav depends on the model, and one line of project hint fixes it
 
 | runner / arm | runs that called codenav |

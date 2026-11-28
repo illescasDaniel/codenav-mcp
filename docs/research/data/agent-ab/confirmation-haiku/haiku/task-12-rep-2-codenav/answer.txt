@@ -1,0 +1,17 @@
+I renamed `_Segment.matches` to `matches_name` and updated its four call sites. The other `matches` methods are unchanged.
+
+**Changes**
+- `src/srxy/domain/ignore_rules.py:59`: the `_Segment` method definition is now `matches_name`.
+- `src/srxy/domain/ignore_rules.py:148`: the call in `matches_normalized` now uses `matches_name`.
+- `src/srxy/domain/ignore_rules.py:173`: the call in `walk` now uses `matches_name`.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: the call in the fast-path test now uses `matches_name`.
+
+The other `matches` methods are untouched: the rule-level method at `src/srxy/domain/ignore_rules.py:138` and the one at `:307`, plus their callers at `:281`, `:286`, `:289` and `tests/unit/test_ignore_rules_fast_paths.py:66`.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped. The skips are platform-specific (Windows and macOS only).
+
+**Not changed**
+- `specs/ignore-rules/PLAN.md:59` still shows the old `def matches(self, rel_parts, is_dir)` signature. That is a different method, so the rename does not apply to it, and I left the spec alone.
+- The rename was done with codenav, so it follows typed references only. I did not find any string or non-Python references to the `_Segment` method that need updating.

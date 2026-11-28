@@ -1,0 +1,6 @@
+runner=haiku arm=plain task=11 rep=1
+fixture=953d27c8fbef9136944398f234997abf72ddee93 diffbase=953d27c8fbef9136944398f234997abf72ddee93
+codenav=f8b6c89 Research harness: srxy-ab HEAD is now the config commit on top of 953d27c dirty=0
+model=claude-haiku-5-5 2.1.332 (Claude Code)
+started=2026-11-27T15:04:35+01:00
+agent_exit=0 finished=2026-11-27T15:05:00+01:00

@@ -1,0 +1,9 @@
+# Build state before the campaign (recorded 2026-11-27T15:00:05+01:00)
+codenav_mcp_sha=f8b6c8936b05b11d1736cdae184e1a4970677506
+codenav_mcp_branch=v2
+codenav_mcp_status_porcelain_lines=0
+fixture_path=srxy-ab
+fixture_base=953d27c8fbef9136944398f234997abf72ddee93
+fixture_head=e0e75f82f963b33b8acf8e541493286ebdab190d
+claude=2.1.332 (Claude Code)
+uv=uv 0.13.9 (6b2d39dcc 2026-11-17 x86_64-unknown-linux-gnu)

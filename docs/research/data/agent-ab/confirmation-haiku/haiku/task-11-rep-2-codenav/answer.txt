@@ -1,0 +1,14 @@
+Four module-level functions in `src/srxy/adapters/inbound/cli/cli.py` have no callers anywhere in the repo (src, tests, scripts, examples):
+
+1. **`normalize_max_file_size`** (`cli.py:81`): the only occurrence of the name in `cli.py` is its `def`. The live caller is `src/srxy/application/search_runner.py:115`, which uses its own same-named function at `search_runner.py:73`, not this one.
+2. **`render_results`** (`cli.py:598`): the name appears nowhere except its `def`. It is also not in `__all__`.
+3. **`sync_options_to_args`** (`cli.py:646`): the only other reference is the forwarding call inside its own body (`cli.py:663`), which goes to `application/search_options.py`. No other module imports or calls the `cli.py` version.
+4. **`execute_search`** (`cli.py:749`): the only other reference is the forwarding import and call inside its own body (`cli.py:757`). The test and script references to `"srxy.application.search_runner.execute_search"` patch the application module, not this one.
+
+Two other candidates from the static analysis are excluded because they are used. `render_progress` (`cli.py:249`) and `resolve_search_modes` (`cli.py:586`) are called only from `tests/cli/test_cli.py` (lines 344, 357, 1299). Tests count as use under your definition, so they stay out of the list.
+
+Evidence: I ran `unused` on the file, then a word-boundary `rg` across the whole repo (hidden files included, `.git` excluded) for every module-level function name. That search covers string references such as `monkeypatch.setattr("…cli._terminal_size", …)`. The `unused` tool reported six candidates, and its `execute_search` "only in strings" label refers to the application module's name, not this function.
+
+Caveat: this is static text search. A name built dynamically, such as through `getattr` with a computed string, would not show up.
+
+No files were changed, and I did not run `ty` or pytest because this was a read-only task.

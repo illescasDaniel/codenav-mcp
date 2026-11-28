@@ -20,6 +20,36 @@ when possible. Positions use a 1-based line and a 1-based UTF-16 column. A tab
 counts as one character. Paths are relative to the selected workspace unless an
 absolute path inside it is needed.
 
+## Agent quick reference
+
+| I want to… | Tool |
+|---|---|
+| Find a definition, its signature, references, callers or implementations | `lookup(name="FileSearchPort.execute")` |
+| Discover symbols or find names in strings, comments and other text | `search(query="FileSearchPort", scope="mentions")` |
+| Map the definitions in a large file | `outline(file_path="src/app.py")` |
+| Check a file, workspace or change against git | `check(since="HEAD")` |
+| Find dead-code candidates | `unused(path="src")` |
+| Inspect what an API change touches | `impact(name="FileSearchPort.execute", change="signature")` |
+| Rename a symbol and its linked usages | `rename(name="FileSearchPort.execute", new_name="run", apply=false)` |
+| Change parameters and update callers | `change_signature(name="parse", add=[{"name":"strict","default":"False"}])` |
+| Move a module or definition and rewrite imports | `move(name="parse", to_file="src/parsing.py", apply=false)` |
+| Edit a definition or group several changes into one plan | `edit_symbol(name="old_parser", action="delete", apply=false)` |
+| Use a ty quick fix, such as adding a missing import | `fix(file_path="src/app.py", apply=false)` |
+| List, show, apply or undo stored changes | `edits(action="list")` |
+
+Start with the name and add `file_path` when several symbols share it. For callers
+and structural implementations of a Protocol method, expand the relevant
+sections.
+
+```text
+lookup(name="FileSearchPort.execute", show=["callers", "implementations"], limit=10)
+```
+
+The reply groups Protocol calls and calls to concrete implementations. For
+cross-file changes, start with `apply=false`, inspect the preview, then apply
+its ID with `edits(action="apply", id="…")`. Preview and undo IDs persist across
+server restarts.
+
 ## Navigation and analysis
 
 | Tool | Parameters and result |

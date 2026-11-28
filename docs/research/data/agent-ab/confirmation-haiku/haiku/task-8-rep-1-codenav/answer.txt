@@ -1,0 +1,16 @@
+`FileSearchResult.lines` is now `line_matches` across the code, tests, examples, scripts and docs. The worker and CLI JSON `"lines"` keys are unchanged. `ty check` passes and `tests/unit tests/cli` passes (1170 passed, 7 skipped). Nothing was committed.
+
+**The rename**
+- The field is at `src/srxy/domain/models.py:71`. Every read and every `FileSearchResult(...)` keyword argument was updated, about 200 edits in 36 files.
+- Wire format left alone:
+  - `src/srxy/adapters/inbound/cli/cli.py:51` still emits the `"lines"` key.
+  - `src/srxy/adapters/outbound/worker/search_worker.py:105` now passes `line_matches=` to the constructor but still reads `data.get("lines", [])`.
+  - `tests/unit/test_search_session.py:136` keeps its `"lines"` wire payload.
+- The unrelated `size.lines` in `cli.py:95` (terminal size) was not touched.
+- I also applied the rename to the non-Python references the tool flagged: `examples/playground.py`, the two `scripts/docs/export_*_screenshot.sh` heredocs, and `docs/python-api.md`.
+
+**One extra step**
+- The first test run failed in `tests/unit/test_public_api.py`, because `docs/api-reference.md` is generated from the dataclass. I regenerated it with `scripts/docs/export_public_api.py`. The diff changes only the three `lines` mentions to `line_matches`.
+
+**Uncertainty**
+- `scripts/bench_file_search.py` mentions `lines` but has no `FileSearchResult` access, so I left it alone. I did not run the scripts or examples.

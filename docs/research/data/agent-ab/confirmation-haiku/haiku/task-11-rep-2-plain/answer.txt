@@ -1,0 +1,14 @@
+**One function in `src/srxy/adapters/inbound/cli/cli.py` is unused anywhere in the repository: `render_results` at line 598.**
+
+- **Definition:** `src/srxy/adapters/inbound/cli/cli.py:598`
+- **Evidence:** A whole-repo search for `render_results` (excluding `.git`) finds only the definition. It is not called in `src`, `tests`, `scripts`, or `examples`. It is also absent from the module's `__all__` (lines 938–960), and no other module imports it or accesses it by string name.
+
+I checked the other module-level functions in the file. They are all referenced somewhere:
+
+- `resolve_show_progress` (line 592) is not used outside `cli.py`, but it is called at line 790 inside `run_plain`, so it is not dead code.
+- The `_args_want_*` helpers (lines 630–642) are called from `run_preflight` (lines 715–734).
+- `_configure_stdio_utf8` (line 850) is called from `main` (line 885), and `_validate_ignore_args` (line 861) is called from `main` (line 897).
+- `_terminal_size` (line 87) is called at line 182.
+- The remaining functions are called from `src`, `tests`, or `scripts`, or both. `render_progress` is used only by tests, but it is in `__all__`.
+
+I made no changes to the working tree. I did not run the type check or the test suite, since this was a read-only task. The search was text-based, so a dynamic lookup that built the name at runtime would not show up. I did not find any such lookup.

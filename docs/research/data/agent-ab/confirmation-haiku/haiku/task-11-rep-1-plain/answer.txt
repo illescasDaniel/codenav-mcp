@@ -1,0 +1,15 @@
+Two module-level functions in `src/srxy/adapters/inbound/cli/cli.py` are unused: `render_results` and `normalize_max_file_size`. I changed nothing.
+
+**1. `render_results`, `cli.py:598`**
+- The only occurrence of the name in the repo is its definition at line 598.
+- A search with hidden and ignored files included (`--no-ignore --hidden`) found no other reference.
+- It is not in `__all__` (lines 938+), and no test, script, or example imports it.
+
+**2. `normalize_max_file_size`, `cli.py:81`**
+- Inside `cli.py` the name appears only at its definition.
+- `src/srxy/application/search_runner.py:73` defines a separate function with the same name, and that one is used at `search_runner.py:115`. It is a copy, not an import, so it does not count as a use of the `cli.py` version.
+- Nothing else in the repo references it.
+
+**Checked and not unused:** every other module-level function in `cli.py` has at least one reference. The four `_args_want_*` helpers are used at lines 715–734, and `resolve_show_progress` is used at line 790, so none of those are unused. The remaining ones are used in `cli.py`, by tests, by `src/srxy/__main__.py`, or by scripts.
+
+**Checks run:** none. The task was read-only, so I did not run `ty check` or pytest.

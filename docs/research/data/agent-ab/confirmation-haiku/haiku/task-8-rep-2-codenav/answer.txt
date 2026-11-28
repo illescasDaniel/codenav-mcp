@@ -1,0 +1,23 @@
+I renamed `FileSearchResult.lines` to `line_matches` across the source, tests, examples, scripts, and docs. `ty check` and `pytest tests/unit tests/cli` both pass (1170 passed, 7 skipped).
+
+**What changed**
+- **Field definition:** `src/srxy/domain/models.py:71`.
+- **Source call sites:** the rename also updated the attribute reads and constructor keywords in the CLI, GUI, TUI, search formatting, search use case and worker code. Examples: `src/srxy/adapters/inbound/cli/cli.py:65`, `src/srxy/application/search_formatting.py:129`, `src/srxy/application/use_cases/search_files.py:667`.
+- **Tests:** about 30 test files were updated, mostly `tests/unit/test_file_search.py` and `tests/gui/test_gui_controller.py`.
+- **Beyond code and tests:** I also updated `examples/playground.py:123`, `docs/python-api.md:32`, and the keyword arguments in `scripts/docs/export_gui_screenshot.sh` and `scripts/docs/export_tui_screenshot.sh`. These would have broken if left as `lines`. This goes slightly past "code and tests", so say if you'd rather revert them.
+- **Generated doc:** `docs/api-reference.md` was regenerated with `scripts/docs/export_public_api.py`. The `test_public_api.py` check requires it to match the generator output.
+
+**Wire format preserved**
+- The JSON key `"lines"` is unchanged in the CLI output (`cli.py:51`) and the worker protocol (`search_worker.py:87`).
+- The worker deserializer still reads `data.get("lines", [])` (`search_worker.py:105`), mapping it into the new `line_matches=` argument.
+- The tests that assert the JSON key (`tests/cli/test_cli.py:286-289`, `:964`) still use `"lines"`.
+
+**Checks**
+- `uv run --no-sync ty check`: passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: first run had 1 failure, `test_public_api.py`, because the committed API doc was stale. After regenerating the doc, the rerun passed: 1170 passed, 7 skipped.
+
+**Not checked**
+- The `tests/gui`, `tests/tui` and `tests/integration` suites were outside the required command, so I did not run them. The rename touched files in those directories too.
+- The rename tool's notes said some keyword arguments are typed `Never` by ty, so ty could not verify them. I applied those as optional sites by name match and did not check them with ty. The screenshot scripts are not run by any test.
+
+I did not commit.

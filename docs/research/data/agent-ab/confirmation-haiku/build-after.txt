@@ -1,0 +1,4 @@
+# Build state after the campaign (recorded 2026-11-27T15:11:20+01:00)
+codenav_mcp_sha=f8b6c8936b05b11d1736cdae184e1a4970677506
+codenav_mcp_branch=v2
+codenav_mcp_status_porcelain_lines=0

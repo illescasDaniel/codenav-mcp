@@ -16,43 +16,33 @@ An agent asks by name, and ty follows the types to answer. For an edit, codenav 
 names it found in strings, docs and shell heredocs as optional sites, and writes only if ty reports no new type
 errors. Every change has a preview ID to apply and an undo ID.
 
-| I want to… | Tool |
-|---|---|
-| Find a definition, its signature, references, callers or implementations | `lookup(name="FileSearchPort.execute")` |
-| Discover symbols or find names in strings, comments and other text | `search(query="FileSearchPort", scope="mentions")` |
-| Map the definitions in a large file | `outline(file_path="src/app.py")` |
-| Check a file, workspace or change against git | `check(since="HEAD")` |
-| Find dead-code candidates | `unused(path="src")` |
-| Inspect what an API change touches | `impact(name="FileSearchPort.execute", change="signature")` |
-| Rename a symbol and its linked usages | `rename(name="FileSearchPort.execute", new_name="run", apply=false)` |
-| Change parameters and update callers | `change_signature(name="parse", add=[{"name":"strict","default":"False"}])` |
-| Move a module or definition and rewrite imports | `move(name="parse", to_file="src/parsing.py", apply=false)` |
-| Edit a definition or group several changes into one plan | `edit_symbol(name="old_parser", action="delete", apply=false)` |
-| Use a ty quick fix, such as adding a missing import | `fix(file_path="src/app.py", apply=false)` |
-| List, show, apply or undo stored changes | `edits(action="list")` |
+## What it can do
 
-Start with the name and add `file_path` when several symbols share it. For callers
-and structural implementations of a Protocol method, expand the relevant
-sections.
+- **Follow typed code:** find callers and Protocol implementations across imports and dependency injection.
+- **Preview refactors:** rename symbols, change signatures and move definitions with their linked usages.
+- **Catch overlooked sites:** surface mentions in strings, docs and shell heredocs for review.
+- **Review and undo:** inspect type-checked previews before applying them, then undo stored changes.
 
-```text
-lookup(name="FileSearchPort.execute", show=["callers", "implementations"], limit=10)
-```
-
-The reply groups Protocol calls and calls to concrete implementations. For
-cross-file changes, start with `apply=false`, inspect the preview, then apply
-its ID with `edits(action="apply", id="…")`. Preview and undo IDs persist across
-server restarts.
+For agent workflows, exact calls and parameters, see the [agent tool guide](docs/tools.md#agent-quick-reference).
 
 ## Quick start
 
-Install [uv](https://docs.astral.sh/uv/) and register the server with your MCP host.
+Install [uv](https://docs.astral.sh/uv/) and [Node.js 22+](https://nodejs.org/), then run this from your project folder. [mcps](https://github.com/illescasDaniel/mcps) prompts you to choose agents and registers CodeNav locally:
+
+```bash
+npx @danielxir96/mcps add illescasDaniel/codenav-mcp
+```
+
+<details>
+<summary>Register directly with an individual MCP host</summary>
 
 ```bash
 claude mcp add codenav -- uvx codenav-mcp
 codex mcp add codenav -- uvx codenav-mcp
 opencode mcp add codenav -- uvx codenav-mcp
 ```
+
+</details>
 
 Some models don't pick up new tools on their own (see [What has been measured](#what-has-been-measured)). One line in
 the project's `AGENTS.md` or `CLAUDE.md` is enough:

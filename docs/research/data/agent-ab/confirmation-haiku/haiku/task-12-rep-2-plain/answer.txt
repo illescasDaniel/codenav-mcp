@@ -1,0 +1,14 @@
+I renamed `_Segment.matches` to `matches_name` in `src/srxy/domain/ignore_rules.py`, and updated its call sites. `ty check` passes, and `pytest tests/unit tests/cli` gives 1170 passed, 7 skipped, 0 failed.
+
+Changes:
+- `src/srxy/domain/ignore_rules.py:59`: the `_Segment` method definition is now `matches_name`.
+- `src/srxy/domain/ignore_rules.py:148`: `IgnorePattern.matches_normalized` calls `self.segments[0].matches_name(...)`.
+- `src/srxy/domain/ignore_rules.py:173`: `_match_anchored` calls `segment.matches_name(...)`.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: the test calls `segment.matches_name(name)` on a compiled `_Segment`.
+
+Unchanged, as requested:
+- `IgnorePattern.matches` (`ignore_rules.py:138`), and its call at `test_ignore_rules_fast_paths.py:66`.
+- `_AnchoredRule.matches` (`ignore_rules.py:307`), and its calls at lines 281, 286 and 289.
+- `_Segment.matches_generic`, which was already a different name.
+
+A repo-wide search showed no other references to the `_Segment` method. I did not run the full quality gate and did not commit.

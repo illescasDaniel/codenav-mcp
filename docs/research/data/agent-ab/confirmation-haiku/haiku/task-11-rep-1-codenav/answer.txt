@@ -1,0 +1,19 @@
+Four module-level functions in `src/srxy/adapters/inbound/cli/cli.py` have no callers anywhere in the repo. I made no changes.
+
+**Unused (no references outside their own definition):**
+
+- `normalize_max_file_size` at `cli.py:81`. The only matches are `src/srxy/application/search_runner.py:73` (its own definition) and `:115`, which call a separate function of the same name. Nothing calls the `cli.py` copy, and it is not in `__all__`.
+- `render_results` at `cli.py:598-609`. Grep finds no match for the name anywhere in the repo except its definition. It is not in `__all__`.
+- `sync_options_to_args` at `cli.py:646-680`. The only reference is the import at `cli.py:663`, which sits inside this function's own body and pulls in `srxy.application.search_options.sync_options_to_args`. Nothing calls the `cli.py` function.
+- `execute_search` at `cli.py:749-766`. The only reference is the import at `cli.py:757`, which sits inside its own body and pulls in `srxy.application.search_runner.execute_search`. The other matches for the name patch or call `search_runner.execute_search`, not the `cli.py` one. `scripts/docs/export_tui_screenshot.sh:131` is one of those patches, and it targets `search_runner`.
+
+**Used, so not dead:**
+
+- `render_progress` (`cli.py:249`) and `resolve_search_modes` (`cli.py:586`) are used only by `tests/cli/test_cli.py` (lines 1299 and 344/357). That counts as use under your scope, so I left them out.
+- `resolve_file_query` (`cli.py:743`) is called at `cli.py:783`.
+- `resolve_show_progress` (`cli.py:592`) is called at `cli.py:790`.
+- `apply_args_to_env`, the `_args_want_*` helpers, `run_preflight`, `run_plain`, `_configure_stdio_utf8` and `_validate_ignore_args` are all called from `cli.py`.
+
+**Method:** I ran `codenav unused` on the file, then grepped every module-level function name across the whole repo (excluding `.git` and `.venv`) and read each hit. The codenav tool flagged the same first three functions plus `execute_search`, but it only counts production uses, so it does not match your scope exactly. The grep-based check is what decided the list above.
+
+**Not run:** `ty check` and pytest. This was a read-only query, so I did not run the coding checks.

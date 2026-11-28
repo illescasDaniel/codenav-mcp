@@ -38,6 +38,11 @@ fuzzer. They are pilots: read them as direction, not effect sizes.
    those sites, once offered, were skipped until labelled; and optional sites in another class's docstring were a
    false lead. [A5](agent-ab.md#finding-a5-watching-small-models-found-three-codenav-defects-all-fixed)
 
+The separate [frozen-build Haiku confirmation](agent-ab.md#frozen-build-haiku-confirmation-27-november-2026)
+adds 12 runs on `f8b6c89`. CodeNav completed both large renames and found all four unused functions twice; plain
+completed one rename and found two then one unused functions. Both arms passed the narrow rename control.
+Two repeats per task support these observed examples, not a general ranking.
+
 ## Correctness of refactors ([DOC-006](correctness.md))
 
 6. **187 random refactors on srxy, click and tomlkit broke nothing silently.** The 3 failures the fuzzer reported

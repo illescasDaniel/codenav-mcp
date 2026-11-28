@@ -1,0 +1,24 @@
+I renamed `FileSearchResult.lines` to `line_matches` across the source, tests, examples, scripts, and API docs. The JSON `"lines"` keys are unchanged.
+
+**Checks**
+- `uv run --no-sync ty check`: All checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips, e.g. macOS/Windows-only).
+- A final search finds no remaining `.lines` attribute or `lines=` keyword uses outside the `.agents/` and `.cursor/` copies of `spec_check.py`, which I left alone because they are unrelated.
+
+**Wire format kept as-is**
+- `src/srxy/adapters/inbound/cli/cli.py:51`: the `"lines"` key in the CLI JSON output.
+- `src/srxy/adapters/outbound/worker/search_worker.py:87`: the `"lines"` key written by `file_result_to_dict`.
+- `src/srxy/adapters/outbound/worker/search_worker.py:105`: the `data.get("lines", [])` read. Only the constructor kwarg changed to `line_matches=`.
+- Test payload checks in `tests/cli/test_cli.py` (`payload[...]["lines"]`) and the `"lines": []` dict in `tests/unit/test_search_session.py:136`.
+- `size.lines` in `cli.py:95` (terminal size) was excluded from the rename.
+
+**Main changes**
+- `src/srxy/domain/models.py:71`: the dataclass field is now `line_matches: list[LineMatch]`.
+- `src/srxy/application/use_cases/search_files.py:666`: constructor kwarg.
+- Attribute reads in `cli.py:64`, `search_worker.py:95`, `search_formatting.py` (lines 128, 147, 240, 259–260), `gui/controller.py` (3164–3252), `gui/models.py:339`, and `tui/app.py:507`.
+- `docs/api-reference.md:82` and `:90`, and `docs/python-api.md:32`, `examples/playground.py:123`, and the two `scripts/docs/export_*_screenshot.sh` heredocs. I changed the docs and scripts beyond the code and tests because they reference the field directly and would break.
+- Tests: all `FileSearchResult(... lines=...)` constructions and `.lines` reads across `tests/`.
+
+**Uncertainty**
+- The rename is mechanical (regex over `.lines` and `lines=`), so I relied on `ty check` and the test run to catch any non-`FileSearchResult` object that matched. Both passed. I did not run the GUI or integration test suites, which the instructions did not require.
+- I did not commit.

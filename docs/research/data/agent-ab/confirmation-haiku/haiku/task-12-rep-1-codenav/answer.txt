@@ -1,0 +1,19 @@
+I renamed `_Segment.matches` to `matches_name`, and the type check and tests pass.
+
+**Changes**
+- `src/srxy/domain/ignore_rules.py:59`: the method definition is now `matches_name`.
+- `src/srxy/domain/ignore_rules.py:149`: `matches_normalized` calls `self.segments[0].matches_name(parts[-1])`.
+- `src/srxy/domain/ignore_rules.py:174`: the `walk` helper calls `segment.matches_name(parts[part_index])`.
+- `tests/unit/test_ignore_rules_fast_paths.py:41`: the fast-path test calls `segment.matches_name(name)`.
+
+The other `matches` methods in that file are unchanged. The rename tool reported four attribute accesses that resolve to other symbols and left them alone.
+
+**Not changed**
+- `specs/ignore-rules/PLAN.md:59` still shows the old `def matches(self, rel_parts, is_dir)` signature. That is a different method from the one renamed. I left it alone because you asked only for code and tests.
+- The rename tool also reported bare names, strings, comments, and non-Python files that mention `matches`. It did not change them, and I did not check them individually.
+
+**Checks**
+- `uv run --no-sync ty check`: all checks passed.
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped (platform-specific skips).
+
+I did not commit anything.

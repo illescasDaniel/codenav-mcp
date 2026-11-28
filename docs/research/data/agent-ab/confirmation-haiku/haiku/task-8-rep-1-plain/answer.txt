@@ -1,0 +1,18 @@
+The `FileSearchResult.lines` field is now `line_matches` across `src/` and `tests/`. The JSON `"lines"` keys in the worker protocol and CLI output are unchanged. `ty check` passes, and `tests/unit tests/cli` passes (1170 passed, 7 skipped).
+
+**Changes**
+- **Field:** `src/srxy/domain/models.py:71` now declares `line_matches: list[LineMatch]`.
+- **Reads:** `result.lines` became `result.line_matches` in `cli.py`, `gui/controller.py`, `gui/models.py`, `tui/app.py`, and `search_formatting.py`.
+- **Constructors:** `lines=` became `line_matches=` in `search_files.py:666` and `search_worker.py:105`, and in all test constructor calls across 25 test files.
+- **Wire format kept:** `search_worker.py:87` and `search_worker.py:105` still read and write the `"lines"` key. `cli.py:51` (JSON output) is unchanged, and so is `cli.py:95`, which reads terminal `size.lines`.
+- **Generated docs:** `docs/api-reference.md` lines 79, 82, and 90 now show `line_matches`. I regenerated it with `scripts/docs/export_public_api.py`, because `tests/unit/test_public_api.py` compares the committed file against the generator output. That test failed until the doc was regenerated. The diff is only those three lines.
+
+**Not changed (outside the "code and tests" scope)**
+
+These still use `.lines` or `lines=` and will break if run or read as-is:
+- `docs/python-api.md:32`
+- `examples/playground.py:123`
+- `scripts/docs/export_gui_screenshot.sh` (constructor kwargs at roughly lines 144–186)
+- `scripts/docs/export_tui_screenshot.sh` (constructor kwargs at roughly lines 50–92)
+
+I can update these too if you want. Nothing was committed and no stash was used.

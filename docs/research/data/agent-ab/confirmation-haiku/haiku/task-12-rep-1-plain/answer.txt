@@ -1,0 +1,17 @@
+I renamed `_Segment.matches` to `matches_name` in `src/srxy/domain/ignore_rules.py` and updated its three call sites and the one test that uses it. Both required checks pass.
+
+**Changes**
+- `src/srxy/domain/ignore_rules.py:59`: method definition renamed to `matches_name`.
+- `src/srxy/domain/ignore_rules.py:148`: `IgnorePattern.matches_normalized` now calls `self.segments[0].matches_name(...)`.
+- `src/srxy/domain/ignore_rules.py:173`: `_match_anchored` now calls `segment.matches_name(...)`.
+- `tests/unit/test_ignore_rules_fast_paths.py:40`: the test calls `segment.matches_name(name)`.
+
+**Unchanged on purpose**
+- `IgnorePattern.matches` (`:138`) and `_AnchoredRule.matches` (`:307`) and their call sites at `:281`, `:286`, `:289`, and `tests/unit/test_ignore_rules_fast_paths.py:66`. These belong to other classes.
+- `_Segment.matches_generic` keeps its name. The renamed method still calls it at `:64`.
+
+**Checks**
+- `uv run --no-sync ty check`: "All checks passed!"
+- `uv run --no-sync pytest tests/unit tests/cli -q -n 4 -p no:pytest-qt`: 1170 passed, 7 skipped, 0 failed.
+
+I did not commit or stash. I did not run a formatter or linter, so line 173 is now longer than before. If the project enforces a line-length limit, that line may need wrapping.
